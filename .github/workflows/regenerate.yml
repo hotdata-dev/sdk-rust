@@ -41,6 +41,9 @@ jobs:
             --additional-properties=packageName=hotdata,library=reqwest,supportAsync=true \
             --skip-validate-spec
 
+      - name: Clean up fetched spec
+        run: rm -f openapi.yaml
+
       - name: Create PR
         uses: peter-evans/create-pull-request@v6
         with:
