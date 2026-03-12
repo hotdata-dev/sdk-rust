@@ -38,7 +38,8 @@ jobs:
             -i openapi.yaml \
             -g rust \
             -o . \
-            --additional-properties=packageName=hotdata,library=reqwest,supportAsync=true,userAgent=hotdata-rust/1.0.0 \
+            --additional-properties=packageName=hotdata,library=reqwest,supportAsync=true \
+            --http-user-agent hotdata-rust/0.0.0 \
             --skip-validate-spec
 
       - name: Clean up generated artifacts
