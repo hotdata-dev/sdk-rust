@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -18,6 +18,10 @@ pub struct UpdateDatasetResponse {
     pub id: String,
     #[serde(rename = "label")]
     pub label: String,
+    #[serde(rename = "latest_version")]
+    pub latest_version: i32,
+    #[serde(rename = "pinned_version", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub pinned_version: Option<Option<i32>>,
     #[serde(rename = "table_name")]
     pub table_name: String,
     #[serde(rename = "updated_at")]
@@ -26,10 +30,12 @@ pub struct UpdateDatasetResponse {
 
 impl UpdateDatasetResponse {
     /// Response body for PUT /v1/datasets/{id}
-    pub fn new(id: String, label: String, table_name: String, updated_at: String) -> UpdateDatasetResponse {
+    pub fn new(id: String, label: String, latest_version: i32, table_name: String, updated_at: String) -> UpdateDatasetResponse {
         UpdateDatasetResponse {
             id,
             label,
+            latest_version,
+            pinned_version: None,
             table_name,
             updated_at,
         }
