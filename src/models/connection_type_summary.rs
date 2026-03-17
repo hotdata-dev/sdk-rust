@@ -11,23 +11,18 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// CreateSecretResponse : Response body for POST /secrets
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct CreateSecretResponse {
-    #[serde(rename = "created_at")]
-    pub created_at: String,
-    #[serde(rename = "id")]
-    pub id: String,
+pub struct ConnectionTypeSummary {
+    #[serde(rename = "label")]
+    pub label: String,
     #[serde(rename = "name")]
     pub name: String,
 }
 
-impl CreateSecretResponse {
-    /// Response body for POST /secrets
-    pub fn new(created_at: String, id: String, name: String) -> CreateSecretResponse {
-        CreateSecretResponse {
-            created_at,
-            id,
+impl ConnectionTypeSummary {
+    pub fn new(label: String, name: String) -> ConnectionTypeSummary {
+        ConnectionTypeSummary {
+            label,
             name,
         }
     }

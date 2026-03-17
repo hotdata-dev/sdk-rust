@@ -18,6 +18,9 @@ docs/ConnectionHealthResponse.md
 docs/ConnectionInfo.md
 docs/ConnectionRefreshResult.md
 docs/ConnectionSchemaError.md
+docs/ConnectionTypeDetail.md
+docs/ConnectionTypeSummary.md
+docs/ConnectionTypesApi.md
 docs/ConnectionsApi.md
 docs/CreateConnectionRequest.md
 docs/CreateConnectionResponse.md
@@ -42,6 +45,7 @@ docs/InformationSchemaApi.md
 docs/InformationSchemaResponse.md
 docs/InlineData.md
 docs/InlineDatasetSource.md
+docs/ListConnectionTypesResponse.md
 docs/ListConnectionsResponse.md
 docs/ListDatasetsResponse.md
 docs/ListQueryRunsResponse.md
@@ -89,6 +93,7 @@ docs/WorkspaceDetail.md
 docs/WorkspaceListItem.md
 docs/WorkspacesApi.md
 src/apis/configuration.rs
+src/apis/connection_types_api.rs
 src/apis/connections_api.rs
 src/apis/datasets_api.rs
 src/apis/information_schema_api.rs
@@ -120,6 +125,8 @@ src/models/connection_health_response.rs
 src/models/connection_info.rs
 src/models/connection_refresh_result.rs
 src/models/connection_schema_error.rs
+src/models/connection_type_detail.rs
+src/models/connection_type_summary.rs
 src/models/create_connection_request.rs
 src/models/create_connection_response.rs
 src/models/create_dataset_request.rs
@@ -141,6 +148,7 @@ src/models/get_secret_response.rs
 src/models/information_schema_response.rs
 src/models/inline_data.rs
 src/models/inline_dataset_source.rs
+src/models/list_connection_types_response.rs
 src/models/list_connections_response.rs
 src/models/list_datasets_response.rs
 src/models/list_query_runs_response.rs

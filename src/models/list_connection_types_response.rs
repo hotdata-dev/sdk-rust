@@ -12,18 +12,15 @@ use crate::models;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ListWorkspacesResponse {
-    #[serde(rename = "ok")]
-    pub ok: bool,
-    #[serde(rename = "workspaces")]
-    pub workspaces: Vec<models::WorkspaceListItem>,
+pub struct ListConnectionTypesResponse {
+    #[serde(rename = "connection_types")]
+    pub connection_types: Vec<models::ConnectionTypeSummary>,
 }
 
-impl ListWorkspacesResponse {
-    pub fn new(ok: bool, workspaces: Vec<models::WorkspaceListItem>) -> ListWorkspacesResponse {
-        ListWorkspacesResponse {
-            ok,
-            workspaces,
+impl ListConnectionTypesResponse {
+    pub fn new(connection_types: Vec<models::ConnectionTypeSummary>) -> ListConnectionTypesResponse {
+        ListConnectionTypesResponse {
+            connection_types,
         }
     }
 }

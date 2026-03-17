@@ -111,6 +111,7 @@ impl From<&str> for ContentType {
     }
 }
 
+pub mod connection_types_api;
 pub mod connections_api;
 pub mod datasets_api;
 pub mod information_schema_api;

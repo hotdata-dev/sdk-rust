@@ -15,32 +15,30 @@ use crate::{apis::ResponseContent, models};
 use super::{Error, configuration, ContentType};
 
 
-/// struct for typed errors of method [`list_uploads`]
+/// struct for typed errors of method [`get_connection_type`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum ListUploadsError {
+pub enum GetConnectionTypeError {
+    Status404(models::ApiErrorResponse),
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`upload_file`]
+/// struct for typed errors of method [`list_connection_types`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum UploadFileError {
-    Status400(models::ApiErrorResponse),
+pub enum ListConnectionTypesError {
     UnknownValue(serde_json::Value),
 }
 
 
-pub async fn list_uploads(configuration: &configuration::Configuration, status: Option<&str>) -> Result<models::ListUploadsResponse, Error<ListUploadsError>> {
+/// Get configuration schema and authentication requirements for a specific connection type.
+pub async fn get_connection_type(configuration: &configuration::Configuration, name: &str) -> Result<models::ConnectionTypeDetail, Error<GetConnectionTypeError>> {
     // add a prefix to parameters to efficiently prevent name collisions
-    let p_query_status = status;
+    let p_path_name = name;
 
-    let uri_str = format!("{}/v1/files", configuration.base_path);
+    let uri_str = format!("{}/v1/connection-types/{name}", configuration.base_path, name=crate::apis::urlencode(p_path_name));
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    if let Some(ref param_value) = p_query_status {
-        req_builder = req_builder.query(&[("status", &param_value.to_string())]);
-    }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
@@ -63,23 +61,21 @@ pub async fn list_uploads(configuration: &configuration::Configuration, status: 
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ListUploadsResponse`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ListUploadsResponse`")))),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ConnectionTypeDetail`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ConnectionTypeDetail`")))),
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<ListUploadsError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetConnectionTypeError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
 
-/// Upload a file to be used as a dataset source. Send the raw file bytes as the request body with an appropriate Content-Type header (e.g., `text/csv`, `application/json`, `application/parquet`). The returned upload ID can be passed to POST /v1/datasets to create a queryable table.
-pub async fn upload_file(configuration: &configuration::Configuration, request_body: Vec<i32>) -> Result<models::UploadResponse, Error<UploadFileError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_body_request_body = request_body;
+/// List all available connection types, including native sources and FlightDLT services.
+pub async fn list_connection_types(configuration: &configuration::Configuration, ) -> Result<models::ListConnectionTypesResponse, Error<ListConnectionTypesError>> {
 
-    let uri_str = format!("{}/v1/files", configuration.base_path);
-    let mut req_builder = configuration.client.request(reqwest::Method::POST, &uri_str);
+    let uri_str = format!("{}/v1/connection-types", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
@@ -87,7 +83,6 @@ pub async fn upload_file(configuration: &configuration::Configuration, request_b
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&p_body_request_body);
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -104,12 +99,12 @@ pub async fn upload_file(configuration: &configuration::Configuration, request_b
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::UploadResponse`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::UploadResponse`")))),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ListConnectionTypesResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ListConnectionTypesResponse`")))),
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<UploadFileError> = serde_json::from_str(&content).ok();
+        let entity: Option<ListConnectionTypesError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
