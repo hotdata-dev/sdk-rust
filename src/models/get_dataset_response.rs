@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -22,6 +22,10 @@ pub struct GetDatasetResponse {
     pub id: String,
     #[serde(rename = "label")]
     pub label: String,
+    #[serde(rename = "latest_version")]
+    pub latest_version: i32,
+    #[serde(rename = "pinned_version", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub pinned_version: Option<Option<i32>>,
     #[serde(rename = "schema_name")]
     pub schema_name: String,
     #[serde(rename = "source_type")]
@@ -34,12 +38,14 @@ pub struct GetDatasetResponse {
 
 impl GetDatasetResponse {
     /// Response body for GET /v1/datasets/{id}
-    pub fn new(columns: Vec<models::ColumnInfo>, created_at: String, id: String, label: String, schema_name: String, source_type: String, table_name: String, updated_at: String) -> GetDatasetResponse {
+    pub fn new(columns: Vec<models::ColumnInfo>, created_at: String, id: String, label: String, latest_version: i32, schema_name: String, source_type: String, table_name: String, updated_at: String) -> GetDatasetResponse {
         GetDatasetResponse {
             columns,
             created_at,
             id,
             label,
+            latest_version,
+            pinned_version: None,
             schema_name,
             source_type,
             table_name,

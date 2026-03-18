@@ -111,8 +111,10 @@ impl From<&str> for ContentType {
     }
 }
 
+pub mod connection_types_api;
 pub mod connections_api;
 pub mod datasets_api;
+pub mod indexes_api;
 pub mod information_schema_api;
 pub mod query_api;
 pub mod query_runs_api;
