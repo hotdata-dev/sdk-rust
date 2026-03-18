@@ -7,6 +7,7 @@ Method | HTTP request | Description
 [**create_dataset**](DatasetsApi.md#create_dataset) | **POST** /v1/datasets | Create dataset
 [**delete_dataset**](DatasetsApi.md#delete_dataset) | **DELETE** /v1/datasets/{id} | Delete dataset
 [**get_dataset**](DatasetsApi.md#get_dataset) | **GET** /v1/datasets/{id} | Get dataset
+[**list_dataset_versions**](DatasetsApi.md#list_dataset_versions) | **GET** /v1/datasets/{id}/versions | List dataset versions
 [**list_datasets**](DatasetsApi.md#list_datasets) | **GET** /v1/datasets | List datasets
 [**update_dataset**](DatasetsApi.md#update_dataset) | **PUT** /v1/datasets/{id} | Update dataset
 
@@ -85,6 +86,36 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::GetDatasetResponse**](GetDatasetResponse.md)
+
+### Authorization
+
+[BearerAuth](../README.md#BearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## list_dataset_versions
+
+> models::ListDatasetVersionsResponse list_dataset_versions(id, limit, offset)
+List dataset versions
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **String** | Dataset ID | [required] |
+**limit** | Option<**i32**> | Maximum number of versions (default: 100, max: 1000) |  |
+**offset** | Option<**i32**> | Pagination offset (default: 0) |  |
+
+### Return type
+
+[**models::ListDatasetVersionsResponse**](ListDatasetVersionsResponse.md)
 
 ### Authorization
 
