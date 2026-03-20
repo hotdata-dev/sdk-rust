@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -19,6 +19,8 @@ pub enum RefreshResponse {
     SchemaRefreshResult(Box<models::SchemaRefreshResult>),
     TableRefreshResult(Box<models::TableRefreshResult>),
     ConnectionRefreshResult(Box<models::ConnectionRefreshResult>),
+    RefreshDatasetResponse(Box<models::RefreshDatasetResponse>),
+    SubmitJobResponse(Box<models::SubmitJobResponse>),
 }
 
 impl Default for RefreshResponse {

@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -17,6 +17,9 @@ use serde::{Deserialize, Serialize};
 #[serde(untagged)]
 pub enum DatasetSource {
     UploadDatasetSource(Box<models::UploadDatasetSource>),
+    SavedQueryDatasetSource(Box<models::SavedQueryDatasetSource>),
+    SqlQueryDatasetSource(Box<models::SqlQueryDatasetSource>),
+    UrlDatasetSource(Box<models::UrlDatasetSource>),
     InlineDatasetSource(Box<models::InlineDatasetSource>),
 }
 

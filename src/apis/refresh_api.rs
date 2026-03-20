@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -25,7 +25,7 @@ pub enum RefreshError {
 }
 
 
-/// Refresh schema metadata or table data. The behavior depends on the request fields:  - **Schema refresh (all)**: omit all fields — re-discovers tables for every connection. - **Schema refresh (single)**: set `connection_id` — re-discovers tables for one connection. - **Data refresh (single table)**: set `connection_id`, `schema_name`, `table_name`, and `data: true`. - **Data refresh (connection)**: set `connection_id` and `data: true` — refreshes all cached tables. Set `include_uncached: true` to also sync tables that haven't been cached yet.
+/// Refresh schema metadata or table data. The behavior depends on the request fields:  - **Schema refresh (all)**: omit all fields — re-discovers tables for every connection. - **Schema refresh (single)**: set `connection_id` — re-discovers tables for one connection. - **Data refresh (single table)**: set `connection_id`, `schema_name`, `table_name`, and `data: true`. - **Data refresh (connection)**: set `connection_id` and `data: true` — refreshes all cached tables. Set `include_uncached: true` to also sync tables that haven't been cached yet.  Set `async: true` on data refresh operations to run in the background and return a job ID for polling.
 pub async fn refresh(configuration: &configuration::Configuration, refresh_request: models::RefreshRequest) -> Result<models::RefreshResponse, Error<RefreshError>> {
     // add a prefix to parameters to efficiently prevent name collisions
     let p_body_refresh_request = refresh_request;
