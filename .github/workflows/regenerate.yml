@@ -2,31 +2,54 @@ name: Regenerate Client
 
 on:
   workflow_dispatch:
+    inputs:
+      openapi_spec_ref:
+        description: "Git ref in www.hotdata.dev for api/openapi.yaml (same file as sdk-python regenerate)."
+        required: false
+        default: main
 
 jobs:
   regenerate:
     runs-on: ubuntu-latest
+    env:
+      # Same OpenAPI document as https://github.com/hotdata-dev/sdk-python/blob/main/.github/workflows/regenerate.yml
+      OPENAPI_SPEC_OWNER: hotdata-dev
+      OPENAPI_SPEC_REPO: www.hotdata.dev
+      OPENAPI_SPEC_PATH: api/openapi.yaml
+      OPENAPI_SPEC_REF: ${{ inputs.openapi_spec_ref || 'main' }}
     steps:
       - name: Generate GitHub App token
         id: app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@f8d387b68d61c58ab83c6c016672934102569859 # v3
         with:
           app-id: 3060111
           private-key: ${{ secrets.HOTDATA_AUTOMATION_PRIVATE_KEY }}
           owner: hotdata-dev
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           token: ${{ steps.app-token.outputs.token }}
 
-      - name: Fetch merged OpenAPI spec
+      - uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e # v5.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Crate version for generator
+        id: crate
+        run: |
+          v=$(awk -F '"' '/^version = / { print $2; exit }' Cargo.toml)
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch OpenAPI spec (same source as sdk-python)
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
+          spec_url="https://api.github.com/repos/${OPENAPI_SPEC_OWNER}/${OPENAPI_SPEC_REPO}/contents/${OPENAPI_SPEC_PATH}?ref=${OPENAPI_SPEC_REF}"
           curl -sS -f -L \
             -H "Accept: application/vnd.github.v3.raw" \
             -H "Authorization: Bearer $GH_TOKEN" \
-            https://api.github.com/repos/hotdata-dev/www.hotdata.dev/contents/api/openapi.yaml \
+            "$spec_url" \
             -o openapi.yaml
 
       - name: Clean existing source
@@ -34,24 +57,28 @@ jobs:
 
       - name: Generate client
         env:
-          PACKAGE_VERSION: "0.1.0"
+          PACKAGE_VERSION: ${{ steps.crate.outputs.version }}
         run: |
-          npx @openapitools/openapi-generator-cli generate \
+          npx --yes @openapitools/openapi-generator-cli generate \
             -i openapi.yaml \
             -g rust \
             -o . \
-            --additional-properties=packageName=hotdata,packageVersion=$PACKAGE_VERSION,library=reqwest,supportAsync=true \
+            --additional-properties=packageName=hotdata,packageVersion=${PACKAGE_VERSION},library=reqwest,supportAsync=true \
             --http-user-agent "hotdata-rust/${PACKAGE_VERSION}" \
             --skip-validate-spec
 
-      - name: Clean up fetched spec
-        run: rm -f openapi.yaml
+      - name: Clean up generated artifacts
+        run: |
+          rm -f openapi.yaml
+          rm -f git_push.sh
 
-      - name: Verify generated client compiles
-        run: cargo check
+      - name: Verify generated client (tests)
+        run: |
+          cargo test
+          cargo test --no-default-features --features rustls
 
       - name: Create PR
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8
         with:
           token: ${{ steps.app-token.outputs.token }}
           title: "chore: regenerate client from updated OpenAPI spec"
