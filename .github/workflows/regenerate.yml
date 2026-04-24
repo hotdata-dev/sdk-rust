@@ -2,10 +2,21 @@ name: Regenerate Client
 
 on:
   workflow_dispatch:
+    inputs:
+      openapi_spec_ref:
+        description: "Git ref in www.hotdata.dev for api/openapi.yaml (same file as sdk-python regenerate)."
+        required: false
+        default: main
 
 jobs:
   regenerate:
     runs-on: ubuntu-latest
+    env:
+      # Same OpenAPI document as https://github.com/hotdata-dev/sdk-python/blob/main/.github/workflows/regenerate.yml
+      OPENAPI_SPEC_OWNER: hotdata-dev
+      OPENAPI_SPEC_REPO: www.hotdata.dev
+      OPENAPI_SPEC_PATH: api/openapi.yaml
+      OPENAPI_SPEC_REF: ${{ inputs.openapi_spec_ref || 'main' }}
     steps:
       - name: Generate GitHub App token
         id: app-token
@@ -30,14 +41,15 @@ jobs:
           v=$(awk -F '"' '/^version = / { print $2; exit }' Cargo.toml)
           echo "version=$v" >> "$GITHUB_OUTPUT"
 
-      - name: Fetch merged OpenAPI spec
+      - name: Fetch OpenAPI spec (same source as sdk-python)
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
+          spec_url="https://api.github.com/repos/${OPENAPI_SPEC_OWNER}/${OPENAPI_SPEC_REPO}/contents/${OPENAPI_SPEC_PATH}?ref=${OPENAPI_SPEC_REF}"
           curl -sS -f -L \
             -H "Accept: application/vnd.github.v3.raw" \
             -H "Authorization: Bearer $GH_TOKEN" \
-            https://api.github.com/repos/hotdata-dev/www.hotdata.dev/contents/api/openapi.yaml \
+            "$spec_url" \
             -o openapi.yaml
 
       - name: Clean existing source
