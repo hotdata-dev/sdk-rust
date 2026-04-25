@@ -40,6 +40,7 @@ jobs:
             -i openapi.yaml \
             -g rust \
             -o . \
+            -t .openapi-generator-templates \
             --additional-properties=packageName=hotdata,packageVersion=$PACKAGE_VERSION,library=reqwest,supportAsync=true \
             --http-user-agent "hotdata-rust/${PACKAGE_VERSION}" \
             --skip-validate-spec
@@ -48,6 +49,10 @@ jobs:
         run: rm -f openapi.yaml
 
       - name: Verify generated client compiles
+        # cargo check is the drift tripwire for the template override — if
+        # openapi-generator rearranges the auth-emission mustache variables
+        # in a future version, the override will produce non-compiling code
+        # and this step fails loudly instead of shipping wrong output.
         run: cargo check
 
       - name: Create PR
