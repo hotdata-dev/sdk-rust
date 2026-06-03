@@ -48,4 +48,6 @@ jobs:
       - name: Publish to crates.io
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
-        run: cargo publish
+        # --all-features mirrors the dry-run so the pre-upload verify build
+        # also compiles the optional arrow surface.
+        run: cargo publish --all-features

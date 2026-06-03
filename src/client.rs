@@ -30,11 +30,11 @@ use crate::apis::{self, Error};
 use crate::auth::TokenManager;
 use crate::models;
 
-/// Default API host. NOTE: this intentionally differs from the generated
-/// `Configuration::default()` base path (`https://app.hotdata.dev`). The JWT
-/// exchange endpoint (`/v1/auth/jwt`) lives on the API host, so the ergonomic
-/// `Client` always targets the API host and the token exchange is routed
-/// correctly.
+/// Default API host. Matches the generated `Configuration::default()` base
+/// path and the OpenAPI spec server. The JWT exchange endpoint
+/// (`/v1/auth/jwt`) lives on this API host, so the ergonomic `Client` sets
+/// `base_path` explicitly to keep token exchange routed correctly even if a
+/// caller starts from a `Configuration` with a different host.
 pub const DEFAULT_BASE_URL: &str = "https://api.hotdata.dev";
 
 /// Header name used to scope requests to a workspace. Inserted into

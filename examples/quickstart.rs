@@ -66,7 +66,10 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    println!("Built client targeting {}", client.configuration().base_path);
+    println!(
+        "Built client targeting {}",
+        client.configuration().base_path
+    );
 
     // --- 2. List workspaces ----------------------------------------------
     //
@@ -148,10 +151,7 @@ async fn poll_until_ready(
 
 /// Fetch the result as Arrow record batches when the `arrow` feature is on.
 #[cfg(feature = "arrow")]
-async fn fetch_arrow(
-    client: &Client,
-    result_id: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn fetch_arrow(client: &Client, result_id: &str) -> Result<(), Box<dyn std::error::Error>> {
     use hotdata::ArrowError;
 
     println!("Fetching result {result_id} as Arrow...");
@@ -184,10 +184,7 @@ async fn fetch_arrow(
 /// Stub used when the `arrow` feature is disabled, so the call site in `run`
 /// type-checks either way.
 #[cfg(not(feature = "arrow"))]
-async fn fetch_arrow(
-    _client: &Client,
-    _result_id: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn fetch_arrow(_client: &Client, _result_id: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("(build with --features arrow to fetch results as Arrow record batches)");
     Ok(())
 }
