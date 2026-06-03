@@ -28,6 +28,8 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
 
+      - uses: dtolnay/rust-toolchain@stable
+
       - name: Fetch merged OpenAPI spec
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -38,12 +40,29 @@ jobs:
             https://api.github.com/repos/hotdata-dev/www.hotdata.dev/contents/api/openapi.yaml \
             -o openapi.yaml
 
-      - name: Clean existing source
-        run: rm -rf src/
+      # Targeted clean: delete ONLY generator-owned subtrees. The hand-written
+      # ergonomic layer (src/lib.rs, src/auth.rs, src/arrow.rs, src/client.rs)
+      # is preserved here and additionally protected by .openapi-generator-ignore
+      # so the generator re-emits src/apis and src/models in place without
+      # clobbering the regen-immune modules or Cargo.toml.
+      - name: Clean generated source
+        run: rm -rf src/apis src/models docs
+
+      # Cargo.toml is ignore-protected, so the generator no longer rewrites the
+      # version. We own the patch bump here via cargo-edit and feed the result
+      # to the generator as packageVersion + user-agent for consistency.
+      - name: Bump patch version
+        id: pkg
+        run: |
+          cargo install cargo-edit --locked >/dev/null 2>&1 || cargo install cargo-edit
+          cargo set-version --bump patch
+          version=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name=="hotdata") | .version')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Generate client
         env:
-          PACKAGE_VERSION: "0.1.0"
+          PACKAGE_VERSION: ${{ steps.pkg.outputs.version }}
         run: |
           npx @openapitools/openapi-generator-cli generate \
             -i openapi.yaml \
@@ -57,14 +76,118 @@ jobs:
       - name: Clean up fetched spec
         run: rm -f openapi.yaml
 
+      # Regen-safety guard (the Rust analog of sdk-python's AST check). Fails the
+      # build loudly if the generator clobbered the hand-written ergonomic layer
+      # or if the JWT/bearer template hooks were dropped or renamed by a future
+      # generator version. Runs BEFORE cargo check so the failure is precise.
+      - name: Verify ergonomic layer survived regen
+        run: |
+          set -euo pipefail
+          fail=0
+
+          # 1. Hand-written, regen-immune modules must exist.
+          for f in src/lib.rs src/auth.rs src/arrow.rs src/client.rs; do
+            if [ ! -f "$f" ]; then
+              echo "::error::$f is missing (regen clobbered the ergonomic layer)"
+              fail=1
+            fi
+          done
+
+          # 2. lib.rs must still wire the hand-written modules.
+          for decl in 'pub mod auth;' 'pub mod client;' 'pub mod arrow;'; do
+            if ! grep -q "$decl" src/lib.rs; then
+              echo "::error::src/lib.rs no longer declares '$decl'"
+              fail=1
+            fi
+          done
+
+          # 3. lib.rs must still re-export the ergonomic surface.
+          if ! grep -Eq 'pub use (crate::)?auth::' src/lib.rs; then
+            echo "::error::src/lib.rs no longer re-exports the auth surface"
+            fail=1
+          fi
+          if ! grep -Eq 'pub use (crate::)?client::' src/lib.rs; then
+            echo "::error::src/lib.rs no longer re-exports the client surface"
+            fail=1
+          fi
+
+          # 4. The JWT/bearer template hooks must have survived the generator.
+          #    configuration.mustache emits resolve_bearer_token on Configuration;
+          #    api.mustache calls it at every bearer-auth site.
+          if ! grep -q 'resolve_bearer_token' src/apis/configuration.rs; then
+            echo "::error::resolve_bearer_token missing from generated configuration.rs (configuration.mustache drift)"
+            fail=1
+          fi
+          if ! grep -rq 'resolve_bearer_token().await' src/apis/; then
+            echo "::error::resolve_bearer_token().await missing from generated apis (api.mustache bearer hook drift)"
+            fail=1
+          fi
+
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::Regen-safety check failed: the ergonomic layer or auth hooks did not survive regeneration."
+            exit 1
+          fi
+          echo "Ergonomic layer survived regeneration: hand-written modules, lib.rs wiring, and JWT/bearer hooks all intact."
+
+      # cargo check is the template-drift tripwire. --all-features compiles the
+      # optional arrow surface too. The --no-run test build catches breakage in
+      # the integration tests that target the generated apis.
       - name: Verify generated client compiles
-        # cargo check is the drift tripwire for the template override — if
-        # openapi-generator rearranges the auth-emission mustache variables
-        # in a future version, the override will produce non-compiling code
-        # and this step fails loudly instead of shipping wrong output.
-        run: cargo check
+        run: |
+          cargo check --all-features
+          cargo test --all-features --no-run
+
+      # Soft parity warning: surface scenarios that still lack a tests/<name>.rs.
+      # Non-fatal during the per-scenario rollout (rust is exempt until its tests
+      # land); the enforcing gate lives in integration-tests.yml.
+      - name: Check integration test scenario parity
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          curl -sS -f -L \
+            -H "Accept: application/vnd.github.v3.raw" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            https://api.github.com/repos/hotdata-dev/www.hotdata.dev/contents/api/test-scenarios.yaml \
+            -o test-scenarios.yaml
+          python3 - <<'PY'
+          import sys, pathlib, re
+          text = pathlib.Path("test-scenarios.yaml").read_text()
+          # Minimal stdlib parse: walk "- name:" blocks, capture optional_for.
+          missing = []
+          total = 0
+          name = None
+          optional = []
+          def flush(name, optional):
+              if name is None:
+                  return
+              if "rust" in optional:
+                  return
+              expected = pathlib.Path("tests") / f"{name}.rs"
+              if not expected.exists():
+                  missing.append(str(expected))
+          for line in text.splitlines():
+              m = re.match(r"\s*-\s+name:\s*(\S+)", line)
+              if m:
+                  flush(name, optional)
+                  total += 1
+                  name = m.group(1).strip().strip('"\'')
+                  optional = []
+                  continue
+              mo = re.match(r"\s*optional_for:\s*\[(.*)\]", line)
+              if mo:
+                  optional = [x.strip().strip('"\'') for x in mo.group(1).split(",") if x.strip()]
+          flush(name, optional)
+          if missing:
+              print(f"::warning::sdk-rust is missing tests for {len(missing)} scenarios after regen:")
+              for m in missing:
+                  print(f"  - {m}")
+          else:
+              print(f"All {total} scenarios have corresponding test files (or are exempt for rust).")
+          PY
+          rm -f test-scenarios.yaml
 
       - name: Create PR
+        id: cpr
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           token: ${{ steps.app-token.outputs.token }}
