@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -32,4 +32,3 @@ impl SecretMetadataResponse {
         }
     }
 }
-

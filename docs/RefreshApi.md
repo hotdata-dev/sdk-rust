@@ -1,6 +1,6 @@
 # \RefreshApi
 
-All URIs are relative to *https://app.hotdata.dev*
+All URIs are relative to *https://api.hotdata.dev*
 
 Method | HTTP request | Description
 ------------- | ------------- | -------------
@@ -13,7 +13,7 @@ Method | HTTP request | Description
 > models::RefreshResponse refresh(refresh_request)
 Refresh connection data
 
-Refresh schema metadata or table data. The behavior depends on the request fields:  - **Schema refresh (all)**: omit all fields — re-discovers tables for every connection. - **Schema refresh (single)**: set `connection_id` — re-discovers tables for one connection. - **Data refresh (single table)**: set `connection_id`, `schema_name`, `table_name`, and `data: true`. - **Data refresh (connection)**: set `connection_id` and `data: true` — refreshes all cached tables. Set `include_uncached: true` to also sync tables that haven't been cached yet.
+Refresh schema metadata, table data, or dataset data. The behavior depends on the request fields:  - **Schema refresh (all)**: omit all fields — re-discovers tables for every connection. - **Schema refresh (single)**: set `connection_id` — re-discovers tables for one connection. - **Data refresh (single table)**: set `connection_id`, `schema_name`, `table_name`, and `data: true`. - **Data refresh (connection)**: set `connection_id` and `data: true` — refreshes all cached tables. Set `include_uncached: true` to also sync tables that haven't been cached yet. - **Dataset refresh**: set `dataset_id` — re-runs the dataset's source (URL fetch or saved query) and creates a new version. Mutually exclusive with `connection_id`.  Set `async: true` on data or dataset refresh operations to run in the background and return a job ID for polling.
 
 ### Parameters
 
@@ -28,7 +28,7 @@ Name | Type | Description  | Required | Notes
 
 ### Authorization
 
-[BearerAuth](../README.md#BearerAuth)
+[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
 
 ### HTTP request headers
 

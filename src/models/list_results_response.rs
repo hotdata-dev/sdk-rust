@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -32,7 +32,13 @@ pub struct ListResultsResponse {
 
 impl ListResultsResponse {
     /// Response body for GET /results
-    pub fn new(count: i32, has_more: bool, limit: i32, offset: i32, results: Vec<models::ResultInfo>) -> ListResultsResponse {
+    pub fn new(
+        count: i32,
+        has_more: bool,
+        limit: i32,
+        offset: i32,
+        results: Vec<models::ResultInfo>,
+    ) -> ListResultsResponse {
         ListResultsResponse {
             count,
             has_more,
@@ -42,4 +48,3 @@ impl ListResultsResponse {
         }
     }
 }
-

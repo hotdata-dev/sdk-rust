@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -28,7 +28,14 @@ pub struct WorkspaceListItem {
 }
 
 impl WorkspaceListItem {
-    pub fn new(public_id: String, name: String, active: bool, favorite: bool, provision_status: String, namespace: String) -> WorkspaceListItem {
+    pub fn new(
+        public_id: String,
+        name: String,
+        active: bool,
+        favorite: bool,
+        provision_status: String,
+        namespace: String,
+    ) -> WorkspaceListItem {
         WorkspaceListItem {
             public_id,
             name,
@@ -39,4 +46,3 @@ impl WorkspaceListItem {
         }
     }
 }
-

@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -21,9 +21,6 @@ pub struct ListSecretsResponse {
 impl ListSecretsResponse {
     /// Response body for GET /secrets
     pub fn new(secrets: Vec<models::SecretMetadataResponse>) -> ListSecretsResponse {
-        ListSecretsResponse {
-            secrets,
-        }
+        ListSecretsResponse { secrets }
     }
 }
-

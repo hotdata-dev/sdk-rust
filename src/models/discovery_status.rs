@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -21,7 +21,6 @@ pub enum DiscoveryStatus {
     Skipped,
     #[serde(rename = "failed")]
     Failed,
-
 }
 
 impl std::fmt::Display for DiscoveryStatus {
@@ -39,4 +38,3 @@ impl Default for DiscoveryStatus {
         Self::Success
     }
 }
-

@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -27,7 +27,12 @@ pub struct ColumnProfileDetailOneOf1 {
 }
 
 impl ColumnProfileDetailOneOf1 {
-    pub fn new(avg_length: f64, max_length: i64, min_length: i64, r#type: Type) -> ColumnProfileDetailOneOf1 {
+    pub fn new(
+        avg_length: f64,
+        max_length: i64,
+        min_length: i64,
+        r#type: Type,
+    ) -> ColumnProfileDetailOneOf1 {
         ColumnProfileDetailOneOf1 {
             avg_length,
             max_length,
@@ -36,7 +41,7 @@ impl ColumnProfileDetailOneOf1 {
         }
     }
 }
-/// 
+///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Type {
     #[serde(rename = "text")]
@@ -48,4 +53,3 @@ impl Default for Type {
         Self::Text
     }
 }
-

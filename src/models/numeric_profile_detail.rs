@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -28,11 +28,6 @@ pub struct NumericProfileDetail {
 impl NumericProfileDetail {
     /// High-cardinality numeric column (>200 distinct values).
     pub fn new(max: String, mean: f64, min: String) -> NumericProfileDetail {
-        NumericProfileDetail {
-            max,
-            mean,
-            min,
-        }
+        NumericProfileDetail { max, mean, min }
     }
 }
-

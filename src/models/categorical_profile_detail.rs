@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -22,9 +22,6 @@ pub struct CategoricalProfileDetail {
 impl CategoricalProfileDetail {
     /// Type-specific column profile detail. The `type` discriminator field determines which variant is present. Profile type is chosen based on the column's Arrow data type and cardinality:  - **categorical**: Text or numeric columns with ≤200 distinct values. Lists each value with its frequency. - **text**: Text columns with >200 distinct values. Reports string length statistics. - **numeric**: Numeric columns with >200 distinct values. Reports min, max, and mean. - **temporal**: Date and timestamp columns. Reports min and max as ISO-8601 strings. - **boolean**: Boolean columns. Reports true and false counts.   Low-cardinality column (≤200 distinct values). Values sorted by frequency descending.
     pub fn new(values: Vec<models::CategoryValueInfo>) -> CategoricalProfileDetail {
-        CategoricalProfileDetail {
-            values,
-        }
+        CategoricalProfileDetail { values }
     }
 }
-

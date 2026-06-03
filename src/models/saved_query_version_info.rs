@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -14,29 +14,74 @@ use serde::{Deserialize, Serialize};
 /// SavedQueryVersionInfo : Single saved query version
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SavedQueryVersionInfo {
-    #[serde(rename = "category", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "category",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub category: Option<Option<String>>,
     #[serde(rename = "created_at")]
     pub created_at: String,
-    #[serde(rename = "has_aggregation", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "has_aggregation",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub has_aggregation: Option<Option<bool>>,
-    #[serde(rename = "has_group_by", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "has_group_by",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub has_group_by: Option<Option<bool>>,
-    #[serde(rename = "has_join", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "has_join",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub has_join: Option<Option<bool>>,
-    #[serde(rename = "has_limit", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "has_limit",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub has_limit: Option<Option<bool>>,
-    #[serde(rename = "has_order_by", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "has_order_by",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub has_order_by: Option<Option<bool>>,
-    #[serde(rename = "has_predicate", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "has_predicate",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub has_predicate: Option<Option<bool>>,
-    #[serde(rename = "num_tables", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "num_tables",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub num_tables: Option<Option<i32>>,
     #[serde(rename = "sql")]
     pub sql: String,
     #[serde(rename = "sql_hash")]
     pub sql_hash: String,
-    #[serde(rename = "table_size", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "table_size",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub table_size: Option<Option<String>>,
     #[serde(rename = "version")]
     pub version: i32,
@@ -44,7 +89,12 @@ pub struct SavedQueryVersionInfo {
 
 impl SavedQueryVersionInfo {
     /// Single saved query version
-    pub fn new(created_at: String, sql: String, sql_hash: String, version: i32) -> SavedQueryVersionInfo {
+    pub fn new(
+        created_at: String,
+        sql: String,
+        sql_hash: String,
+        version: i32,
+    ) -> SavedQueryVersionInfo {
         SavedQueryVersionInfo {
             category: None,
             created_at,
@@ -62,4 +112,3 @@ impl SavedQueryVersionInfo {
         }
     }
 }
-

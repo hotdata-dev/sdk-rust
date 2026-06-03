@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -14,18 +14,43 @@ use serde::{Deserialize, Serialize};
 /// GetResultResponse : Response body for GET /results/{id} Returns status and optionally the result data
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct GetResultResponse {
-    #[serde(rename = "columns", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "columns",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub columns: Option<Option<Vec<String>>>,
-    #[serde(rename = "error_message", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "error_message",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub error_message: Option<Option<String>>,
-    #[serde(rename = "nullable", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "nullable",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub nullable: Option<Option<Vec<bool>>>,
     #[serde(rename = "result_id")]
     pub result_id: String,
-    #[serde(rename = "row_count", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "row_count",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub row_count: Option<Option<i32>>,
     /// Array of rows, where each row is an array of column values.
-    #[serde(rename = "rows", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "rows",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub rows: Option<Option<Vec<Vec<serde_json::Value>>>>,
     #[serde(rename = "status")]
     pub status: String,
@@ -45,4 +70,3 @@ impl GetResultResponse {
         }
     }
 }
-

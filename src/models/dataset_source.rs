@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -11,18 +11,40 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// DatasetSource : Dataset source specification
-/// Dataset source specification
+/// DatasetSource : Dataset source specification.  Internally tagged on `type`, e.g. `{\"type\": \"upload\", \"upload_id\": \"...\"}`. Discriminator values: `upload`, `saved_query`, `sql_query`, `url`, `inline`.
+/// Dataset source specification.  Internally tagged on `type`, e.g. `{\"type\": \"upload\", \"upload_id\": \"...\"}`. Discriminator values: `upload`, `saved_query`, `sql_query`, `url`, `inline`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DatasetSource {
-    UploadDatasetSource(Box<models::UploadDatasetSource>),
-    InlineDatasetSource(Box<models::InlineDatasetSource>),
+    DatasetSourceOneOf(Box<models::DatasetSourceOneOf>),
+    DatasetSourceOneOf1(Box<models::DatasetSourceOneOf1>),
+    DatasetSourceOneOf2(Box<models::DatasetSourceOneOf2>),
+    DatasetSourceOneOf3(Box<models::DatasetSourceOneOf3>),
+    DatasetSourceOneOf4(Box<models::DatasetSourceOneOf4>),
 }
 
 impl Default for DatasetSource {
     fn default() -> Self {
-        Self::UploadDatasetSource(Default::default())
+        Self::DatasetSourceOneOf(Default::default())
     }
 }
+///
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+pub enum Type {
+    #[serde(rename = "upload")]
+    Upload,
+    #[serde(rename = "saved_query")]
+    SavedQuery,
+    #[serde(rename = "sql_query")]
+    SqlQuery,
+    #[serde(rename = "url")]
+    Url,
+    #[serde(rename = "inline")]
+    Inline,
+}
 
+impl Default for Type {
+    fn default() -> Type {
+        Self::Upload
+    }
+}

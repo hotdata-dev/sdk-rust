@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -20,6 +20,8 @@ pub struct CreateDatasetResponse {
     pub id: String,
     #[serde(rename = "label")]
     pub label: String,
+    #[serde(rename = "schema_name")]
+    pub schema_name: String,
     #[serde(rename = "status")]
     pub status: String,
     #[serde(rename = "table_name")]
@@ -28,14 +30,21 @@ pub struct CreateDatasetResponse {
 
 impl CreateDatasetResponse {
     /// Response body for POST /v1/datasets
-    pub fn new(created_at: String, id: String, label: String, status: String, table_name: String) -> CreateDatasetResponse {
+    pub fn new(
+        created_at: String,
+        id: String,
+        label: String,
+        schema_name: String,
+        status: String,
+        table_name: String,
+    ) -> CreateDatasetResponse {
         CreateDatasetResponse {
             created_at,
             id,
             label,
+            schema_name,
             status,
             table_name,
         }
     }
 }
-

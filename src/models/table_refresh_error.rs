@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// TableRefreshError : Error details for a failed table refresh
+/// TableRefreshError : Error details for a failed table refresh.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TableRefreshError {
     #[serde(rename = "error")]
@@ -23,7 +23,7 @@ pub struct TableRefreshError {
 }
 
 impl TableRefreshError {
-    /// Error details for a failed table refresh
+    /// Error details for a failed table refresh.
     pub fn new(error: String, schema_name: String, table_name: String) -> TableRefreshError {
         TableRefreshError {
             error,
@@ -32,4 +32,3 @@ impl TableRefreshError {
         }
     }
 }
-

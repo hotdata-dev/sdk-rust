@@ -7,6 +7,7 @@ Name | Type | Description | Notes
 **created_at** | **String** |  | 
 **id** | **String** |  | 
 **label** | **String** |  | 
+**schema_name** | **String** |  | 
 **status** | **String** |  | 
 **table_name** | **String** |  | 
 
