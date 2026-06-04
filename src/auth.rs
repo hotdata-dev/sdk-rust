@@ -127,10 +127,12 @@ pub trait BearerTokenProvider: Send + Sync + std::fmt::Debug {
 /// the rotated tokens across process invocations.
 ///
 /// Invoked with `(access_token, refresh_token, exp)` where `exp` is the
-/// absolute unix-epoch expiry (seconds). `refresh_token` is `None` when the
-/// server omitted one (rotation off; the prior refresh token is carried
-/// forward and the callback is still given `None` to reflect the wire
-/// response). The callback must return quickly and must not re-enter the
+/// absolute unix-epoch expiry (seconds). `refresh_token` is the *effective*
+/// refresh token now in the cache: a freshly rotated one when the server
+/// returns it, otherwise the prior token carried forward (so the callback is
+/// handed a complete, persistable credential set rather than `None`). It is
+/// only `None` if no refresh token has ever been established. The callback
+/// must return quickly and must not re-enter the
 /// [`TokenManager`] (it runs while the single-flight lock is held).
 pub type PersistCallback = Arc<dyn Fn(&str, Option<&str>, u64) + Send + Sync>;
 
