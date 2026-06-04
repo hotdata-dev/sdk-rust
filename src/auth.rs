@@ -472,7 +472,10 @@ mod tests {
     /// var on construction, and removes it on drop. The lock guarantees no two
     /// env-mutating tests run concurrently even though `cargo test` runs test
     /// functions on parallel threads.
-    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    // Shared crate-wide env lock (see crate::ENV_LOCK) so env-mutating tests in
+    // other modules (e.g. client.rs) cannot run concurrently with these and
+    // race on process-global vars like DISABLE_ENV.
+    use crate::ENV_LOCK;
 
     struct EnvGuard {
         _lock: std::sync::MutexGuard<'static, ()>,

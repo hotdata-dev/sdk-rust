@@ -45,6 +45,12 @@ pub use resources::{
 };
 pub use status::{QueryRunStatus, QueryRunStatusExt, ResultStatus, ResultStatusExt};
 
+/// Process-wide lock serializing every test that mutates `std::env`. Env is a
+/// process-global resource, so per-module locks would race; all env-mutating
+/// tests across the crate (auth.rs, client.rs, …) lock this single mutex.
+#[cfg(test)]
+pub(crate) static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 pub mod prelude {
     pub use crate::apis::configuration::Configuration;
     #[cfg(feature = "arrow")]

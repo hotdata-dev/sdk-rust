@@ -833,8 +833,9 @@ mod tests {
     /// Serialize env-mutating tests so they don't race each other. `std::env`
     /// is process-global, so concurrent test threads would otherwise interfere.
     fn env_guard() -> std::sync::MutexGuard<'static, ()> {
-        static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        LOCK.lock().unwrap_or_else(|e| e.into_inner())
+        // Shared crate-wide lock (see crate::ENV_LOCK) so these env-mutating
+        // tests serialize against auth.rs's env tests too — env is global.
+        crate::ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner())
     }
 
     fn clear_env() {
