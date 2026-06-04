@@ -35,7 +35,9 @@ pub use arrow::{
 pub use auth::{BearerTokenProvider, TokenExchangeError, TokenManager};
 #[cfg(feature = "arrow")]
 pub use client::QueryToArrowError;
-pub use client::{AwaitResultError, Client, ClientBuilder, ClientError, PollConfig};
+pub use client::{
+    AwaitResultError, Client, ClientBuilder, ClientError, PollConfig, QueryOutcome,
+};
 pub use resources::{
     ConnectionTypesApi, ConnectionsApi, DatabaseContextApi, DatabasesApi, DatasetsApi,
     EmbeddingProvidersApi, IndexesApi, InformationSchemaApi, JobsApi, QueryApi, QueryRunsApi,
@@ -47,7 +49,7 @@ pub mod prelude {
     pub use crate::apis::configuration::Configuration;
     #[cfg(feature = "arrow")]
     pub use crate::arrow::{ArrowError, ArrowResult};
-    pub use crate::client::{Client, ClientBuilder, PollConfig};
+    pub use crate::client::{Client, ClientBuilder, PollConfig, QueryOutcome};
     pub use crate::field;
     pub use crate::models::*;
     pub use crate::resources::*;

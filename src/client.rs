@@ -301,6 +301,98 @@ impl Client {
         apis::query_api::query(&self.configuration, request, None).await
     }
 
+    /// Submit a query to `POST /v1/query`, surfacing BOTH response shapes the
+    /// server can return.
+    ///
+    /// The generated [`apis::query_api::query`](crate::apis::query_api::query)
+    /// op only models the `200 QueryResponse` branch — the generator collapsed
+    /// the `202 AsyncQueryResponse` branch, so callers can't recover the
+    /// `query_run_id` when a query goes async. This method closes that gap:
+    ///
+    /// - HTTP `200` decodes the inline [`models::QueryResponse`] into
+    ///   [`QueryOutcome::Inline`].
+    /// - HTTP `202` decodes the [`models::AsyncQueryResponse`] (carrying
+    ///   `query_run_id` / `status` / `status_url`) into
+    ///   [`QueryOutcome::Submitted`]; poll it via
+    ///   [`Client::list_query_runs`] / the query-runs API.
+    /// - Any other status maps to the SDK's existing
+    ///   [`Error::ResponseError`](crate::apis::Error) /
+    ///   [`ResponseContent`](crate::apis::ResponseContent) shape with a
+    ///   [`apis::query_api::QueryError`] entity, identical to the generated op.
+    ///
+    /// `database_id` selects the database via the `X-Database-Id` header (the
+    /// spec lets database scope come from that header OR the `database_id` body
+    /// field; pass `None` to use the body field or rely on the default). The
+    /// request is built wire-identically to the generated op (same workspace /
+    /// session scope headers, same bearer auth, same `base_path`/`/v1` join,
+    /// same JSON body) plus the `202` handling.
+    pub async fn submit_query(
+        &self,
+        request: models::QueryRequest,
+        database_id: Option<&str>,
+    ) -> Result<QueryOutcome, Error<apis::query_api::QueryError>> {
+        use crate::apis::ResponseContent;
+
+        let configuration = &self.configuration;
+
+        let uri_str = format!("{}/v1/query", configuration.base_path);
+        let mut req_builder = configuration
+            .client
+            .request(reqwest::Method::POST, &uri_str);
+
+        if let Some(ref user_agent) = configuration.user_agent {
+            req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+        }
+        if let Some(param_value) = database_id {
+            req_builder = req_builder.header("X-Database-Id", param_value.to_string());
+        }
+        if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
+            let key = apikey.key.clone();
+            let value = match apikey.prefix {
+                Some(ref prefix) => format!("{} {}", prefix, key),
+                None => key,
+            };
+            req_builder = req_builder.header("X-Workspace-Id", value);
+        };
+        if let Some(apikey) = configuration.api_keys.get("X-Session-Id") {
+            let key = apikey.key.clone();
+            let value = match apikey.prefix {
+                Some(ref prefix) => format!("{} {}", prefix, key),
+                None => key,
+            };
+            req_builder = req_builder.header("X-Session-Id", value);
+        };
+        if let Some(token) = configuration.resolve_bearer_token().await {
+            req_builder = req_builder.bearer_auth(token);
+        };
+        req_builder = req_builder.json(&request);
+
+        let req = req_builder.build()?;
+        let resp = configuration.client.execute(req).await?;
+
+        let status = resp.status();
+
+        if status == reqwest::StatusCode::ACCEPTED {
+            // 202 Accepted: the query was submitted asynchronously.
+            let content = resp.text().await?;
+            let submitted: models::AsyncQueryResponse = serde_json::from_str(&content)?;
+            Ok(QueryOutcome::Submitted(submitted))
+        } else if !status.is_client_error() && !status.is_server_error() {
+            // 2xx (typically 200): inline results.
+            let content = resp.text().await?;
+            let inline: models::QueryResponse = serde_json::from_str(&content)?;
+            Ok(QueryOutcome::Inline(inline))
+        } else {
+            let content = resp.text().await?;
+            let entity: Option<apis::query_api::QueryError> = serde_json::from_str(&content).ok();
+            Err(Error::ResponseError(ResponseContent {
+                status,
+                content,
+                entity,
+            }))
+        }
+    }
+
     /// List recent query runs.
     pub async fn list_query_runs(
         &self,
@@ -577,6 +669,25 @@ impl Client {
     }
 }
 
+/// The two response shapes [`Client::submit_query`] can return.
+///
+/// `POST /v1/query` returns EITHER inline results (`200 QueryResponse`) or an
+/// async-submission acknowledgement (`202 AsyncQueryResponse`) depending on
+/// whether the query ran synchronously. This enum surfaces both so callers can
+/// recover the `query_run_id` and poll when a query goes async.
+///
+/// Marked `#[non_exhaustive]`: new variants may be added without a breaking
+/// change, so downstream `match`es should carry a wildcard arm.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum QueryOutcome {
+    /// The query ran synchronously and rows were returned inline (HTTP 200).
+    Inline(models::QueryResponse),
+    /// The query was submitted asynchronously (HTTP 202); poll its
+    /// `query_run_id` for completion.
+    Submitted(models::AsyncQueryResponse),
+}
+
 /// How long to wait, and how often to poll, when awaiting a result.
 ///
 /// Defaults to a 120-second timeout polled every second. Use
@@ -775,6 +886,145 @@ mod tests {
         assert_eq!(bearer.as_deref(), Some("minted-jwt"));
 
         clear_env();
+    }
+
+    /// Helper: build a client pointed at a wiremock server with a static bearer
+    /// token (no JWT-exchange round-trip), so query tests assert on the
+    /// `/v1/query` request directly.
+    fn query_test_client(base_url: &str) -> Client {
+        let mut configuration = Configuration {
+            base_path: base_url.to_owned(),
+            user_agent: Some("hotdata-rust-test".to_owned()),
+            bearer_access_token: Some("test-bearer".to_owned()),
+            ..Configuration::default()
+        };
+        configuration.api_keys.insert(
+            WORKSPACE_ID_HEADER.to_owned(),
+            ApiKey {
+                prefix: None,
+                key: "ws_test".to_owned(),
+            },
+        );
+        Client::from_configuration(configuration)
+    }
+
+    /// 200 -> inline results decode into `QueryOutcome::Inline`.
+    #[tokio::test]
+    async fn submit_query_200_inline() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let _g = env_guard();
+        clear_env();
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "columns": ["n"],
+                "execution_time_ms": 3,
+                "nullable": [false],
+                "query_run_id": "qr_inline",
+                "row_count": 1,
+                "rows": [[1]],
+            })))
+            .mount(&server)
+            .await;
+
+        let client = query_test_client(&server.uri());
+        let outcome = client
+            .submit_query(models::QueryRequest::new("select 1".into()), None)
+            .await
+            .expect("submit_query should succeed");
+
+        match outcome {
+            QueryOutcome::Inline(resp) => {
+                assert_eq!(resp.query_run_id, "qr_inline");
+                assert_eq!(resp.row_count, 1);
+            }
+            other => panic!("expected Inline, got {other:?}"),
+        }
+    }
+
+    /// 202 -> async submission decodes into `QueryOutcome::Submitted` with the
+    /// right `query_run_id`.
+    #[tokio::test]
+    async fn submit_query_202_submitted() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let _g = env_guard();
+        clear_env();
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/query"))
+            .respond_with(ResponseTemplate::new(202).set_body_json(serde_json::json!({
+                "query_run_id": "qr_async_42",
+                "status": "pending",
+                "status_url": "https://api.hotdata.dev/v1/query-runs/qr_async_42",
+            })))
+            .mount(&server)
+            .await;
+
+        let client = query_test_client(&server.uri());
+        let outcome = client
+            .submit_query(
+                models::QueryRequest {
+                    r#async: Some(true),
+                    ..models::QueryRequest::new("select 1".into())
+                },
+                None,
+            )
+            .await
+            .expect("submit_query should succeed");
+
+        match outcome {
+            QueryOutcome::Submitted(resp) => {
+                assert_eq!(resp.query_run_id, "qr_async_42");
+                assert_eq!(resp.status, "pending");
+                assert_eq!(
+                    resp.status_url,
+                    "https://api.hotdata.dev/v1/query-runs/qr_async_42"
+                );
+            }
+            other => panic!("expected Submitted, got {other:?}"),
+        }
+    }
+
+    /// The request carries `X-Database-Id` (when passed), `X-Workspace-Id`
+    /// (api_keys), and the bearer token — wire-identical to the generated op.
+    #[tokio::test]
+    async fn submit_query_sends_scope_and_auth_headers() {
+        use wiremock::matchers::{header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let _g = env_guard();
+        clear_env();
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/query"))
+            .and(header("X-Database-Id", "db_123"))
+            .and(header("X-Workspace-Id", "ws_test"))
+            .and(header("Authorization", "Bearer test-bearer"))
+            .respond_with(ResponseTemplate::new(202).set_body_json(serde_json::json!({
+                "query_run_id": "qr_scoped",
+                "status": "pending",
+                "status_url": "https://api.hotdata.dev/v1/query-runs/qr_scoped",
+            })))
+            .mount(&server)
+            .await;
+
+        let client = query_test_client(&server.uri());
+        // The mock only matches when all three headers are present, so a
+        // successful Submitted outcome proves they reached the wire.
+        let outcome = client
+            .submit_query(
+                models::QueryRequest::new("select 1".into()),
+                Some("db_123"),
+            )
+            .await
+            .expect("submit_query should succeed with scoped headers");
+
+        assert!(matches!(outcome, QueryOutcome::Submitted(_)));
     }
 
     #[test]
