@@ -406,11 +406,14 @@ impl Client {
     /// the same wire format (raw `application/octet-stream` body, the upload ID
     /// returned in [`models::UploadResponse`]).
     ///
-    /// The request is built wire-identically to the generated op: same
-    /// `base_path` + `/v1/files` join, same `X-Workspace-Id` / `X-Session-Id`
-    /// scope headers (from `configuration.api_keys`), same bearer auth (via
-    /// [`Configuration::resolve_bearer_token`]), same user-agent. It reuses the
-    /// configured `configuration.client`, so a caller-supplied client (e.g. one
+    /// The request mirrors the generated op: same `base_path` + `/v1/files`
+    /// join, same `X-Workspace-Id` scope header (from `configuration.api_keys`),
+    /// same bearer auth (via [`Configuration::resolve_bearer_token`]), same
+    /// user-agent. It additionally sends the `X-Session-Id` scope header and an
+    /// explicit `Content-Type` (see `content_type` below) — neither of which the
+    /// generated `upload_file` sets — so a session-scoped, typed upload is
+    /// expressible. It reuses the configured `configuration.client`, so a
+    /// caller-supplied client (e.g. one
     /// built with no request timeout via
     /// [`ClientBuilder::reqwest_client`](crate::ClientBuilder)) applies to the
     /// transfer.
