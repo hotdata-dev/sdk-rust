@@ -539,10 +539,13 @@ impl Client {
                         });
                     }
                     // Honor the server's `Retry-After` when present, otherwise
-                    // fall back to the configured poll interval.
+                    // fall back to the configured poll interval, but never sleep
+                    // past the deadline (a large `Retry-After` must not overshoot
+                    // `poll.timeout`).
                     let wait = retry_after
                         .map(std::time::Duration::from_secs)
-                        .unwrap_or(poll.interval);
+                        .unwrap_or(poll.interval)
+                        .min(deadline.saturating_duration_since(std::time::Instant::now()));
                     tokio::time::sleep(wait).await;
                 }
                 Err(e) => return Err(QueryToArrowError::Arrow(e)),
