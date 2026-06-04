@@ -108,6 +108,27 @@ use hotdata::apis::workspaces_api;
 let workspaces = workspaces_api::list_workspaces(client.configuration(), None).await?;
 ```
 
+### Typed status
+
+Result and query-run `status` fields are plain strings on the wire. Interpret
+them with the typed [`ResultStatus`] / [`QueryRunStatus`] enums via the
+`result_status()` / `run_status()` accessors:
+
+```rust
+use hotdata::prelude::*;
+
+let result = client.await_result(&result_id, PollConfig::default()).await?;
+if result.result_status().is_ready() {
+    // ...
+}
+
+let run = client.query_runs().get(&query_run_id).await?;
+if run.run_status().is_terminal() { /* ... */ }
+```
+
+Both enums carry an `Other(String)` variant, so a status the server adds later
+round-trips instead of breaking deserialization.
+
 ### Updating nullable fields
 
 Several update requests model a field that is both optional (omit to leave

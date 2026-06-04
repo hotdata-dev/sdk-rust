@@ -23,6 +23,7 @@ pub mod client;
 pub mod field;
 pub mod models;
 pub mod resources;
+pub mod status;
 
 pub use apis::configuration::{ApiKey, BasicAuth, Configuration};
 pub use apis::Error;
@@ -40,6 +41,7 @@ pub use resources::{
     EmbeddingProvidersApi, IndexesApi, InformationSchemaApi, JobsApi, QueryApi, QueryRunsApi,
     RefreshApi, ResultsApi, SandboxesApi, SavedQueriesApi, SecretsApi, UploadsApi, WorkspacesApi,
 };
+pub use status::{QueryRunStatus, QueryRunStatusExt, ResultStatus, ResultStatusExt};
 
 pub mod prelude {
     pub use crate::apis::configuration::Configuration;
@@ -49,4 +51,5 @@ pub mod prelude {
     pub use crate::field;
     pub use crate::models::*;
     pub use crate::resources::*;
+    pub use crate::status::{QueryRunStatus, QueryRunStatusExt, ResultStatus, ResultStatusExt};
 }

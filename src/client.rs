@@ -464,14 +464,15 @@ impl Client {
                 .get_result(result_id)
                 .await
                 .map_err(AwaitResultError::Api)?;
-            match result.status.as_str() {
-                "ready" => return Ok(result),
-                "failed" => {
+            match crate::status::ResultStatus::parse(&result.status) {
+                crate::status::ResultStatus::Ready => return Ok(result),
+                crate::status::ResultStatus::Failed => {
                     return Err(AwaitResultError::Failed {
                         result_id: result_id.to_owned(),
                         error_message: result.error_message.flatten(),
                     })
                 }
+                // Pending / Processing / unknown -> keep polling.
                 _ => {}
             }
             if std::time::Instant::now() >= deadline {
