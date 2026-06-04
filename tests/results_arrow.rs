@@ -69,12 +69,15 @@ async fn results_arrow() {
     let client = skip_if_no_creds!();
     let config = client.configuration();
 
-    let submitted = client
-        .query(models::QueryRequest::new(
-            "SELECT 1 AS x, 'hello' AS msg UNION ALL SELECT 2, 'world'".to_string(),
-        ))
-        .await
-        .expect("query should succeed");
+    // Submit asynchronously (mirrors sdk-python): a bare synchronous query is
+    // rejected with 400 "a database is required"; the async path returns a
+    // query_run_id to poll.
+    let mut request = models::QueryRequest::new(
+        "SELECT 1 AS x, 'hello' AS msg UNION ALL SELECT 2, 'world'".to_string(),
+    );
+    request.r#async = Some(true);
+    request.async_after_ms = Some(Some(1000));
+    let submitted = client.query(request).await.expect("query should succeed");
     let query_run_id = submitted.query_run_id.clone();
     assert!(!query_run_id.is_empty(), "expected a query_run_id");
 

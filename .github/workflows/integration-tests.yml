@@ -88,4 +88,7 @@ jobs:
           HOTDATA_SDK_TEST_API_KEY: ${{ secrets.HOTDATA_SDK_TEST_API_KEY }}
           HOTDATA_SDK_TEST_WORKSPACE_ID: ${{ vars.HOTDATA_SDK_TEST_WORKSPACE_ID }}
           HOTDATA_SDK_TEST_CONNECTION_ID: ${{ vars.HOTDATA_SDK_TEST_CONNECTION_ID }}
-        run: cargo test --all-features --test '*' -- --nocapture
+        # --no-fail-fast runs every scenario binary even after one fails, so a
+        # red run surfaces all failing scenarios at once rather than stopping at
+        # the first.
+        run: cargo test --all-features --test '*' --no-fail-fast -- --nocapture
