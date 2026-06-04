@@ -488,12 +488,15 @@ impl Client {
 
     /// Submit a query and fetch its persisted result as Arrow IPC in one call.
     ///
-    /// Runs the query, waits for the result to reach `ready` (see
-    /// [`await_result`](Client::await_result)), then decodes it with
-    /// [`get_result_arrow`](Client::get_result_arrow). Returns
+    /// Runs the query, then polls [`get_result_arrow`](Client::get_result_arrow)
+    /// directly — retrying while the result is still pending — until it is
+    /// `ready` and decodes the Arrow IPC stream. Polling the Arrow endpoint
+    /// (rather than [`await_result`](Client::await_result)) avoids downloading
+    /// the full result as JSON on every poll. Returns
     /// [`QueryToArrowError::NoResultId`] when the query could not be persisted
-    /// (no `result_id`, e.g. catalog registration failed). Requires the `arrow`
-    /// cargo feature.
+    /// (no `result_id`, e.g. catalog registration failed), or
+    /// [`QueryToArrowError::Timeout`] if it does not become ready within
+    /// `poll.timeout`. Requires the `arrow` cargo feature.
     #[cfg(feature = "arrow")]
     pub async fn query_to_arrow(
         &self,
@@ -513,12 +516,38 @@ impl Client {
                 .ok_or_else(|| QueryToArrowError::NoResultId {
                     warning: submitted.warning.flatten(),
                 })?;
-        self.await_result(&result_id, poll)
-            .await
-            .map_err(QueryToArrowError::Await)?;
-        self.get_result_arrow(&result_id, offset, limit)
-            .await
-            .map_err(QueryToArrowError::Arrow)
+        // Poll the Arrow endpoint directly, retrying while the result is still
+        // pending (HTTP 202 -> `ArrowError::NotReady`). This avoids the full
+        // JSON download that `await_result` -> `get_result` performs on every
+        // poll: `get_result` returns the entire `rows` payload, so polling it
+        // would fetch the whole result set as JSON and then download it a
+        // second time as Arrow.
+        let deadline = std::time::Instant::now() + poll.timeout;
+        loop {
+            match self.get_result_arrow(&result_id, offset, limit).await {
+                Ok(result) => return Ok(result),
+                Err(crate::arrow::ArrowError::NotReady {
+                    status,
+                    retry_after,
+                    ..
+                }) => {
+                    if std::time::Instant::now() >= deadline {
+                        return Err(QueryToArrowError::Timeout {
+                            result_id,
+                            last_status: status,
+                            waited: poll.timeout,
+                        });
+                    }
+                    // Honor the server's `Retry-After` when present, otherwise
+                    // fall back to the configured poll interval.
+                    let wait = retry_after
+                        .map(std::time::Duration::from_secs)
+                        .unwrap_or(poll.interval);
+                    tokio::time::sleep(wait).await;
+                }
+                Err(e) => return Err(QueryToArrowError::Arrow(e)),
+            }
+        }
     }
 }
 
@@ -613,8 +642,15 @@ pub enum QueryToArrowError {
         /// The server-provided warning explaining why persistence was skipped.
         warning: Option<String>,
     },
-    /// Awaiting the result to become ready failed (or timed out).
-    Await(AwaitResultError),
+    /// The result did not become `ready` before `poll.timeout` elapsed.
+    Timeout {
+        /// The result id being awaited.
+        result_id: String,
+        /// The last status observed before timing out.
+        last_status: String,
+        /// How long was waited before giving up.
+        waited: std::time::Duration,
+    },
     /// Decoding the ready result as Arrow IPC failed.
     Arrow(crate::arrow::ArrowError),
 }
@@ -629,7 +665,14 @@ impl std::fmt::Display for QueryToArrowError {
                 "query result was not persisted, cannot fetch as Arrow: {}",
                 warning.as_deref().unwrap_or("no result_id returned")
             ),
-            QueryToArrowError::Await(e) => write!(f, "{e}"),
+            QueryToArrowError::Timeout {
+                result_id,
+                last_status,
+                waited,
+            } => write!(
+                f,
+                "result {result_id} not ready after {waited:?} (last status: {last_status})"
+            ),
             QueryToArrowError::Arrow(e) => write!(f, "arrow decode failed: {e}"),
         }
     }
