@@ -1185,8 +1185,9 @@ mod tests {
         assert_eq!(resp.status, "ready");
     }
 
-    /// The request carries `X-Workspace-Id`, `Authorization: Bearer`, and the
-    /// `Content-Type` — wire-identical to the generated `upload_file` op.
+    /// The request carries `X-Workspace-Id` and `Authorization: Bearer` like the
+    /// generated `upload_file` op, plus the intentional `Content-Type` header
+    /// `upload_file` omits.
     #[tokio::test]
     async fn upload_stream_sends_scope_auth_and_content_type() {
         use wiremock::matchers::{header, method, path};
