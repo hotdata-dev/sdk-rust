@@ -370,16 +370,16 @@ impl TokenManager {
     /// Apply a successful mint and, if configured, fire the persistence
     /// callback with the freshly minted tokens.
     ///
-    /// The callback receives the wire `refresh_token` (`None` when the server
-    /// omitted one) and the absolute expiry written into the cache, so a host
-    /// can persist exactly what landed. It runs while the single-flight lock is
-    /// held, so it must be quick and non-reentrant.
+    /// The callback receives the *effective* refresh token (the one now in the
+    /// cache, which carries the prior token forward when the server omits a new
+    /// one) and the absolute expiry written into the cache, so a host can
+    /// persist a complete, usable credential set. It runs while the
+    /// single-flight lock is held, so it must be quick and non-reentrant.
     fn apply_and_persist(&self, state: &mut TokenState, resp: TokenResponse) {
-        let wire_refresh = resp.refresh_token.clone();
         Self::apply(state, resp);
         if let Some(cb) = &self.on_persist {
             if let Some(jwt) = &state.jwt {
-                cb(jwt, wire_refresh.as_deref(), state.exp);
+                cb(jwt, state.refresh.as_deref(), state.exp);
             }
         }
     }
@@ -978,7 +978,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn on_persist_reports_none_refresh_when_server_omits_it() {
+    async fn on_persist_carries_refresh_forward_when_server_omits_it() {
         use std::sync::Mutex as StdMutex;
         use wiremock::matchers::{body_string_contains, method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -1013,9 +1013,10 @@ mod tests {
             },
         );
         assert_eq!(m.bearer_value().await.unwrap(), "refreshed-jwt");
-        // The wire response omitted refresh_token -> callback sees None, even
-        // though the cache carries the prior refresh token forward.
-        assert_eq!(captured.lock().unwrap().clone(), Some(None));
+        // The wire response omitted refresh_token, so the cache carries the
+        // prior refresh token forward -> the callback sees that effective
+        // token (not None), so a host persists a complete credential set.
+        assert_eq!(captured.lock().unwrap().clone(), Some(Some("seeded".to_string())));
         assert_eq!(m.state.lock().await.refresh.as_deref(), Some("seeded"));
     }
 
