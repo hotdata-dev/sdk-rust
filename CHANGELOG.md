@@ -9,15 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Ergonomic `Client` and `ClientBuilder` (`hotdata::Client`) wrapping the generated `Configuration`: set an API token and workspace id, with thin async pass-throughs for `query`, `get_query_run`, `list_results`, and `get_result`.
+- Ergonomic `Client` and `ClientBuilder` (`hotdata::Client`) wrapping the generated `Configuration`: set an API token and workspace id, with thin async pass-throughs for `query`, `list_query_runs`, `list_results`, `get_result`, and `list_workspaces`.
+- Grouped resource handles on `Client` (`client.datasets()`, `client.secrets()`, `client.query_runs()`, … one per API) so callers no longer import `hotdata::apis::*_api` free functions or thread a `&Configuration` through every call.
+- Query convenience helpers: `Client::await_result` polls a persisted result to `ready` (configurable via `PollConfig`) instead of a hand-rolled loop, and `Client::query_to_arrow` submits, awaits, and decodes a result as Arrow in one call (`arrow` feature).
+- `hotdata::field` helpers (`set` / `clear` / `unchanged`) for the `Option<Option<T>>` nullable-and-optional update fields, so `Some(Some(v))` / `Some(None)` intents read clearly.
 - Transparent API-token to JWT exchange via a hand-written `TokenManager` (`hotdata::auth`): `hd_` API tokens are exchanged against `/v1/auth/jwt`, cached, refreshed, and re-minted automatically, with a 30s expiry leeway and single-flight concurrency. JWTs (`eyJ…`) are passed through unchanged. Honors `HOTDATA_DISABLE_JWT_EXCHANGE`.
 - Pluggable `BearerTokenProvider` hook on `Configuration` so any async token source can drive bearer auth.
 - Optional `arrow` feature: `get_result_arrow` / `stream_result_arrow` decode Apache Arrow IPC result streams into `RecordBatch`es, surface the `X-Total-Row-Count` and `rel="next"` Link headers, and map the `202`/`409`/`404`/`400` result states to typed `ArrowError` variants.
-- Flat re-export surface (`hotdata::Client`, `hotdata::Configuration`, `hotdata::prelude::*`) alongside the namespaced `hotdata::apis` / `hotdata::models`.
+- Flat re-export surface (`hotdata::Client`, `hotdata::Configuration`, `hotdata::prelude::*`) alongside the namespaced `hotdata::apis` / `hotdata::models`. The prelude also re-exports the resource handles, `PollConfig`, the `field` helpers, and (with the `arrow` feature) `ArrowError`.
+- The SDK's own error enums (`ClientError`, `TokenExchangeError`, `ArrowError`, `AwaitResultError`, `QueryToArrowError`) are `#[non_exhaustive]`, so new variants can be added without a breaking change — match them with a wildcard arm.
 
 ### Changed
 
-- Regeneration is now safe for the hand-written ergonomic layer: the generator only overwrites generated subtrees (`src/apis`, `src/models`, `docs`) and skips `src/lib.rs`, `src/auth.rs`, `src/arrow.rs`, `src/client.rs`, and `Cargo.toml` via `.openapi-generator-ignore`.
+- Regeneration is now safe for the hand-written ergonomic layer: the generator only overwrites generated subtrees (`src/apis`, `src/models`, `docs`) and skips `src/lib.rs`, `src/auth.rs`, `src/arrow.rs`, `src/client.rs`, `src/resources.rs`, `src/field.rs`, and `Cargo.toml` via `.openapi-generator-ignore`. The regen-safety CI guard verifies all of these survive and stay wired into `lib.rs`.
 
 ## [0.1.0]
 

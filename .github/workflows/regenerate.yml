@@ -86,7 +86,7 @@ jobs:
           fail=0
 
           # 1. Hand-written, regen-immune modules must exist.
-          for f in src/lib.rs src/auth.rs src/arrow.rs src/client.rs; do
+          for f in src/lib.rs src/auth.rs src/arrow.rs src/client.rs src/resources.rs src/field.rs; do
             if [ ! -f "$f" ]; then
               echo "::error::$f is missing (regen clobbered the ergonomic layer)"
               fail=1
@@ -94,7 +94,7 @@ jobs:
           done
 
           # 2. lib.rs must still wire the hand-written modules.
-          for decl in 'pub mod auth;' 'pub mod client;' 'pub mod arrow;'; do
+          for decl in 'pub mod auth;' 'pub mod client;' 'pub mod arrow;' 'pub mod resources;' 'pub mod field;'; do
             if ! grep -q "$decl" src/lib.rs; then
               echo "::error::src/lib.rs no longer declares '$decl'"
               fail=1

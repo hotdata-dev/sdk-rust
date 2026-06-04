@@ -60,7 +60,11 @@ pub const ENV_API_URL: &str = "HOTDATA_API_URL";
 pub const ENV_TEST_API_URL: &str = "HOTDATA_SDK_TEST_API_URL";
 
 /// Errors that can occur while constructing a [`Client`].
+///
+/// Marked `#[non_exhaustive]`: new variants may be added without a breaking
+/// change, so downstream `match`es should carry a wildcard arm.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum ClientError {
     /// No API token was supplied (neither via the builder nor the environment).
     MissingApiToken,
@@ -338,7 +342,300 @@ impl Client {
     ) -> Result<crate::arrow::ArrowBatchStream, crate::arrow::ArrowError> {
         crate::arrow::stream_result_arrow(&self.configuration, id, offset, limit).await
     }
+
+    // --- Resource handles -----------------------------------------------------
+    //
+    // Grouped, ergonomic accessors over the generated `apis::*_api` free
+    // functions so callers write `client.datasets().create(req)` instead of
+    // `datasets_api::create_dataset(client.configuration(), req, ..)`. Each
+    // handle borrows the `Configuration`; see `crate::resources`.
+
+    /// Datasets resource handle.
+    pub fn datasets(&self) -> crate::resources::DatasetsApi<'_> {
+        crate::resources::DatasetsApi::new(&self.configuration)
+    }
+
+    /// Connections resource handle.
+    pub fn connections(&self) -> crate::resources::ConnectionsApi<'_> {
+        crate::resources::ConnectionsApi::new(&self.configuration)
+    }
+
+    /// Connection-types resource handle.
+    pub fn connection_types(&self) -> crate::resources::ConnectionTypesApi<'_> {
+        crate::resources::ConnectionTypesApi::new(&self.configuration)
+    }
+
+    /// Database-context resource handle.
+    pub fn database_context(&self) -> crate::resources::DatabaseContextApi<'_> {
+        crate::resources::DatabaseContextApi::new(&self.configuration)
+    }
+
+    /// Databases resource handle.
+    pub fn databases(&self) -> crate::resources::DatabasesApi<'_> {
+        crate::resources::DatabasesApi::new(&self.configuration)
+    }
+
+    /// Embedding-providers resource handle.
+    pub fn embedding_providers(&self) -> crate::resources::EmbeddingProvidersApi<'_> {
+        crate::resources::EmbeddingProvidersApi::new(&self.configuration)
+    }
+
+    /// Indexes resource handle.
+    pub fn indexes(&self) -> crate::resources::IndexesApi<'_> {
+        crate::resources::IndexesApi::new(&self.configuration)
+    }
+
+    /// Information-schema resource handle.
+    pub fn information_schema(&self) -> crate::resources::InformationSchemaApi<'_> {
+        crate::resources::InformationSchemaApi::new(&self.configuration)
+    }
+
+    /// Jobs resource handle.
+    pub fn jobs(&self) -> crate::resources::JobsApi<'_> {
+        crate::resources::JobsApi::new(&self.configuration)
+    }
+
+    /// Query resource handle (the flat [`Client::query`] shortcut covers the
+    /// common case).
+    pub fn queries(&self) -> crate::resources::QueryApi<'_> {
+        crate::resources::QueryApi::new(&self.configuration)
+    }
+
+    /// Query-runs resource handle.
+    pub fn query_runs(&self) -> crate::resources::QueryRunsApi<'_> {
+        crate::resources::QueryRunsApi::new(&self.configuration)
+    }
+
+    /// Results resource handle.
+    pub fn results(&self) -> crate::resources::ResultsApi<'_> {
+        crate::resources::ResultsApi::new(&self.configuration)
+    }
+
+    /// Dataset-refresh resource handle.
+    pub fn refresh(&self) -> crate::resources::RefreshApi<'_> {
+        crate::resources::RefreshApi::new(&self.configuration)
+    }
+
+    /// Sandboxes resource handle.
+    pub fn sandboxes(&self) -> crate::resources::SandboxesApi<'_> {
+        crate::resources::SandboxesApi::new(&self.configuration)
+    }
+
+    /// Saved-queries resource handle.
+    pub fn saved_queries(&self) -> crate::resources::SavedQueriesApi<'_> {
+        crate::resources::SavedQueriesApi::new(&self.configuration)
+    }
+
+    /// Secrets resource handle.
+    pub fn secrets(&self) -> crate::resources::SecretsApi<'_> {
+        crate::resources::SecretsApi::new(&self.configuration)
+    }
+
+    /// Uploads resource handle.
+    pub fn uploads(&self) -> crate::resources::UploadsApi<'_> {
+        crate::resources::UploadsApi::new(&self.configuration)
+    }
+
+    /// Workspaces resource handle (the flat [`Client::list_workspaces`]
+    /// shortcut covers the common case).
+    pub fn workspaces(&self) -> crate::resources::WorkspacesApi<'_> {
+        crate::resources::WorkspacesApi::new(&self.configuration)
+    }
+
+    // --- Query convenience helpers -------------------------------------------
+
+    /// Poll a persisted result until it reaches `ready`.
+    ///
+    /// [`query`](Client::query) returns rows inline, but persistence to storage
+    /// (required to re-fetch a result later, e.g. as Arrow) completes
+    /// asynchronously. This polls [`get_result`](Client::get_result) on
+    /// `result_id` until its `status` is `ready`, then returns that response.
+    /// A `failed` status returns [`AwaitResultError::Failed`]; exceeding
+    /// `poll.timeout` returns [`AwaitResultError::Timeout`]. Use
+    /// `PollConfig::default()` for sensible defaults (120s timeout, 1s interval).
+    pub async fn await_result(
+        &self,
+        result_id: &str,
+        poll: PollConfig,
+    ) -> Result<models::GetResultResponse, AwaitResultError> {
+        let deadline = std::time::Instant::now() + poll.timeout;
+        loop {
+            let result = self
+                .get_result(result_id)
+                .await
+                .map_err(AwaitResultError::Api)?;
+            match result.status.as_str() {
+                "ready" => return Ok(result),
+                "failed" => {
+                    return Err(AwaitResultError::Failed {
+                        result_id: result_id.to_owned(),
+                        error_message: result.error_message.flatten(),
+                    })
+                }
+                _ => {}
+            }
+            if std::time::Instant::now() >= deadline {
+                return Err(AwaitResultError::Timeout {
+                    result_id: result_id.to_owned(),
+                    last_status: result.status,
+                    waited: poll.timeout,
+                });
+            }
+            tokio::time::sleep(poll.interval).await;
+        }
+    }
+
+    /// Submit a query and fetch its persisted result as Arrow IPC in one call.
+    ///
+    /// Runs the query, waits for the result to reach `ready` (see
+    /// [`await_result`](Client::await_result)), then decodes it with
+    /// [`get_result_arrow`](Client::get_result_arrow). Returns
+    /// [`QueryToArrowError::NoResultId`] when the query could not be persisted
+    /// (no `result_id`, e.g. catalog registration failed). Requires the `arrow`
+    /// cargo feature.
+    #[cfg(feature = "arrow")]
+    pub async fn query_to_arrow(
+        &self,
+        request: models::QueryRequest,
+        poll: PollConfig,
+        offset: Option<i64>,
+        limit: Option<i64>,
+    ) -> Result<crate::arrow::ArrowResult, QueryToArrowError> {
+        let submitted = self
+            .query(request)
+            .await
+            .map_err(QueryToArrowError::Query)?;
+        let result_id =
+            submitted
+                .result_id
+                .flatten()
+                .ok_or_else(|| QueryToArrowError::NoResultId {
+                    warning: submitted.warning.flatten(),
+                })?;
+        self.await_result(&result_id, poll)
+            .await
+            .map_err(QueryToArrowError::Await)?;
+        self.get_result_arrow(&result_id, offset, limit)
+            .await
+            .map_err(QueryToArrowError::Arrow)
+    }
 }
+
+/// How long to wait, and how often to poll, when awaiting a result.
+///
+/// Defaults to a 120-second timeout polled every second. Use
+/// [`PollConfig::default`] for the common case, or construct one directly to
+/// tune it.
+#[derive(Debug, Clone, Copy)]
+pub struct PollConfig {
+    /// Maximum total time to wait for the result to become `ready`.
+    pub timeout: std::time::Duration,
+    /// Delay between successive polls.
+    pub interval: std::time::Duration,
+}
+
+impl Default for PollConfig {
+    fn default() -> Self {
+        PollConfig {
+            timeout: std::time::Duration::from_secs(120),
+            interval: std::time::Duration::from_secs(1),
+        }
+    }
+}
+
+/// Error returned by [`Client::await_result`].
+///
+/// Marked `#[non_exhaustive]`: new variants may be added without a breaking
+/// change, so downstream `match`es should carry a wildcard arm.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum AwaitResultError {
+    /// The underlying `get_result` call failed.
+    Api(Error<apis::results_api::GetResultError>),
+    /// The result reached `failed` status.
+    Failed {
+        /// The result id that failed.
+        result_id: String,
+        /// The server-provided failure message, when present.
+        error_message: Option<String>,
+    },
+    /// The result did not become `ready` before the poll timeout elapsed.
+    Timeout {
+        /// The result id being awaited.
+        result_id: String,
+        /// The last status observed before timing out.
+        last_status: String,
+        /// How long was waited before giving up.
+        waited: std::time::Duration,
+    },
+}
+
+impl std::fmt::Display for AwaitResultError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AwaitResultError::Api(e) => write!(f, "failed to fetch result: {e}"),
+            AwaitResultError::Failed {
+                result_id,
+                error_message,
+            } => write!(
+                f,
+                "result {result_id} failed: {}",
+                error_message.as_deref().unwrap_or("no error message")
+            ),
+            AwaitResultError::Timeout {
+                result_id,
+                last_status,
+                waited,
+            } => write!(
+                f,
+                "result {result_id} did not become ready within {waited:?} (last status: {last_status})"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for AwaitResultError {}
+
+/// Error returned by [`Client::query_to_arrow`].
+///
+/// Marked `#[non_exhaustive]`: new variants may be added without a breaking
+/// change, so downstream `match`es should carry a wildcard arm.
+#[cfg(feature = "arrow")]
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum QueryToArrowError {
+    /// The query submission failed.
+    Query(Error<apis::query_api::QueryError>),
+    /// The query ran but could not be persisted, so it has no `result_id` to
+    /// re-fetch as Arrow. `warning` carries the server's explanation, if any.
+    NoResultId {
+        /// The server-provided warning explaining why persistence was skipped.
+        warning: Option<String>,
+    },
+    /// Awaiting the result to become ready failed (or timed out).
+    Await(AwaitResultError),
+    /// Decoding the ready result as Arrow IPC failed.
+    Arrow(crate::arrow::ArrowError),
+}
+
+#[cfg(feature = "arrow")]
+impl std::fmt::Display for QueryToArrowError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            QueryToArrowError::Query(e) => write!(f, "query failed: {e}"),
+            QueryToArrowError::NoResultId { warning } => write!(
+                f,
+                "query result was not persisted, cannot fetch as Arrow: {}",
+                warning.as_deref().unwrap_or("no result_id returned")
+            ),
+            QueryToArrowError::Await(e) => write!(f, "{e}"),
+            QueryToArrowError::Arrow(e) => write!(f, "arrow decode failed: {e}"),
+        }
+    }
+}
+
+#[cfg(feature = "arrow")]
+impl std::error::Error for QueryToArrowError {}
 
 /// Read an environment variable, treating empty/whitespace-only values as absent.
 fn non_empty_env(key: &str) -> Option<String> {

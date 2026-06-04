@@ -71,7 +71,11 @@ const DISABLE_VALUES: [&str; 4] = ["1", "true", "yes", "on"];
 ///
 /// Surfacing the failure here (e.g. an `invalid_grant` from an expired/revoked
 /// API token) keeps the cause clear instead of a confusing downstream 401.
+///
+/// Marked `#[non_exhaustive]`: new failure modes may be added in future releases
+/// without a breaking change, so downstream `match`es should carry a wildcard arm.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum TokenExchangeError {
     /// Transport-level failure (connection refused, TLS error, timeout, ...).
     Transport(reqwest::Error),

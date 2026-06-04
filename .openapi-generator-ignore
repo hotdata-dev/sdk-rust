@@ -6,6 +6,8 @@ src/lib.rs
 src/auth.rs
 src/arrow.rs
 src/client.rs
+src/resources.rs
+src/field.rs
 CHANGELOG.md
 RELEASING.md
 examples/

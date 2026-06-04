@@ -48,7 +48,11 @@ pub const ARROW_STREAM_MEDIA_TYPE: &str = "application/vnd.apache.arrow.stream";
 /// 202 → [`ArrowError::NotReady`], 409 → [`ArrowError::Failed`],
 /// 404 → [`ArrowError::NotFound`], 400 → [`ArrowError::InvalidParams`], and any
 /// other non-success status → [`ArrowError::Http`].
+///
+/// Marked `#[non_exhaustive]`: new variants may be added without a breaking
+/// change, so downstream `match`es should carry a wildcard arm.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum ArrowError {
     /// HTTP 202: the result exists but is still `pending`/`processing`.
     ///

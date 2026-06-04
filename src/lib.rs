@@ -20,7 +20,9 @@ pub mod apis;
 pub mod arrow;
 pub mod auth;
 pub mod client;
+pub mod field;
 pub mod models;
+pub mod resources;
 
 pub use apis::configuration::{ApiKey, BasicAuth, Configuration};
 pub use apis::Error;
@@ -30,12 +32,21 @@ pub use arrow::{
     ARROW_STREAM_MEDIA_TYPE,
 };
 pub use auth::{BearerTokenProvider, TokenExchangeError, TokenManager};
-pub use client::{Client, ClientBuilder, ClientError};
+#[cfg(feature = "arrow")]
+pub use client::QueryToArrowError;
+pub use client::{AwaitResultError, Client, ClientBuilder, ClientError, PollConfig};
+pub use resources::{
+    ConnectionTypesApi, ConnectionsApi, DatabaseContextApi, DatabasesApi, DatasetsApi,
+    EmbeddingProvidersApi, IndexesApi, InformationSchemaApi, JobsApi, QueryApi, QueryRunsApi,
+    RefreshApi, ResultsApi, SandboxesApi, SavedQueriesApi, SecretsApi, UploadsApi, WorkspacesApi,
+};
 
 pub mod prelude {
     pub use crate::apis::configuration::Configuration;
     #[cfg(feature = "arrow")]
-    pub use crate::arrow::ArrowResult;
-    pub use crate::client::{Client, ClientBuilder};
+    pub use crate::arrow::{ArrowError, ArrowResult};
+    pub use crate::client::{Client, ClientBuilder, PollConfig};
+    pub use crate::field;
     pub use crate::models::*;
+    pub use crate::resources::*;
 }
