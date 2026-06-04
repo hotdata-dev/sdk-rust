@@ -93,9 +93,24 @@ impl Configuration {
     /// Resolve the bearer token for a request, preferring a pluggable
     /// async token provider (e.g. the hand-written TokenManager) and
     /// falling back to the static bearer_access_token when none is set.
+    ///
+    /// If a provider is configured but errors (e.g. an API-token -> JWT
+    /// exchange fails), the error is logged via the `log` facade and `None`
+    /// is returned. The request then proceeds unauthenticated and the server
+    /// replies 401; logging the cause keeps that 401 diagnosable instead of
+    /// silently swallowing the real failure.
     pub async fn resolve_bearer_token(&self) -> Option<String> {
         if let Some(ref provider) = self.token_provider {
-            return provider.bearer_value().await.ok();
+            match provider.bearer_value().await {
+                Ok(token) => return Some(token),
+                Err(e) => {
+                    log::warn!(
+                        "hotdata: bearer token resolution failed; \
+                         sending request unauthenticated: {e}"
+                    );
+                    return None;
+                }
+            }
         }
         self.bearer_access_token.clone()
     }
