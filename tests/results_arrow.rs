@@ -73,8 +73,10 @@ async fn results_arrow() {
     // `sdkci-shared` database via the `database_id` body field — queries
     // require a database or the server returns 400 "a database is required".
     let database_id = common::shared_database_id(&client).await;
+    // ORDER BY makes the row order deterministic — a bare UNION ALL has no
+    // guaranteed order, so the [1, 2] / offset assertions below would be flaky.
     let mut request = models::QueryRequest::new(
-        "SELECT 1 AS x, 'hello' AS msg UNION ALL SELECT 2, 'world'".to_string(),
+        "SELECT 1 AS x, 'hello' AS msg UNION ALL SELECT 2, 'world' ORDER BY x".to_string(),
     );
     request.r#async = Some(true);
     request.async_after_ms = Some(Some(1000));
