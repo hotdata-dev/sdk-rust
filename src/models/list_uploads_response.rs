@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -21,9 +21,6 @@ pub struct ListUploadsResponse {
 impl ListUploadsResponse {
     /// Response body for GET /v1/files
     pub fn new(uploads: Vec<models::UploadInfo>) -> ListUploadsResponse {
-        ListUploadsResponse {
-            uploads,
-        }
+        ListUploadsResponse { uploads }
     }
 }
-

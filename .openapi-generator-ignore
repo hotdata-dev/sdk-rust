@@ -1,3 +1,14 @@
 .travis.yml
 git_push.sh
 README.md
+Cargo.toml
+src/lib.rs
+src/auth.rs
+src/arrow.rs
+src/client.rs
+CHANGELOG.md
+RELEASING.md
+examples/
+examples/**
+tests/
+tests/**

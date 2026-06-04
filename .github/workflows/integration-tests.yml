@@ -1,0 +1,94 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  # Parity check runs on every PR and push: confirms every scenario in
+  # www.hotdata.dev/api/test-scenarios.yaml has a matching test file in this
+  # repo. www.hotdata.dev is private, so we fetch via the GitHub App token —
+  # same pattern as regenerate.yml. sdk-rust convention: tests/<name>.rs.
+  # Scenarios listing 'rust' in optional_for are skipped (per-scenario rollout).
+  scenario-parity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: 3060111
+          private-key: ${{ secrets.HOTDATA_AUTOMATION_PRIVATE_KEY }}
+          owner: hotdata-dev
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Fetch scenarios manifest
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          curl -sS -f -L \
+            -H "Accept: application/vnd.github.v3.raw" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            https://api.github.com/repos/hotdata-dev/www.hotdata.dev/contents/api/test-scenarios.yaml \
+            -o test-scenarios.yaml
+      - name: Check parity
+        run: |
+          python3 - <<'PY'
+          import sys, pathlib, re
+          text = pathlib.Path("test-scenarios.yaml").read_text()
+          missing = []
+          total = 0
+          name = None
+          optional = []
+          def flush(name, optional):
+              if name is None:
+                  return
+              if "rust" in optional:
+                  return
+              expected = pathlib.Path("tests") / f"{name}.rs"
+              if not expected.exists():
+                  missing.append(str(expected))
+          for line in text.splitlines():
+              m = re.match(r"\s*-\s+name:\s*(\S+)", line)
+              if m:
+                  flush(name, optional)
+                  total += 1
+                  name = m.group(1).strip().strip('"\'')
+                  optional = []
+                  continue
+              mo = re.match(r"\s*optional_for:\s*\[(.*)\]", line)
+              if mo:
+                  optional = [x.strip().strip('"\'') for x in mo.group(1).split(",") if x.strip()]
+          flush(name, optional)
+          if missing:
+              print(f"::error::sdk-rust is missing tests for {len(missing)} scenarios:")
+              for m in missing:
+                  print(f"  - {m}")
+              sys.exit(1)
+          print(f"All {total} scenarios have corresponding test files (or are exempt for rust).")
+          PY
+          rm -f test-scenarios.yaml
+
+  # Integration tests run against production with --all-features so the arrow
+  # surface is exercised. The shared test harness (tests/common/mod.rs) skips
+  # cleanly when HOTDATA_SDK_TEST_API_KEY / HOTDATA_SDK_TEST_WORKSPACE_ID are
+  # absent (e.g. PRs from forks where secrets aren't injected), so this job
+  # stays green without credentials.
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
+      - name: Run integration tests
+        env:
+          HOTDATA_SDK_TEST_API_URL: ${{ vars.HOTDATA_SDK_TEST_API_URL }}
+          HOTDATA_SDK_TEST_API_KEY: ${{ secrets.HOTDATA_SDK_TEST_API_KEY }}
+          HOTDATA_SDK_TEST_WORKSPACE_ID: ${{ vars.HOTDATA_SDK_TEST_WORKSPACE_ID }}
+          HOTDATA_SDK_TEST_CONNECTION_ID: ${{ vars.HOTDATA_SDK_TEST_CONNECTION_ID }}
+        # --no-fail-fast runs every scenario binary even after one fails, so a
+        # red run surfaces all failing scenarios at once rather than stopping at
+        # the first.
+        run: cargo test --all-features --test '*' --no-fail-fast -- --nocapture

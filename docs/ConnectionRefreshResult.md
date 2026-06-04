@@ -6,7 +6,7 @@ Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **connection_id** | **String** |  | 
 **duration_ms** | **i64** |  | 
-**errors** | [**Vec<models::TableRefreshError>**](TableRefreshError.md) |  | 
+**errors** | Option<[**Vec<models::TableRefreshError>**](TableRefreshError.md)> |  | [optional]
 **tables_failed** | **i32** |  | 
 **tables_refreshed** | **i32** |  | 
 **total_rows** | **i32** |  | 

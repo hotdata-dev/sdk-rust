@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -23,10 +23,6 @@ pub struct CreateSecretRequest {
 impl CreateSecretRequest {
     /// Request body for POST /secrets
     pub fn new(name: String, value: String) -> CreateSecretRequest {
-        CreateSecretRequest {
-            name,
-            value,
-        }
+        CreateSecretRequest { name, value }
     }
 }
-

@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -11,15 +11,15 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// ConnectionRefreshResult : Response for connection-wide data refresh
+/// ConnectionRefreshResult : Result payload for a `data_refresh_connection` job.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ConnectionRefreshResult {
     #[serde(rename = "connection_id")]
     pub connection_id: String,
     #[serde(rename = "duration_ms")]
     pub duration_ms: i64,
-    #[serde(rename = "errors")]
-    pub errors: Vec<models::TableRefreshError>,
+    #[serde(rename = "errors", skip_serializing_if = "Option::is_none")]
+    pub errors: Option<Vec<models::TableRefreshError>>,
     #[serde(rename = "tables_failed")]
     pub tables_failed: i32,
     #[serde(rename = "tables_refreshed")]
@@ -31,12 +31,18 @@ pub struct ConnectionRefreshResult {
 }
 
 impl ConnectionRefreshResult {
-    /// Response for connection-wide data refresh
-    pub fn new(connection_id: String, duration_ms: i64, errors: Vec<models::TableRefreshError>, tables_failed: i32, tables_refreshed: i32, total_rows: i32) -> ConnectionRefreshResult {
+    /// Result payload for a `data_refresh_connection` job.
+    pub fn new(
+        connection_id: String,
+        duration_ms: i64,
+        tables_failed: i32,
+        tables_refreshed: i32,
+        total_rows: i32,
+    ) -> ConnectionRefreshResult {
         ConnectionRefreshResult {
             connection_id,
             duration_ms,
-            errors,
+            errors: None,
             tables_failed,
             tables_refreshed,
             total_rows,
@@ -44,4 +50,3 @@ impl ConnectionRefreshResult {
         }
     }
 }
-

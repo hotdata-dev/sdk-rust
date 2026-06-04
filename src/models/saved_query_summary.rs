@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -32,7 +32,15 @@ pub struct SavedQuerySummary {
 
 impl SavedQuerySummary {
     /// Saved query summary for listing
-    pub fn new(created_at: String, description: String, id: String, latest_version: i32, name: String, tags: Vec<String>, updated_at: String) -> SavedQuerySummary {
+    pub fn new(
+        created_at: String,
+        description: String,
+        id: String,
+        latest_version: i32,
+        name: String,
+        tags: Vec<String>,
+        updated_at: String,
+    ) -> SavedQuerySummary {
         SavedQuerySummary {
             created_at,
             description,
@@ -44,4 +52,3 @@ impl SavedQuerySummary {
         }
     }
 }
-

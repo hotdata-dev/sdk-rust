@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -20,6 +20,17 @@ pub struct DatasetSummary {
     pub id: String,
     #[serde(rename = "label")]
     pub label: String,
+    #[serde(rename = "latest_version")]
+    pub latest_version: i32,
+    #[serde(
+        rename = "pinned_version",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub pinned_version: Option<Option<i32>>,
+    #[serde(rename = "schema_name")]
+    pub schema_name: String,
     #[serde(rename = "table_name")]
     pub table_name: String,
     #[serde(rename = "updated_at")]
@@ -28,14 +39,24 @@ pub struct DatasetSummary {
 
 impl DatasetSummary {
     /// Dataset summary for listing
-    pub fn new(created_at: String, id: String, label: String, table_name: String, updated_at: String) -> DatasetSummary {
+    pub fn new(
+        created_at: String,
+        id: String,
+        label: String,
+        latest_version: i32,
+        schema_name: String,
+        table_name: String,
+        updated_at: String,
+    ) -> DatasetSummary {
         DatasetSummary {
             created_at,
             id,
             label,
+            latest_version,
+            pinned_version: None,
+            schema_name,
             table_name,
             updated_at,
         }
     }
 }
-

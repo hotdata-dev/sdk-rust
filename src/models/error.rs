@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -20,9 +20,6 @@ pub struct Error {
 
 impl Error {
     pub fn new(error: String) -> Error {
-        Error {
-            error,
-        }
+        Error { error }
     }
 }
-

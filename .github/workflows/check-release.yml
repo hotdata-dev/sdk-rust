@@ -1,0 +1,22 @@
+name: Check release metadata
+
+on:
+  pull_request:
+    paths:
+      - 'Cargo.toml'
+      - 'CHANGELOG.md'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Verify changelog matches version bump
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Check release metadata
+        run: python3 scripts/check-release.py

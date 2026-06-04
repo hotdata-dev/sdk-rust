@@ -1,6 +1,6 @@
 # \SavedQueriesApi
 
-All URIs are relative to *https://app.hotdata.dev*
+All URIs are relative to *https://api.hotdata.dev*
 
 Method | HTTP request | Description
 ------------- | ------------- | -------------
@@ -34,7 +34,7 @@ Name | Type | Description  | Required | Notes
 
 ### Authorization
 
-[BearerAuth](../README.md#BearerAuth)
+[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
 
 ### HTTP request headers
 
@@ -62,7 +62,7 @@ Name | Type | Description  | Required | Notes
 
 ### Authorization
 
-[BearerAuth](../README.md#BearerAuth)
+[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
 
 ### HTTP request headers
 
@@ -74,10 +74,10 @@ Name | Type | Description  | Required | Notes
 
 ## execute_saved_query
 
-> models::QueryResponse execute_saved_query(id, execute_saved_query_request)
+> models::QueryResponse execute_saved_query(id, x_database_id, execute_saved_query_request)
 Execute saved query
 
-Execute a saved query. By default runs the latest version. Optionally specify a version number to execute a previous version. Returns the same response format as POST /v1/query.
+Execute a saved query, scoped to a database (required `X-Database-Id` header). By default runs the latest version. Optionally specify a version number to execute a previous version. The SQL runs inside the given database scope, the same way POST /v1/query does. Returns the same response format as POST /v1/query.
 
 ### Parameters
 
@@ -85,6 +85,7 @@ Execute a saved query. By default runs the latest version. Optionally specify a 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **id** | **String** | Saved query ID | [required] |
+**x_database_id** | **String** | Required. Scope execution to this database (its id). A missing or malformed value is a 400; an unknown database id is a 404. | [required] |
 **execute_saved_query_request** | Option<[**ExecuteSavedQueryRequest**](ExecuteSavedQueryRequest.md)> | Optional version to execute |  |
 
 ### Return type
@@ -93,7 +94,7 @@ Name | Type | Description  | Required | Notes
 
 ### Authorization
 
-[BearerAuth](../README.md#BearerAuth)
+[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
 
 ### HTTP request headers
 
@@ -121,7 +122,7 @@ Name | Type | Description  | Required | Notes
 
 ### Authorization
 
-[BearerAuth](../README.md#BearerAuth)
+[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
 
 ### HTTP request headers
 
@@ -150,7 +151,7 @@ Name | Type | Description  | Required | Notes
 
 ### Authorization
 
-[BearerAuth](../README.md#BearerAuth)
+[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
 
 ### HTTP request headers
 
@@ -180,7 +181,7 @@ Name | Type | Description  | Required | Notes
 
 ### Authorization
 
-[BearerAuth](../README.md#BearerAuth)
+[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
 
 ### HTTP request headers
 
@@ -211,7 +212,7 @@ Name | Type | Description  | Required | Notes
 
 ### Authorization
 
-[BearerAuth](../README.md#BearerAuth)
+[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
 
 ### HTTP request headers
 

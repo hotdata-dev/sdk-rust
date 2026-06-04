@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// TableRefreshResult : Response for single table data refresh
+/// TableRefreshResult : Result payload for a `data_refresh_table` job.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TableRefreshResult {
     #[serde(rename = "connection_id")]
@@ -29,8 +29,14 @@ pub struct TableRefreshResult {
 }
 
 impl TableRefreshResult {
-    /// Response for single table data refresh
-    pub fn new(connection_id: String, duration_ms: i64, rows_synced: i32, schema_name: String, table_name: String) -> TableRefreshResult {
+    /// Result payload for a `data_refresh_table` job.
+    pub fn new(
+        connection_id: String,
+        duration_ms: i64,
+        rows_synced: i32,
+        schema_name: String,
+        table_name: String,
+    ) -> TableRefreshResult {
         TableRefreshResult {
             connection_id,
             duration_ms,
@@ -41,4 +47,3 @@ impl TableRefreshResult {
         }
     }
 }
-

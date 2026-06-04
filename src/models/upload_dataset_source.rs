@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -17,7 +17,12 @@ pub struct UploadDatasetSource {
     /// Optional explicit column definitions. Keys are column names, values are type specs. When provided, the schema is built from these definitions instead of being inferred.
     #[serde(rename = "columns", skip_serializing_if = "Option::is_none")]
     pub columns: Option<std::collections::HashMap<String, String>>,
-    #[serde(rename = "format", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "format",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub format: Option<Option<String>>,
     #[serde(rename = "upload_id")]
     pub upload_id: String,
@@ -33,4 +38,3 @@ impl UploadDatasetSource {
         }
     }
 }
-

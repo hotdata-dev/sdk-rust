@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -32,7 +32,7 @@ impl ColumnProfileDetailOneOf4 {
         }
     }
 }
-/// 
+///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Type {
     #[serde(rename = "boolean")]
@@ -44,4 +44,3 @@ impl Default for Type {
         Self::Boolean
     }
 }
-

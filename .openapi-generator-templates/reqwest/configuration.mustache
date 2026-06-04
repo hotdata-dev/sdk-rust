@@ -22,6 +22,7 @@ pub struct Configuration {
     pub basic_auth: Option<BasicAuth>,
     pub oauth_access_token: Option<String>,
     pub bearer_access_token: Option<String>,
+    pub token_provider: Option<std::sync::Arc<dyn crate::auth::BearerTokenProvider>>,
     pub api_keys: HashMap<String, ApiKey>,
     {{/supportTokenSource}}
     {{#withAWSV4Signature}}
@@ -87,6 +88,33 @@ impl Configuration {
     pub fn new() -> Configuration {
         Configuration::default()
     }
+{{^supportTokenSource}}
+
+    /// Resolve the bearer token for a request, preferring a pluggable
+    /// async token provider (e.g. the hand-written TokenManager) and
+    /// falling back to the static bearer_access_token when none is set.
+    ///
+    /// If a provider is configured but errors (e.g. an API-token -> JWT
+    /// exchange fails), the error is logged via the `log` facade and `None`
+    /// is returned. The request then proceeds unauthenticated and the server
+    /// replies 401; logging the cause keeps that 401 diagnosable instead of
+    /// silently swallowing the real failure.
+    pub async fn resolve_bearer_token(&self) -> Option<String> {
+        if let Some(ref provider) = self.token_provider {
+            match provider.bearer_value().await {
+                Ok(token) => return Some(token),
+                Err(e) => {
+                    log::warn!(
+                        "hotdata: bearer token resolution failed; \
+                         sending request unauthenticated: {e}"
+                    );
+                    return None;
+                }
+            }
+        }
+        self.bearer_access_token.clone()
+    }
+{{/supportTokenSource}}
 }
 
 impl Default for Configuration {
@@ -99,6 +127,7 @@ impl Default for Configuration {
             basic_auth: None,
             oauth_access_token: None,
             bearer_access_token: None,
+            token_provider: None,
             api_keys: HashMap::new(),
             {{/supportTokenSource}}
             {{#withAWSV4Signature}}

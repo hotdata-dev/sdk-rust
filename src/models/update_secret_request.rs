@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -21,9 +21,6 @@ pub struct UpdateSecretRequest {
 impl UpdateSecretRequest {
     /// Request body for PUT /secrets/{name}
     pub fn new(value: String) -> UpdateSecretRequest {
-        UpdateSecretRequest {
-            value,
-        }
+        UpdateSecretRequest { value }
     }
 }
-

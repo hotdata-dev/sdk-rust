@@ -12,9 +12,26 @@ serde_with = { version = "^3.8", default-features = false, features = ["base64",
 serde_json = "^1.0"
 serde_repr = "^0.1"
 url = "^2.5"
-reqwest = { version = "^0.13", default-features = false, features = ["json", "multipart", "query", "form"] }
+tokio = { version = "^1.46.0", features = ["fs", "sync", "rt", "macros", "time"] }
+tokio-util = { version = "^0.7", features = ["codec"] }
+reqwest = { version = "^0.13", default-features = false, features = ["json", "multipart", "stream", "query", "form"] }
+async-trait = "^0.1"
+bytes = "^1"
+log = "^0.4"
+arrow-ipc = { version = "55", optional = true }
+arrow-array = { version = "55", optional = true }
+arrow-schema = { version = "55", optional = true }
 
 [features]
 default = ["native-tls"]
 native-tls = ["reqwest/native-tls"]
 rustls = ["reqwest/rustls"]
+arrow = ["dep:arrow-ipc", "dep:arrow-array", "dep:arrow-schema"]
+
+[dev-dependencies]
+tokio = { version = "^1.46.0", features = ["rt-multi-thread", "macros", "time"] }
+wiremock = "0.6"
+uuid = { version = "1", features = ["v4"] }
+
+[package.metadata.docs.rs]
+all-features = true

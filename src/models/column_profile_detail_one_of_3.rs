@@ -1,5 +1,5 @@
 /*
- * HotData API
+ * Hotdata API
  *
  * Powerful data platform API for datasets, queries, and analytics.
  *
@@ -25,14 +25,10 @@ pub struct ColumnProfileDetailOneOf3 {
 
 impl ColumnProfileDetailOneOf3 {
     pub fn new(max: String, min: String, r#type: Type) -> ColumnProfileDetailOneOf3 {
-        ColumnProfileDetailOneOf3 {
-            max,
-            min,
-            r#type,
-        }
+        ColumnProfileDetailOneOf3 { max, min, r#type }
     }
 }
-/// 
+///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Type {
     #[serde(rename = "temporal")]
@@ -44,4 +40,3 @@ impl Default for Type {
         Self::Temporal
     }
 }
-

@@ -1,6 +1,6 @@
 # \UploadsApi
 
-All URIs are relative to *https://app.hotdata.dev*
+All URIs are relative to *https://api.hotdata.dev*
 
 Method | HTTP request | Description
 ------------- | ------------- | -------------
@@ -27,7 +27,7 @@ Name | Type | Description  | Required | Notes
 
 ### Authorization
 
-[BearerAuth](../README.md#BearerAuth)
+[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
 
 ### HTTP request headers
 
@@ -39,17 +39,17 @@ Name | Type | Description  | Required | Notes
 
 ## upload_file
 
-> models::UploadResponse upload_file(request_body)
+> models::UploadResponse upload_file(body)
 Upload file
 
-Upload a file to be used as a dataset source. Send the raw file bytes as the request body with an appropriate Content-Type header (e.g., `text/csv`, `application/json`, `application/parquet`). The returned upload ID can be passed to POST /v1/datasets to create a queryable table.
+Upload a file to be used as a dataset source. Send the raw file bytes as the request body with an appropriate Content-Type header (e.g., `text/csv`, `application/json`, `application/parquet`). The body is streamed to disk, so files up to 20GB are supported. The returned upload ID can be passed to POST /v1/datasets to create a queryable table.
 
 ### Parameters
 
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**request_body** | [**Vec<i32>**](I32.md) |  | [required] |
+**body** | **std::path::PathBuf** |  | [required] |
 
 ### Return type
 
@@ -57,7 +57,7 @@ Name | Type | Description  | Required | Notes
 
 ### Authorization
 
-[BearerAuth](../README.md#BearerAuth)
+[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
 
 ### HTTP request headers
 
