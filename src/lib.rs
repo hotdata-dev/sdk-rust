@@ -32,10 +32,14 @@ pub use arrow::{
     get_result_arrow, stream_result_arrow, ArrowBatchStream, ArrowError, ArrowResult,
     ARROW_STREAM_MEDIA_TYPE,
 };
-pub use auth::{BearerTokenProvider, TokenExchangeError, TokenManager};
+pub use auth::{
+    BearerTokenProvider, PersistCallback, TokenExchangeError, TokenManager, TokenManagerOptions,
+};
 #[cfg(feature = "arrow")]
 pub use client::QueryToArrowError;
-pub use client::{AwaitResultError, Client, ClientBuilder, ClientError, PollConfig};
+pub use client::{
+    AwaitResultError, Client, ClientBuilder, ClientError, PollConfig, QueryOutcome,
+};
 pub use resources::{
     ConnectionTypesApi, ConnectionsApi, DatabaseContextApi, DatabasesApi, DatasetsApi,
     EmbeddingProvidersApi, IndexesApi, InformationSchemaApi, JobsApi, QueryApi, QueryRunsApi,
@@ -43,11 +47,17 @@ pub use resources::{
 };
 pub use status::{QueryRunStatus, QueryRunStatusExt, ResultStatus, ResultStatusExt};
 
+/// Process-wide lock serializing every test that mutates `std::env`. Env is a
+/// process-global resource, so per-module locks would race; all env-mutating
+/// tests across the crate (auth.rs, client.rs, …) lock this single mutex.
+#[cfg(test)]
+pub(crate) static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 pub mod prelude {
     pub use crate::apis::configuration::Configuration;
     #[cfg(feature = "arrow")]
     pub use crate::arrow::{ArrowError, ArrowResult};
-    pub use crate::client::{Client, ClientBuilder, PollConfig};
+    pub use crate::client::{Client, ClientBuilder, PollConfig, QueryOutcome};
     pub use crate::field;
     pub use crate::models::*;
     pub use crate::resources::*;
