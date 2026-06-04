@@ -393,6 +393,119 @@ impl Client {
         }
     }
 
+    /// Stream an arbitrary byte source to `POST /v1/files`, the raw-body upload
+    /// endpoint.
+    ///
+    /// The generated [`apis::uploads_api::upload_file`] (and the ergonomic
+    /// `uploads().upload`) take a [`std::path::PathBuf`] only — they open a file
+    /// and wrap it in a stream internally. That can't express an arbitrary byte
+    /// source (a network download, an in-memory buffer, a transformed stream),
+    /// which a host app needs to upload from a `--url` fetch or to wrap its
+    /// source in a progress meter. This method closes that gap: it takes any
+    /// `Stream` of `Result<Bytes, _>` and streams it to the same endpoint with
+    /// the same wire format (raw `application/octet-stream` body, the upload ID
+    /// returned in [`models::UploadResponse`]).
+    ///
+    /// The request is built wire-identically to the generated op: same
+    /// `base_path` + `/v1/files` join, same `X-Workspace-Id` / `X-Session-Id`
+    /// scope headers (from `configuration.api_keys`), same bearer auth (via
+    /// [`Configuration::resolve_bearer_token`]), same user-agent. It reuses the
+    /// configured `configuration.client`, so a caller-supplied client (e.g. one
+    /// built with no request timeout via
+    /// [`ClientBuilder::reqwest_client`](crate::ClientBuilder)) applies to the
+    /// transfer.
+    ///
+    /// Progress reporting and timeout policy stay with the caller: wrap the
+    /// source stream to drive a progress bar, and supply a no-timeout client if
+    /// the upload may outlive the default request timeout. This method owns
+    /// neither.
+    ///
+    /// `content_type` sets the `Content-Type` header (e.g. `text/csv`,
+    /// `application/parquet`); pass `None` to default to
+    /// `application/octet-stream`. The endpoint accepts the raw bytes as-is.
+    pub async fn upload_stream<S, B, E>(
+        &self,
+        body: S,
+        content_type: Option<&str>,
+    ) -> Result<models::UploadResponse, Error<apis::uploads_api::UploadFileError>>
+    where
+        S: futures_core::Stream<Item = Result<B, E>> + Send + 'static,
+        bytes::Bytes: From<B>,
+        B: 'static,
+        E: Into<Box<dyn std::error::Error + Send + Sync>> + 'static,
+    {
+        use crate::apis::ResponseContent;
+        use serde::de::Error as _;
+
+        let configuration = &self.configuration;
+
+        let uri_str = format!("{}/v1/files", configuration.base_path);
+        let mut req_builder = configuration
+            .client
+            .request(reqwest::Method::POST, &uri_str);
+
+        if let Some(ref user_agent) = configuration.user_agent {
+            req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+        }
+        req_builder = req_builder.header(
+            reqwest::header::CONTENT_TYPE,
+            content_type.unwrap_or("application/octet-stream"),
+        );
+        if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
+            let key = apikey.key.clone();
+            let value = match apikey.prefix {
+                Some(ref prefix) => format!("{} {}", prefix, key),
+                None => key,
+            };
+            req_builder = req_builder.header("X-Workspace-Id", value);
+        };
+        if let Some(apikey) = configuration.api_keys.get("X-Session-Id") {
+            let key = apikey.key.clone();
+            let value = match apikey.prefix {
+                Some(ref prefix) => format!("{} {}", prefix, key),
+                None => key,
+            };
+            req_builder = req_builder.header("X-Session-Id", value);
+        };
+        if let Some(token) = configuration.resolve_bearer_token().await {
+            req_builder = req_builder.bearer_auth(token);
+        };
+        req_builder = req_builder.body(reqwest::Body::wrap_stream(body));
+
+        let req = req_builder.build()?;
+        let resp = configuration.client.execute(req).await?;
+
+        let status = resp.status();
+        let content_type = resp
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("application/octet-stream")
+            .to_owned();
+        let is_json =
+            content_type.starts_with("application") && content_type.contains("json");
+
+        if !status.is_client_error() && !status.is_server_error() {
+            let content = resp.text().await?;
+            if is_json {
+                serde_json::from_str(&content).map_err(Error::from)
+            } else {
+                Err(Error::from(serde_json::Error::custom(format!(
+                    "Received `{content_type}` content type response that cannot be converted to `models::UploadResponse`"
+                ))))
+            }
+        } else {
+            let content = resp.text().await?;
+            let entity: Option<apis::uploads_api::UploadFileError> =
+                serde_json::from_str(&content).ok();
+            Err(Error::ResponseError(ResponseContent {
+                status,
+                content,
+                entity,
+            }))
+        }
+    }
+
     /// List recent query runs.
     pub async fn list_query_runs(
         &self,
@@ -1026,6 +1139,121 @@ mod tests {
             .expect("submit_query should succeed with scoped headers");
 
         assert!(matches!(outcome, QueryOutcome::Submitted(_)));
+    }
+
+    /// A streamed body POSTs to `/v1/files`, parses the `201 UploadResponse`,
+    /// and the streamed bytes arrive intact.
+    #[tokio::test]
+    async fn upload_stream_posts_and_parses_response() {
+        use wiremock::matchers::{body_bytes, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let _g = env_guard();
+        clear_env();
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/files"))
+            .and(body_bytes(b"hello world".to_vec()))
+            .respond_with(ResponseTemplate::new(201).set_body_json(serde_json::json!({
+                "content_type": "text/csv",
+                "created_at": "2026-06-04T00:00:00Z",
+                "id": "upload_abc",
+                "size_bytes": 11,
+                "status": "ready",
+            })))
+            .mount(&server)
+            .await;
+
+        let client = query_test_client(&server.uri());
+        // Two chunks so the body is genuinely streamed (not a single buffer).
+        let chunks: Vec<Result<bytes::Bytes, std::io::Error>> = vec![
+            Ok(bytes::Bytes::from_static(b"hello ")),
+            Ok(bytes::Bytes::from_static(b"world")),
+        ];
+        let stream = futures::stream::iter(chunks);
+
+        let resp = client
+            .upload_stream(stream, Some("text/csv"))
+            .await
+            .expect("upload_stream should succeed");
+
+        assert_eq!(resp.id, "upload_abc");
+        assert_eq!(resp.size_bytes, 11);
+        assert_eq!(resp.status, "ready");
+    }
+
+    /// The request carries `X-Workspace-Id`, `Authorization: Bearer`, and the
+    /// `Content-Type` — wire-identical to the generated `upload_file` op.
+    #[tokio::test]
+    async fn upload_stream_sends_scope_auth_and_content_type() {
+        use wiremock::matchers::{header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let _g = env_guard();
+        clear_env();
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/files"))
+            .and(header("X-Workspace-Id", "ws_test"))
+            .and(header("Authorization", "Bearer test-bearer"))
+            .and(header("Content-Type", "application/parquet"))
+            .respond_with(ResponseTemplate::new(201).set_body_json(serde_json::json!({
+                "created_at": "2026-06-04T00:00:00Z",
+                "id": "upload_scoped",
+                "size_bytes": 3,
+                "status": "ready",
+            })))
+            .mount(&server)
+            .await;
+
+        let client = query_test_client(&server.uri());
+        // The mock only matches when all three headers are present, so a
+        // successful parse proves they reached the wire.
+        let stream = futures::stream::once(async {
+            Ok::<_, std::io::Error>(bytes::Bytes::from_static(b"abc"))
+        });
+
+        let resp = client
+            .upload_stream(stream, Some("application/parquet"))
+            .await
+            .expect("upload_stream should succeed with scoped headers");
+
+        assert_eq!(resp.id, "upload_scoped");
+    }
+
+    /// With no `content_type`, the request defaults to
+    /// `application/octet-stream`.
+    #[tokio::test]
+    async fn upload_stream_defaults_content_type() {
+        use wiremock::matchers::{header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let _g = env_guard();
+        clear_env();
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/files"))
+            .and(header("Content-Type", "application/octet-stream"))
+            .respond_with(ResponseTemplate::new(201).set_body_json(serde_json::json!({
+                "created_at": "2026-06-04T00:00:00Z",
+                "id": "upload_default",
+                "size_bytes": 1,
+                "status": "ready",
+            })))
+            .mount(&server)
+            .await;
+
+        let client = query_test_client(&server.uri());
+        let stream = futures::stream::once(async {
+            Ok::<_, std::io::Error>(bytes::Bytes::from_static(b"x"))
+        });
+
+        let resp = client
+            .upload_stream(stream, None)
+            .await
+            .expect("upload_stream should default content-type");
+
+        assert_eq!(resp.id, "upload_default");
     }
 
     #[test]
