@@ -32,7 +32,9 @@ pub use arrow::{
     get_result_arrow, stream_result_arrow, ArrowBatchStream, ArrowError, ArrowResult,
     ARROW_STREAM_MEDIA_TYPE,
 };
-pub use auth::{BearerTokenProvider, TokenExchangeError, TokenManager};
+pub use auth::{
+    BearerTokenProvider, PersistCallback, TokenExchangeError, TokenManager, TokenManagerOptions,
+};
 #[cfg(feature = "arrow")]
 pub use client::QueryToArrowError;
 pub use client::{
