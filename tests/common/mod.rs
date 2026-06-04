@@ -140,3 +140,36 @@ pub fn status_of<T>(err: &hotdata::Error<T>) -> Option<u16> {
         _ => None,
     }
 }
+
+/// Name of the shared database that query-scoped scenarios target.
+pub const SHARED_DATABASE_NAME: &str = "sdkci-shared";
+
+/// Find-or-create the shared `sdkci-shared` database and return its id.
+///
+/// Queries require a database scope (the `X-Database-Id` header or the
+/// `database_id` body field); a bare query returns 400 "a database is
+/// required". Databases persist (no auto-expiry), so — mirroring sdk-python's
+/// conftest — we reuse one stable database keyed by name across runs rather
+/// than creating and deleting one per test (which would leak on failure).
+pub async fn shared_database_id(client: &Client) -> String {
+    use hotdata::apis::databases_api;
+    let config = client.configuration();
+
+    let listing = databases_api::list_databases(config)
+        .await
+        .expect("list_databases should succeed");
+    if let Some(db) = listing
+        .databases
+        .iter()
+        .find(|d| d.name.as_ref().and_then(|n| n.as_deref()) == Some(SHARED_DATABASE_NAME))
+    {
+        return db.id.clone();
+    }
+
+    let mut request = hotdata::models::CreateDatabaseRequest::new();
+    request.name = Some(Some(SHARED_DATABASE_NAME.to_string()));
+    let created = databases_api::create_database(config, request)
+        .await
+        .expect("create_database should succeed");
+    created.id
+}

@@ -60,9 +60,19 @@ async fn saved_query_versioning() {
         );
     }
 
-    let executed = saved_queries_api::execute_saved_query(config, &created.id, "", None)
-        .await
-        .expect("execute_saved_query should succeed");
+    // Executing a saved query runs SQL, so it needs a database scope (passed
+    // via the required X-Database-Id parameter) and a non-null request body —
+    // the generated client serializes `None` as JSON `null`, which the server
+    // rejects, so send an empty `ExecuteSavedQueryRequest`.
+    let database_id = common::shared_database_id(&client).await;
+    let executed = saved_queries_api::execute_saved_query(
+        config,
+        &created.id,
+        &database_id,
+        Some(models::ExecuteSavedQueryRequest::new()),
+    )
+    .await
+    .expect("execute_saved_query should succeed");
     assert_eq!(executed.row_count, 1);
     assert_eq!(
         executed.rows,

@@ -69,14 +69,16 @@ async fn results_arrow() {
     let client = skip_if_no_creds!();
     let config = client.configuration();
 
-    // Submit asynchronously (mirrors sdk-python): a bare synchronous query is
-    // rejected with 400 "a database is required"; the async path returns a
-    // query_run_id to poll.
+    // Submit asynchronously (mirrors sdk-python) and scope to the shared
+    // `sdkci-shared` database via the `database_id` body field — queries
+    // require a database or the server returns 400 "a database is required".
+    let database_id = common::shared_database_id(&client).await;
     let mut request = models::QueryRequest::new(
         "SELECT 1 AS x, 'hello' AS msg UNION ALL SELECT 2, 'world'".to_string(),
     );
     request.r#async = Some(true);
     request.async_after_ms = Some(Some(1000));
+    request.database_id = Some(Some(database_id));
     let submitted = client.query(request).await.expect("query should succeed");
     let query_run_id = submitted.query_run_id.clone();
     assert!(!query_run_id.is_empty(), "expected a query_run_id");

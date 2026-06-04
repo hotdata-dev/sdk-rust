@@ -29,11 +29,14 @@ async fn query_async_polling() {
 
     // Submit asynchronously (mirrors sdk-python): `async=true` with a small
     // `async_after_ms` exercises the async submission path and returns a
-    // query_run_id to poll. A bare synchronous query is rejected with 400
-    // "a database is required" — the async path is what this scenario covers.
+    // query_run_id to poll. Queries require a database scope, so target the
+    // shared `sdkci-shared` database via the `database_id` body field —
+    // otherwise the server returns 400 "a database is required".
+    let database_id = common::shared_database_id(&client).await;
     let mut request = models::QueryRequest::new("SELECT 1 AS x".to_string());
     request.r#async = Some(true);
     request.async_after_ms = Some(Some(1000));
+    request.database_id = Some(Some(database_id));
     let submitted = client.query(request).await.expect("query should succeed");
     let query_run_id = submitted.query_run_id.clone();
     assert!(!query_run_id.is_empty(), "expected a query_run_id");
