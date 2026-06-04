@@ -8,7 +8,8 @@
 //!
 //! This module mirrors `hotdata/arrow.py` from the Python SDK. It builds the
 //! request exactly like the generated `get_result` (same URL, user-agent,
-//! `X-Workspace-Id` API key, and transparent JWT-exchanged bearer token via
+//! `X-Workspace-Id`/`X-Session-Id` API keys, and transparent JWT-exchanged
+//! bearer token via
 //! [`crate::apis::configuration::Configuration::resolve_bearer_token`]), adds
 //! `Accept: application/vnd.apache.arrow.stream` plus `?format=arrow`, and
 //! decodes the resulting IPC stream with `arrow-ipc`.
@@ -38,6 +39,7 @@ use arrow_schema::{ArrowError as IpcArrowError, SchemaRef};
 use bytes::Bytes;
 
 use crate::apis::configuration::Configuration;
+use crate::client::{SESSION_ID_HEADER, WORKSPACE_ID_HEADER};
 
 /// The Arrow IPC stream media type negotiated with the results endpoint.
 pub const ARROW_STREAM_MEDIA_TYPE: &str = "application/vnd.apache.arrow.stream";
@@ -48,7 +50,11 @@ pub const ARROW_STREAM_MEDIA_TYPE: &str = "application/vnd.apache.arrow.stream";
 /// 202 → [`ArrowError::NotReady`], 409 → [`ArrowError::Failed`],
 /// 404 → [`ArrowError::NotFound`], 400 → [`ArrowError::InvalidParams`], and any
 /// other non-success status → [`ArrowError::Http`].
+///
+/// Marked `#[non_exhaustive]`: new variants may be added without a breaking
+/// change, so downstream `match`es should carry a wildcard arm.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum ArrowError {
     /// HTTP 202: the result exists but is still `pending`/`processing`.
     ///
@@ -229,8 +235,8 @@ impl Iterator for ArrowBatchStream {
 /// without materializing them all at once.
 ///
 /// The request is built to match the generated `get_result`: same URL, the
-/// `X-Workspace-Id` API key header, the user-agent, and a transparently
-/// JWT-exchanged bearer token via
+/// `X-Workspace-Id`/`X-Session-Id` API key headers, the user-agent, and a
+/// transparently JWT-exchanged bearer token via
 /// [`Configuration::resolve_bearer_token`](crate::apis::configuration::Configuration::resolve_bearer_token).
 /// `Accept` and `?format=arrow` are added on top.
 ///
@@ -290,6 +296,27 @@ pub async fn stream_result_arrow(
     })
 }
 
+/// Apply the `X-Workspace-Id` and `X-Session-Id` API-key headers, mirroring the
+/// generated `get_result` `isKeyInHeader` blocks so a session-scoped client
+/// (one built via [`crate::client::ClientBuilder::session_id`]) behaves
+/// identically on the Arrow path.
+fn apply_apikey_headers(
+    mut req_builder: reqwest::RequestBuilder,
+    configuration: &Configuration,
+) -> reqwest::RequestBuilder {
+    for header in [WORKSPACE_ID_HEADER, SESSION_ID_HEADER] {
+        if let Some(apikey) = configuration.api_keys.get(header) {
+            let key = apikey.key.clone();
+            let value = match apikey.prefix {
+                Some(ref prefix) => format!("{prefix} {key}"),
+                None => key,
+            };
+            req_builder = req_builder.header(header, value);
+        }
+    }
+    req_builder
+}
+
 /// Build the request, execute it, map the status, and return the raw IPC body
 /// plus the metadata headers on success.
 ///
@@ -319,15 +346,7 @@ async fn fetch_arrow_bytes(
         req_builder = req_builder.query(&[("limit", &limit.to_string())]);
     }
 
-    // X-Workspace-Id API key, mirroring the generated isKeyInHeader block.
-    if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
-        let key = apikey.key.clone();
-        let value = match apikey.prefix {
-            Some(ref prefix) => format!("{prefix} {key}"),
-            None => key,
-        };
-        req_builder = req_builder.header("X-Workspace-Id", value);
-    }
+    req_builder = apply_apikey_headers(req_builder, configuration);
 
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
@@ -456,7 +475,66 @@ fn parse_error_message(body: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::apis::configuration::ApiKey;
     use std::sync::Arc;
+
+    /// A session-scoped client must send *both* `X-Workspace-Id` and
+    /// `X-Session-Id` on the Arrow path, matching the generated `get_result`.
+    /// Guards against silently dropping the session header (the prior behavior).
+    #[test]
+    fn apikey_headers_forward_workspace_and_session() {
+        let mut configuration = Configuration::new();
+        configuration.api_keys.insert(
+            WORKSPACE_ID_HEADER.to_owned(),
+            ApiKey {
+                prefix: None,
+                key: "ws-123".to_owned(),
+            },
+        );
+        configuration.api_keys.insert(
+            SESSION_ID_HEADER.to_owned(),
+            ApiKey {
+                prefix: None,
+                key: "sess-456".to_owned(),
+            },
+        );
+
+        let req_builder = configuration
+            .client
+            .request(reqwest::Method::GET, "https://api.hotdata.dev/v1/results/abc");
+        let req = apply_apikey_headers(req_builder, &configuration)
+            .build()
+            .unwrap();
+        let headers = req.headers();
+
+        assert_eq!(headers.get(WORKSPACE_ID_HEADER).unwrap(), "ws-123");
+        assert_eq!(headers.get(SESSION_ID_HEADER).unwrap(), "sess-456");
+    }
+
+    /// Without a session id installed, only `X-Workspace-Id` is sent — the
+    /// session header is omitted rather than sent empty.
+    #[test]
+    fn apikey_headers_omit_absent_session() {
+        let mut configuration = Configuration::new();
+        configuration.api_keys.insert(
+            WORKSPACE_ID_HEADER.to_owned(),
+            ApiKey {
+                prefix: None,
+                key: "ws-123".to_owned(),
+            },
+        );
+
+        let req_builder = configuration
+            .client
+            .request(reqwest::Method::GET, "https://api.hotdata.dev/v1/results/abc");
+        let req = apply_apikey_headers(req_builder, &configuration)
+            .build()
+            .unwrap();
+        let headers = req.headers();
+
+        assert_eq!(headers.get(WORKSPACE_ID_HEADER).unwrap(), "ws-123");
+        assert!(headers.get(SESSION_ID_HEADER).is_none());
+    }
 
     use arrow_array::{Int64Array, StringArray};
     use arrow_ipc::writer::StreamWriter;

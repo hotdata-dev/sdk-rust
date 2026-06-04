@@ -1,13 +1,13 @@
 //! HotData Rust SDK quickstart.
 //!
 //! End-to-end tour of the ergonomic surface, using *only* the public API
-//! (`hotdata::prelude::*` plus a couple of re-exported error types). It:
+//! (`hotdata::prelude::*`). It:
 //!
 //!   1. builds a [`Client`] from an API token + workspace id,
-//!   2. lists the workspaces the token can see,
-//!   3. submits a SQL query and polls the result until it is `ready`,
-//!   4. fetches the same result as Arrow record batches (behind the `arrow`
-//!      feature).
+//!   2. lists workspaces and datasets via grouped resource handles,
+//!   3. submits a SQL query and awaits the persisted result with one call,
+//!   4. fetches that result as Arrow record batches (behind the `arrow` feature),
+//!   5. shows the one-call `query_to_arrow` shortcut.
 //!
 //! Transparent JWT exchange is automatic: you pass the opaque `hd_...` API
 //! token and the SDK mints/refreshes a short-lived JWT behind the scenes on the
@@ -26,10 +26,7 @@
 //! With no credentials set the example prints a short notice and exits 0, so it
 //! always compiles and always runs cleanly in CI.
 
-use std::time::Duration;
-
 use hotdata::prelude::*;
-use hotdata::ClientError;
 
 #[tokio::main]
 async fn main() {
@@ -55,12 +52,13 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     // graceful skip rather than a failure.
     let client = match Client::builder().build() {
         Ok(client) => client,
-        // ClientError is small and exhaustive: the only failure modes are
-        // missing credentials. Treat both as a graceful skip.
-        Err(ClientError::MissingApiToken) | Err(ClientError::MissingWorkspaceId) => {
+        // The only construction failures today are missing credentials; treat
+        // any build error as a graceful skip. ClientError is #[non_exhaustive],
+        // so the wildcard keeps this robust if new variants are added.
+        Err(err) => {
             eprintln!(
-                "No credentials found. Set HOTDATA_API_KEY and HOTDATA_WORKSPACE_ID \
-                 to run this example against the live API. Skipping."
+                "Could not build client ({err}). Set HOTDATA_API_KEY and \
+                 HOTDATA_WORKSPACE_ID to run this example against the live API. Skipping."
             );
             return Ok(());
         }
@@ -71,21 +69,31 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         client.configuration().base_path
     );
 
-    // --- 2. List workspaces ----------------------------------------------
+    // --- 2. Browse resources via grouped handles -------------------------
     //
+    // `client.<resource>()` returns a handle that hides the `&Configuration`
+    // plumbing, so you never reach for `hotdata::apis::*_api` free functions.
     // The first authenticated call transparently exchanges the API token for a
     // JWT; subsequent calls reuse the cached token until it nears expiry.
-    let workspaces = client.list_workspaces(None).await?;
+    let workspaces = client.workspaces().list(None).await?;
     println!("Visible workspaces ({}):", workspaces.workspaces.len());
     for ws in &workspaces.workspaces {
         println!("  - {} ({})", ws.name, ws.public_id);
     }
 
-    // --- 3. Submit a query and poll the result --------------------------
+    let datasets = client.datasets().list(Some(5), None).await?;
+    println!(
+        "First {} dataset(s) in this workspace:",
+        datasets.datasets.len()
+    );
+    for ds in &datasets.datasets {
+        println!("  - {} ({})", ds.label, ds.id);
+    }
+
+    // --- 3. Submit a query -----------------------------------------------
     //
     // POST /query returns rows inline *and* a result_id; persistence to the
-    // result store then completes asynchronously, so we poll get_result until
-    // its status is "ready".
+    // result store then completes asynchronously.
     let response = client
         .query(QueryRequest::new(
             "select 1 as id, 'hello' as greeting".to_string(),
@@ -111,68 +119,34 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    println!("Polling result {result_id} until ready...");
-    let ready = poll_until_ready(&client, &result_id).await?;
+    // --- 4. Await the persisted result -----------------------------------
+    //
+    // `await_result` polls until the result is `ready` (or fails / times out),
+    // so you don't hand-roll a poll loop. `PollConfig::default()` is a 120s
+    // timeout polled every second.
+    println!("Awaiting result {result_id}...");
+    let ready = client
+        .await_result(&result_id, PollConfig::default())
+        .await?;
     println!("Result status: {}", ready.status);
 
-    // --- 4. Fetch the result as Arrow (feature-gated) -------------------
+    // --- 5. Fetch the result as Arrow (feature-gated) --------------------
     fetch_arrow(&client, &result_id).await?;
+
+    // --- 6. One-call query -> Arrow (feature-gated) ----------------------
+    one_shot_arrow(&client).await?;
 
     Ok(())
 }
 
-/// Poll `get_result` until the persisted result reaches a terminal state.
-///
-/// Returns the response once `status == "ready"`; errors out on `"failed"`.
-async fn poll_until_ready(
-    client: &Client,
-    result_id: &str,
-) -> Result<hotdata::models::GetResultResponse, Box<dyn std::error::Error>> {
-    const MAX_ATTEMPTS: u32 = 30;
-    for attempt in 1..=MAX_ATTEMPTS {
-        let result = client.get_result(result_id).await?;
-        match result.status.as_str() {
-            "ready" => return Ok(result),
-            "failed" => {
-                let msg = result
-                    .error_message
-                    .flatten()
-                    .unwrap_or_else(|| "unknown error".to_string());
-                return Err(format!("result {result_id} failed: {msg}").into());
-            }
-            other => {
-                println!("  attempt {attempt}/{MAX_ATTEMPTS}: status={other}, waiting...");
-                tokio::time::sleep(Duration::from_millis(500)).await;
-            }
-        }
-    }
-    Err(format!("result {result_id} not ready after {MAX_ATTEMPTS} attempts").into())
-}
-
-/// Fetch the result as Arrow record batches when the `arrow` feature is on.
+/// Fetch an already-ready result as Arrow record batches.
 #[cfg(feature = "arrow")]
 async fn fetch_arrow(client: &Client, result_id: &str) -> Result<(), Box<dyn std::error::Error>> {
-    use hotdata::ArrowError;
-
     println!("Fetching result {result_id} as Arrow...");
     match client.get_result_arrow(result_id, None, None).await {
-        Ok(arrow) => {
-            println!(
-                "Arrow result: {} batch(es), {} row(s){}",
-                arrow.batches.len(),
-                arrow.num_rows(),
-                arrow
-                    .total_row_count
-                    .map(|t| format!(" ({t} total)"))
-                    .unwrap_or_default(),
-            );
-            println!("Schema:");
-            for field in arrow.schema.fields() {
-                println!("  - {}: {:?}", field.name(), field.data_type());
-            }
-        }
+        Ok(arrow) => print_arrow(&arrow),
         // The Arrow error enum maps the result endpoint's status codes to named
-        // variants, so callers can react without string-matching on HTTP codes.
+        // variants, so callers react without string-matching on HTTP codes.
         Err(ArrowError::NotReady { status, .. }) => {
             println!("Result not ready yet (status={status}); try polling longer.");
         }
@@ -181,10 +155,54 @@ async fn fetch_arrow(client: &Client, result_id: &str) -> Result<(), Box<dyn std
     Ok(())
 }
 
-/// Stub used when the `arrow` feature is disabled, so the call site in `run`
-/// type-checks either way.
+/// Submit a fresh query and get its result as Arrow in a single call —
+/// `query_to_arrow` runs the query, awaits `ready`, and decodes the stream.
+#[cfg(feature = "arrow")]
+async fn one_shot_arrow(client: &Client) -> Result<(), Box<dyn std::error::Error>> {
+    use std::time::Duration;
+
+    println!("One-call query_to_arrow...");
+    let poll = PollConfig {
+        timeout: Duration::from_secs(30),
+        interval: Duration::from_millis(500),
+    };
+    let arrow = client
+        .query_to_arrow(
+            QueryRequest::new("select 42 as answer".to_string()),
+            poll,
+            None,
+            None,
+        )
+        .await?;
+    print_arrow(&arrow);
+    Ok(())
+}
+
+#[cfg(feature = "arrow")]
+fn print_arrow(arrow: &ArrowResult) {
+    println!(
+        "Arrow result: {} batch(es), {} row(s){}",
+        arrow.batches.len(),
+        arrow.num_rows(),
+        arrow
+            .total_row_count
+            .map(|t| format!(" ({t} total)"))
+            .unwrap_or_default(),
+    );
+    for field in arrow.schema.fields() {
+        println!("  - {}: {:?}", field.name(), field.data_type());
+    }
+}
+
+/// Stubs used when the `arrow` feature is disabled, so the call sites in `run`
+/// type-check either way.
 #[cfg(not(feature = "arrow"))]
 async fn fetch_arrow(_client: &Client, _result_id: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("(build with --features arrow to fetch results as Arrow record batches)");
+    Ok(())
+}
+
+#[cfg(not(feature = "arrow"))]
+async fn one_shot_arrow(_client: &Client) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }

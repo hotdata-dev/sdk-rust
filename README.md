@@ -64,29 +64,98 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // .base_url("https://api.hotdata.dev")  // optional
         .build()?;
 
-    // Submit a query (async; runs server-side).
-    let run = client
+    // Submit a query. Rows come back inline, plus a result_id that is persisted
+    // asynchronously for later retrieval.
+    let response = client
         .query(QueryRequest::new("SELECT 1 AS n".to_string()))
         .await?;
 
-    // Poll the run to a terminal state, then fetch results.
-    let result = client.get_result(&result_id).await?;
+    if let Some(result_id) = response.result_id.flatten() {
+        // Poll the persisted result to `ready` without hand-rolling a loop.
+        let result = client.await_result(&result_id, PollConfig::default()).await?;
+        println!("result {} is {}", result.result_id, result.status);
+    }
 
     Ok(())
 }
 ```
 
-The `Client` exposes thin async pass-throughs for the common operations — `query`, `get_query_run`, `list_results`, `get_result`. For any other endpoint, reach the full generated surface with `client.configuration()`:
+### Resource handles
+
+The OpenAPI generator emits free functions; the `Client` groups them into
+ergonomic, workspace-scoped handles so you never pass a `Configuration` around:
+
+```rust
+// Grouped handles: client.<resource>().<operation>(..)
+let datasets = client.datasets().list(Some(20), None).await?;
+let dataset  = client.datasets().get(&datasets.datasets[0].id).await?;
+let secrets  = client.secrets().list().await?;
+let runs     = client.query_runs().list(Some(50), None, None, None).await?;
+```
+
+Handles exist for every resource — `datasets`, `connections`, `connection_types`,
+`databases`, `database_context`, `embedding_providers`, `indexes`,
+`information_schema`, `jobs`, `queries`, `query_runs`, `results`, `refresh`,
+`sandboxes`, `saved_queries`, `secrets`, `uploads`, `workspaces`. The hottest
+operations also have flat shortcuts directly on `Client` (`query`, `get_result`,
+`list_results`, `list_query_runs`, `list_workspaces`).
+
+For anything not yet wrapped, the full generated surface is one call away via
+`client.configuration()`:
 
 ```rust
 use hotdata::apis::workspaces_api;
-
-let workspaces = workspaces_api::list_workspaces(client.configuration()).await?;
+let workspaces = workspaces_api::list_workspaces(client.configuration(), None).await?;
 ```
 
-Every resource lives under `hotdata::apis::<resource>_api`, and request/response types under `hotdata::models`. The flat `prelude` re-exports `Client`, `ClientBuilder`, `Configuration`, and all models for convenience.
+### Typed status
 
-Errors from generated operations are returned as `hotdata::Error<T>`; builder and configuration failures are `hotdata::ClientError`.
+Result and query-run `status` fields are plain strings on the wire. Interpret
+them with the typed [`ResultStatus`] / [`QueryRunStatus`] enums via the
+`result_status()` / `run_status()` accessors:
+
+```rust
+use hotdata::prelude::*;
+
+let result = client.await_result(&result_id, PollConfig::default()).await?;
+if result.result_status().is_ready() {
+    // ...
+}
+
+let run = client.query_runs().get(&query_run_id).await?;
+if run.run_status().is_terminal() { /* ... */ }
+```
+
+Both enums carry an `Other(String)` variant, so a status the server adds later
+round-trips instead of breaking deserialization.
+
+### Updating nullable fields
+
+Several update requests model a field that is both optional (omit to leave
+unchanged) and nullable (send `null` to clear) as `Option<Option<T>>`. The
+[`field`](https://docs.rs/hotdata/latest/hotdata/field/) helpers name the three
+intents so call sites read clearly:
+
+```rust
+use hotdata::field;
+
+let mut req = UpdateDatasetRequest::new();
+req.label = field::set("renamed");    // set
+req.pinned_version = field::clear();  // send null (unpin)
+// req.table_name left as None -> omitted -> unchanged
+client.datasets().update(&dataset.id, req).await?;
+```
+
+Every resource lives under `hotdata::apis::<resource>_api`, and request/response
+types under `hotdata::models`. The flat `prelude` re-exports `Client`,
+`ClientBuilder`, `PollConfig`, `Configuration`, the resource handles, and all
+models for convenience.
+
+Errors from generated operations are returned as `hotdata::Error<T>`; builder
+and configuration failures are `hotdata::ClientError`. Result-polling and
+one-call helpers return `hotdata::AwaitResultError` / `hotdata::QueryToArrowError`.
+The SDK's own error enums are `#[non_exhaustive]`, so match them with a wildcard
+arm.
 
 ## Arrow results
 
@@ -127,6 +196,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 Both methods accept `offset` and `limit` for pagination, and both honor the transparent JWT exchange. They return `ArrowError::NotReady` if the result is still pending or processing — poll `client.get_result(result_id)` until its status is `ready` first. `ArrowResult` also surfaces the `X-Total-Row-Count` header (`total_row_count`) and the `rel="next"` pagination `Link` (`next_link`).
+
+To run a query and get its result as Arrow in a single call — submit, await
+`ready`, and decode — use `query_to_arrow`:
+
+```rust
+let arrow = client
+    .query_to_arrow(
+        QueryRequest::new("SELECT * FROM big_table".to_string()),
+        PollConfig::default(),
+        None, // offset
+        None, // limit
+    )
+    .await?;
+```
 
 ## API reference
 
