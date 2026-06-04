@@ -27,7 +27,7 @@ use std::env;
 
 use crate::apis::configuration::{ApiKey, Configuration};
 use crate::apis::{self, Error};
-use crate::auth::TokenManager;
+use crate::auth::{TokenManager, TokenManagerOptions};
 use crate::models;
 
 /// Default API host. Matches the generated `Configuration::default()` base
@@ -101,6 +101,7 @@ pub struct ClientBuilder {
     session_id: Option<String>,
     base_url: Option<String>,
     user_agent: Option<String>,
+    client_id: Option<String>,
     reqwest_client: Option<reqwest::Client>,
 }
 
@@ -138,6 +139,15 @@ impl ClientBuilder {
     /// Override the `User-Agent` header. Defaults to `hotdata-rust/<crate version>`.
     pub fn user_agent(mut self, user_agent: impl Into<String>) -> Self {
         self.user_agent = Some(user_agent.into());
+        self
+    }
+
+    /// Override the `client_id` sent with every token-exchange (JWT mint)
+    /// request. Defaults to the SDK's identifier (`hotdata-rust-sdk`). Set this
+    /// so token traffic is attributed to the host application (e.g.
+    /// `hotdata-cli`) rather than the SDK.
+    pub fn client_id(mut self, client_id: impl Into<String>) -> Self {
+        self.client_id = Some(client_id.into());
         self
     }
 
@@ -222,8 +232,21 @@ impl ClientBuilder {
         // Install the transparent api_token -> JWT exchange. The TokenManager
         // reuses the same reqwest client (so TLS/proxy/timeout settings are
         // shared) and the resolved base path (so the JWT mint targets the API
-        // host, honoring any test override).
-        let token_manager = TokenManager::new(api_token, http_client, base_path);
+        // host, honoring any test override). A caller-supplied client_id
+        // attributes the token traffic to the host app; otherwise the SDK
+        // default applies.
+        let token_manager = TokenManager::with_options(
+            api_token,
+            http_client,
+            TokenManagerOptions {
+                base_path,
+                client_id: self
+                    .client_id
+                    .clone()
+                    .unwrap_or_else(|| TokenManagerOptions::default().client_id),
+                ..TokenManagerOptions::default()
+            },
+        );
         configuration.token_provider = Some(std::sync::Arc::new(token_manager));
 
         Ok(Client { configuration })
@@ -710,9 +733,48 @@ mod tests {
             ENV_API_URL,
             ENV_TEST_API_URL,
             "HOTDATA_SESSION_ID",
+            "HOTDATA_DISABLE_JWT_EXCHANGE",
         ] {
             env::remove_var(key);
         }
+    }
+
+    /// The builder's `client_id` override must reach the token-exchange wire so
+    /// host apps (e.g. the CLI) attribute their token traffic correctly.
+    #[tokio::test]
+    async fn builder_client_id_attributes_token_traffic() {
+        use wiremock::matchers::{body_string_contains, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let _g = env_guard();
+        clear_env();
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/auth/jwt"))
+            .and(body_string_contains("client_id=hotdata-cli"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "minted-jwt",
+                "expires_in": 300,
+                "refresh_token": "r1"
+            })))
+            .mount(&server)
+            .await;
+
+        let client = Client::builder()
+            .api_token("hd_opaque")
+            .workspace_id("ws_x")
+            .client_id("hotdata-cli")
+            .base_url(server.uri())
+            .build()
+            .expect("build should succeed");
+
+        // Driving the token provider forces a mint; the mock only matches when
+        // the body carries client_id=hotdata-cli, so a None here means the
+        // override did not reach the wire.
+        let bearer = client.configuration().resolve_bearer_token().await;
+        assert_eq!(bearer.as_deref(), Some("minted-jwt"));
+
+        clear_env();
     }
 
     #[test]
