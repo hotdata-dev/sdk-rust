@@ -5,6 +5,12 @@ authors = ["developers@hotdata.dev"]
 description = "Powerful data platform API for datasets, queries, and analytics."
 license = "MIT"
 edition = "2021"
+readme = "README.md"
+repository = "https://github.com/hotdata-dev/sdk-rust"
+homepage = "https://www.hotdata.dev"
+documentation = "https://docs.rs/hotdata"
+keywords = ["hotdata", "sdk", "api-client", "arrow", "async"]
+categories = ["api-bindings", "asynchronous", "database"]
 
 [dependencies]
 serde = { version = "^1.0", features = ["derive"] }

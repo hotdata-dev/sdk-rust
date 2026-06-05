@@ -36,7 +36,7 @@ hotdata = { version = "0.1", default-features = false, features = ["rustls"] }
 
 The API authenticates with an **API token** sent as `Authorization: Bearer <token>`, plus an **`X-Workspace-Id`** header on requests scoped to a workspace.
 
-API tokens (prefixed `hd_`) are exchanged transparently for short-lived JWTs the first time a request is made, and the JWT is cached and refreshed automatically. You only ever supply the API token — the `Client` does the exchange against `/v1/auth/jwt` for you, mirroring the Hotdata CLI.
+API tokens (prefixed `hd_`) are exchanged transparently for short-lived JWTs the first time a request is made, and the JWT is cached and refreshed automatically. You only ever supply the API token — the `Client` does the exchange against `/v1/auth/jwt` for you, mirroring the [Hotdata CLI](https://github.com/hotdata-dev/hotdata-cli).
 
 If you already hold a JWT (a value beginning with `eyJ`), it is passed through unchanged with no exchange. To disable the exchange entirely, set `HOTDATA_DISABLE_JWT_EXCHANGE` to `1`, `true`, `yes`, or `on`.
 
