@@ -429,10 +429,10 @@ impl Client {
     ///
     /// `content_length`, when `Some`, sets the `Content-Length` header so the
     /// request is sent with a sized body instead of chunked transfer-encoding.
-    /// Pass the exact number of bytes the stream will yield. Servers can use it
-    /// to reject an oversized upload up front, before any bytes are written —
-    /// `runtimedb`'s `/v1/files` does exactly this. Pass `None` when the length
-    /// is unknown (e.g. a network source with no `Content-Length`); the body is
+    /// Pass the exact number of bytes the stream will yield. A server can use it
+    /// to reject an oversized upload up front, before any bytes are written.
+    /// Pass `None` when the length is unknown (e.g. a network source with no
+    /// upstream `Content-Length`); the body is
     /// then streamed chunked. A wrong value makes the framing inconsistent with
     /// the bytes actually sent, so only supply a length you can guarantee.
     pub async fn upload_stream<S, B, E>(
@@ -1279,7 +1279,7 @@ mod tests {
 
     /// A `Some(content_length)` sends a sized body: the `Content-Length` header
     /// carries the byte count and the request is NOT chunked, so a server can
-    /// reject an oversized upload before reading the body (runtimedb's /files).
+    /// reject an oversized upload before reading the body.
     #[tokio::test]
     async fn upload_stream_sends_content_length_when_sized() {
         use wiremock::matchers::{body_bytes, header, method, path};
