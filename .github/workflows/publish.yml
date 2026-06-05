@@ -11,6 +11,10 @@ concurrency:
 
 permissions:
   contents: read
+  # Required for the OIDC token exchange (Trusted Publishing). The job presents a
+  # short-lived OIDC identity that crates.io trades for a ~30-minute API token, so
+  # no long-lived CRATES_IO_TOKEN secret is stored anywhere.
+  id-token: write
 
 jobs:
   publish:
@@ -47,9 +51,16 @@ jobs:
       - name: Verify package builds (dry run)
         run: cargo publish --dry-run --all-features
 
+      # Exchange the job's OIDC identity for a short-lived crates.io token. The
+      # crate's Trusted Publishing config (owner/repo/workflow/environment) must
+      # match this job, or the exchange is rejected.
+      - name: Authenticate to crates.io (Trusted Publishing)
+        id: auth
+        uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe # v1.0.4
+
       - name: Publish to crates.io
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         # --all-features mirrors the dry-run so the pre-upload verify build
         # also compiles the optional arrow surface.
         run: cargo publish --all-features
