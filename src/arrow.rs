@@ -377,6 +377,7 @@ async fn fetch_arrow_bytes(
         reqwest::StatusCode::ACCEPTED => {
             let retry_after = parse_retry_after(&resp);
             let body = resp.text().await?;
+            crate::http_log::log_response_body(&body);
             let (result_status, result_id) = parse_status_and_id(&body, id);
             Err(ArrowError::NotReady {
                 status: result_status,
@@ -386,20 +387,24 @@ async fn fetch_arrow_bytes(
         }
         reqwest::StatusCode::CONFLICT => {
             let body = resp.text().await?;
+            crate::http_log::log_response_body(&body);
             let error_message = parse_error_message(&body);
             Err(ArrowError::Failed { error_message })
         }
         reqwest::StatusCode::NOT_FOUND => {
             // Drain the body so the connection is returned to the pool.
-            let _ = resp.text().await;
+            let body = resp.text().await.unwrap_or_default();
+            crate::http_log::log_response_body(&body);
             Err(ArrowError::NotFound)
         }
         reqwest::StatusCode::BAD_REQUEST => {
             let message = resp.text().await?;
+            crate::http_log::log_response_body(&message);
             Err(ArrowError::InvalidParams { message })
         }
         other => {
             let body = resp.text().await.unwrap_or_default();
+            crate::http_log::log_response_body(&body);
             Err(ArrowError::Http {
                 status: other,
                 body,

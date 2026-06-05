@@ -39,18 +39,27 @@ pub const TARGET: &str = "hotdata::http";
 const SENSITIVE_KEYS: &[&str] = &[
     "authorization",
     "api_token",
+    "api_key",
     "access_token",
     "refresh_token",
     "token",
     "client_secret",
     "secret",
     "secret_value",
+    // The Secrets API write body field (`CreateSecretRequest`/`UpdateSecretRequest`).
+    // Collides with the benign `CategoryValueInfo.value`, but masking an analytics
+    // value in a debug log is far cheaper than leaking a stored secret.
+    "value",
     "password",
     "passwd",
     "private_key",
     "credentials",
     "connection_string",
 ];
+
+/// Placeholder substituted for a sensitive non-string value (object, array,
+/// number, bool) so nested secrets can never leak through a sensitive key.
+const REDACTED: &str = "<redacted>";
 
 /// Cap on the rendered length of a non-JSON, non-form body so a stray large or
 /// binary-ish payload can't flood the log.
@@ -67,11 +76,17 @@ fn enabled() -> bool {
 /// `mask_credential` so SDK and CLI debug logs read identically; the visible
 /// tail makes it easy to tell which token is on the wire.
 pub fn mask_credential(s: &str) -> String {
-    if s.len() >= 12 {
-        format!("{}...{}", &s[..4], &s[s.len() - 4..])
-    } else if s.len() > 4 {
+    // Index by `char`, not byte: this runs on arbitrary JSON string values, so a
+    // non-ASCII secret would otherwise panic on a non-char-boundary byte slice.
+    let chars: Vec<char> = s.chars().collect();
+    let n = chars.len();
+    let head = |k: usize| -> String { chars[..k].iter().collect() };
+    if n >= 12 {
+        let tail: String = chars[n - 4..].iter().collect();
+        format!("{}...{}", head(4), tail)
+    } else if n > 4 {
         // Short-ish: show the head but no tail, so we don't reveal most of it.
-        format!("{}...", &s[..4])
+        format!("{}...", head(4))
     } else {
         "***".into()
     }
@@ -171,14 +186,18 @@ fn redact_body(bytes: &[u8]) -> String {
 }
 
 /// Recursively mask the values of sensitive keys in a JSON value, in place.
+///
+/// A sensitive key's value is masked *whole*, whatever its type: a string keeps
+/// a head/tail hint, while an object/array/number/bool collapses to
+/// [`REDACTED`]. That matters because a sensitive key can hold structured
+/// secrets (e.g. `{"credentials": {"password": "…"}}`) — masking only string
+/// values would log the surrounding object in the clear.
 fn redact_json(value: &mut serde_json::Value) {
     match value {
         serde_json::Value::Object(map) => {
             for (key, val) in map.iter_mut() {
                 if is_sensitive(key) {
-                    if let Some(s) = val.as_str() {
-                        *val = serde_json::Value::String(mask_credential(s));
-                    }
+                    *val = redacted_value(val);
                 } else {
                     redact_json(val);
                 }
@@ -186,6 +205,17 @@ fn redact_json(value: &mut serde_json::Value) {
         }
         serde_json::Value::Array(items) => items.iter_mut().for_each(redact_json),
         _ => {}
+    }
+}
+
+/// Mask a value that sits under a sensitive key. Strings keep a head/tail hint
+/// (so a token is still identifiable); `null` stays `null` (nothing to hide);
+/// every other type collapses to [`REDACTED`] so nested secrets can't leak.
+fn redacted_value(value: &serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::String(s) => serde_json::Value::String(mask_credential(s)),
+        serde_json::Value::Null => serde_json::Value::Null,
+        _ => serde_json::Value::String(REDACTED.to_string()),
     }
 }
 
@@ -282,6 +312,56 @@ mod tests {
         // The raw secret never appears in the rendered output.
         assert!(!out.contains("supersecretvalue123"));
         assert!(!out.contains("hd_abcdef0123456789"));
+    }
+
+    #[test]
+    fn sensitive_object_value_is_fully_redacted() {
+        // A sensitive key holding structured data must not leak its contents:
+        // the whole value collapses to the placeholder (not just string leaves).
+        let body = serde_json::json!({
+            "credentials": { "password": "p4ssw0rd", "nested": { "token": "tkn" } },
+            "secret": ["leak-a", "leak-b"],
+            "keep": "visible"
+        })
+        .to_string();
+        let out = redact_body(body.as_bytes());
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["credentials"], "<redacted>");
+        assert_eq!(v["secret"], "<redacted>");
+        assert_eq!(v["keep"], "visible");
+        for leak in ["p4ssw0rd", "tkn", "leak-a", "leak-b"] {
+            assert!(!out.contains(leak), "leaked {leak} via structured value:\n{out}");
+        }
+    }
+
+    #[test]
+    fn secret_value_and_api_key_fields_are_masked() {
+        // The Secrets API `value` field and the embedding-provider `api_key`.
+        let body = serde_json::json!({
+            "name": "openai-key",
+            "value": "supersecretvalue123",
+            "api_key": "sk-abcdef0123456789"
+        })
+        .to_string();
+        let out = redact_body(body.as_bytes());
+        assert!(!out.contains("supersecretvalue123"), "secret value leaked:\n{out}");
+        assert!(!out.contains("sk-abcdef0123456789"), "api_key leaked:\n{out}");
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["name"], "openai-key");
+        assert_eq!(v["value"], "supe...e123");
+    }
+
+    #[test]
+    fn non_ascii_secret_value_does_not_panic() {
+        // Masking runs on arbitrary JSON strings; a multibyte secret must mask
+        // on char boundaries rather than panic on a byte slice.
+        let secret = "naïve—café—señor—secret—üñ";
+        let body = serde_json::json!({ "secret": secret }).to_string();
+        let out = redact_body(body.as_bytes());
+        assert!(!out.contains(secret), "non-ascii secret leaked:\n{out}");
+        // And the masker itself is char-safe on multibyte input.
+        let _ = mask_credential(secret);
+        assert_eq!(mask_credential("héllo wörld!"), "héll...rld!");
     }
 
     #[test]
