@@ -42,6 +42,18 @@ jobs:
             https://api.github.com/repos/hotdata-dev/www.hotdata.dev/contents/api/openapi.yaml \
             -o openapi.yaml
 
+      # OpenAPI 3.1 lets a `$ref` carry sibling keywords (e.g. a per-branch
+      # `description` on a `oneOf` member). That's valid, and the Python/TS
+      # generators consume it fine, but the Rust backend NPEs on it
+      # (AbstractRustCodegen.toModelName — reproduced through generator 7.22.0,
+      # no upstream fix yet). Flatten `$ref`-with-siblings to pure refs in our
+      # throwaway generation input only; the canonical www spec and the other
+      # SDKs are untouched. See scripts/normalize-openapi.py.
+      - name: Normalize spec for the Rust generator
+        run: |
+          python3 -c "import yaml" 2>/dev/null || pip3 install --quiet pyyaml
+          python3 scripts/normalize-openapi.py openapi.yaml
+
       # Targeted clean: delete ONLY generator-owned subtrees. The hand-written
       # ergonomic layer (src/lib.rs, src/auth.rs, src/arrow.rs, src/client.rs)
       # is preserved here and additionally protected by .openapi-generator-ignore
