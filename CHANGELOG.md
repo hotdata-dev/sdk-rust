@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-06-05
+
+### Changed
+
+- Populate crate metadata (`repository`, `homepage`, `documentation`, `readme`, `keywords`, `categories`) for the crates.io listing, and link the [Hotdata CLI](https://github.com/hotdata-dev/hotdata-cli) from the README.
+- Publishing to crates.io now uses Trusted Publishing (OIDC) instead of a stored API token.
+
 ## [0.1.0] - 2026-06-05
 
 ### Added
