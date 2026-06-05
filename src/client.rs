@@ -431,10 +431,20 @@ impl Client {
     /// `content_type` sets the `Content-Type` header (e.g. `text/csv`,
     /// `application/parquet`); pass `None` to default to
     /// `application/octet-stream`. The endpoint accepts the raw bytes as-is.
+    ///
+    /// `content_length`, when `Some`, sets the `Content-Length` header so the
+    /// request is sent with a sized body instead of chunked transfer-encoding.
+    /// Pass the exact number of bytes the stream will yield. A server can use it
+    /// to reject an oversized upload up front, before any bytes are written.
+    /// Pass `None` when the length is unknown (e.g. a network source with no
+    /// upstream `Content-Length`); the body is
+    /// then streamed chunked. A wrong value makes the framing inconsistent with
+    /// the bytes actually sent, so only supply a length you can guarantee.
     pub async fn upload_stream<S, B, E>(
         &self,
         body: S,
         content_type: Option<&str>,
+        content_length: Option<u64>,
     ) -> Result<models::UploadResponse, Error<apis::uploads_api::UploadFileError>>
     where
         S: futures_core::Stream<Item = Result<B, E>> + Send + 'static,
@@ -478,6 +488,13 @@ impl Client {
         if let Some(token) = configuration.resolve_bearer_token().await {
             req_builder = req_builder.bearer_auth(token);
         };
+        // A sized body (Content-Length) rather than chunked transfer-encoding,
+        // so the server can fast-fail an oversized upload before reading bytes.
+        // reqwest emits chunked for `wrap_stream` (unknown length) unless the
+        // header is set explicitly, which it then honors as the body framing.
+        if let Some(len) = content_length {
+            req_builder = req_builder.header(reqwest::header::CONTENT_LENGTH, len);
+        }
         req_builder = req_builder.body(reqwest::Body::wrap_stream(body));
 
         let req = req_builder.build()?;
@@ -1185,7 +1202,7 @@ mod tests {
         let stream = futures::stream::iter(chunks);
 
         let resp = client
-            .upload_stream(stream, Some("text/csv"))
+            .upload_stream(stream, Some("text/csv"), None)
             .await
             .expect("upload_stream should succeed");
 
@@ -1227,7 +1244,7 @@ mod tests {
         });
 
         let resp = client
-            .upload_stream(stream, Some("application/parquet"))
+            .upload_stream(stream, Some("application/parquet"), None)
             .await
             .expect("upload_stream should succeed with scoped headers");
 
@@ -1262,11 +1279,63 @@ mod tests {
         });
 
         let resp = client
-            .upload_stream(stream, None)
+            .upload_stream(stream, None, None)
             .await
             .expect("upload_stream should default content-type");
 
         assert_eq!(resp.id, "upload_default");
+    }
+
+    /// A `Some(content_length)` sends a sized body: the `Content-Length` header
+    /// carries the byte count and the request is NOT chunked, so a server can
+    /// reject an oversized upload before reading the body.
+    #[tokio::test]
+    async fn upload_stream_sends_content_length_when_sized() {
+        use wiremock::matchers::{body_bytes, header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let _g = env_guard();
+        clear_env();
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/files"))
+            .and(header("Content-Length", "11"))
+            .and(body_bytes(b"hello world".to_vec()))
+            .respond_with(ResponseTemplate::new(201).set_body_json(serde_json::json!({
+                "content_type": "application/octet-stream",
+                "created_at": "2026-06-04T00:00:00Z",
+                "id": "upload_sized",
+                "size_bytes": 11,
+                "status": "ready",
+            })))
+            .mount(&server)
+            .await;
+
+        let client = query_test_client(&server.uri());
+        let chunks: Vec<Result<bytes::Bytes, std::io::Error>> = vec![
+            Ok(bytes::Bytes::from_static(b"hello ")),
+            Ok(bytes::Bytes::from_static(b"world")),
+        ];
+        let stream = futures::stream::iter(chunks);
+
+        let resp = client
+            .upload_stream(stream, None, Some(11))
+            .await
+            .expect("upload_stream should succeed with a sized body");
+
+        assert_eq!(resp.id, "upload_sized");
+
+        // Prove the framing is sized, not chunked: a Content-Length request must
+        // not also carry Transfer-Encoding (the two are mutually exclusive).
+        let received = &server.received_requests().await.expect("recorded requests")[0];
+        assert_eq!(
+            received.headers.get("content-length").map(|v| v.as_bytes()),
+            Some(b"11".as_ref()),
+        );
+        assert!(
+            received.headers.get("transfer-encoding").is_none(),
+            "sized upload must not use chunked transfer-encoding",
+        );
     }
 
     #[test]
