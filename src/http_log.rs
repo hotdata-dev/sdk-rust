@@ -166,23 +166,25 @@ pub fn log_response_body(body: &str) {
 /// JSON bodies are parsed and masked structurally (recursing into nested
 /// objects/arrays). A non-JSON body is treated as `x-www-form-urlencoded` when
 /// it parses as `k=v(&k=v)*` (the shape of the auth mint body) and its
-/// sensitive fields are masked; anything else is shown verbatim, length-capped.
+/// sensitive fields are masked; anything else is shown verbatim. The rendered
+/// output is length-capped on every path so a large inline result (e.g. a big
+/// JSON query response) can't flood a host's log backend.
 fn redact_body(bytes: &[u8]) -> String {
     let text = match std::str::from_utf8(bytes) {
         Ok(t) => t,
         Err(_) => return format!("[binary: {} bytes]", bytes.len()),
     };
 
-    if let Ok(mut value) = serde_json::from_str::<serde_json::Value>(text) {
+    let rendered = if let Ok(mut value) = serde_json::from_str::<serde_json::Value>(text) {
         redact_json(&mut value);
-        return serde_json::to_string(&value).unwrap_or_else(|_| truncate(text));
-    }
+        serde_json::to_string(&value).unwrap_or_else(|_| text.to_string())
+    } else if let Some(form) = redact_form(text) {
+        form
+    } else {
+        text.to_string()
+    };
 
-    if let Some(form) = redact_form(text) {
-        return form;
-    }
-
-    truncate(text)
+    truncate(&rendered)
 }
 
 /// Recursively mask the values of sensitive keys in a JSON value, in place.
@@ -392,6 +394,18 @@ mod tests {
         let body = "x".repeat(MAX_BODY_LEN + 100);
         let out = redact_body(body.as_bytes());
         assert!(out.len() < body.len());
+        assert!(out.contains("bytes total]"));
+    }
+
+    #[test]
+    fn overlong_json_body_is_truncated() {
+        // A large inline JSON result must be capped too, not just the verbatim
+        // fallback — otherwise a big query response could flood the log backend.
+        let big = "y".repeat(MAX_BODY_LEN * 2);
+        let body = serde_json::json!({ "rows": big }).to_string();
+        assert!(body.len() > MAX_BODY_LEN);
+        let out = redact_body(body.as_bytes());
+        assert!(out.len() <= MAX_BODY_LEN + 64, "json body not capped: {} bytes", out.len());
         assert!(out.contains("bytes total]"));
     }
 }
