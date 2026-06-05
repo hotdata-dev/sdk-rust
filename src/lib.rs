@@ -21,6 +21,7 @@ pub mod arrow;
 pub mod auth;
 pub mod client;
 pub mod field;
+pub mod http_log;
 pub mod models;
 pub mod resources;
 pub mod status;

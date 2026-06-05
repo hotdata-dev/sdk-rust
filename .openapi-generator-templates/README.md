@@ -11,6 +11,17 @@ These templates replace that field with `api_keys: HashMap<String, ApiKey>`
 keyed by header name, and change the per-operation header-emission code
 to look up the right scheme: `configuration.api_keys.get("X-Workspace-Id")`.
 
+## Debug-logging hook (`api.mustache`)
+
+Every generated op emits `crate::http_log::log_request(&req)` after building
+the request, `crate::http_log::log_response_status(status)` after reading the
+status, and `crate::http_log::log_response_body(&content)` at each response
+body read. These call into the hand-written, regen-immune `src/http_log.rs`
+module, which masks credentials and emits `log::debug!` records on the
+`hotdata::http` target (issue #135). Keeping the calls in the template means
+they re-appear on every regeneration; the regen-safety CI guard greps the
+generated `src/apis` for them and fails if a generator change drops them.
+
 ## Why live here instead of upstream
 
 Upstream PR [#19511](https://github.com/OpenAPITools/openapi-generator/pull/19511)

@@ -52,9 +52,11 @@ pub async fn refresh(
     req_builder = req_builder.json(&p_body_refresh_request);
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
     let content_type = resp
         .headers()
         .get("content-type")
@@ -64,6 +66,7 @@ pub async fn refresh(
 
     if !status.is_client_error() && !status.is_server_error() {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::RefreshResponse`"))),
@@ -71,6 +74,7 @@ pub async fn refresh(
         }
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<RefreshError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,

@@ -330,18 +330,28 @@ impl TokenManager {
         let mut params: Vec<(&str, &str)> = grant.to_vec();
         params.push(("client_id", &self.client_id));
 
-        let resp = self
+        // Build then execute (rather than `.send()`) so the request can be
+        // debug-logged; `log_request` redacts the api_token/refresh_token form
+        // fields. Mirrors the generated ops and the rest of the SDK.
+        let req = self
             .client
             .post(&url)
             .form(&params)
             .timeout(Duration::from_secs(TIMEOUT_SECS))
-            .send()
+            .build()
+            .map_err(TokenExchangeError::Transport)?;
+        crate::http_log::log_request(&req);
+        let resp = self
+            .client
+            .execute(req)
             .await
             .map_err(TokenExchangeError::Transport)?;
 
         let status = resp.status();
+        crate::http_log::log_response_status(status);
         if !status.is_success() {
             let body = resp.text().await.unwrap_or_default();
+            crate::http_log::log_response_body(&body);
             // Truncate to keep error messages bounded (mirrors python's [:200]).
             let body: String = body.chars().take(200).collect();
             return Err(TokenExchangeError::Status {
@@ -351,6 +361,8 @@ impl TokenManager {
         }
 
         let text = resp.text().await.map_err(TokenExchangeError::Transport)?;
+        // The minted JWT/refresh token in the body are masked by log_response_body.
+        crate::http_log::log_response_body(&text);
         serde_json::from_str::<TokenResponse>(&text)
             .map_err(|e| TokenExchangeError::Malformed(e.to_string()))
     }

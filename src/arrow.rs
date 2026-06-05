@@ -361,8 +361,10 @@ async fn fetch_arrow_bytes(
     req_builder = req_builder.header(reqwest::header::ACCEPT, ARROW_STREAM_MEDIA_TYPE);
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
     let status = resp.status();
+    crate::http_log::log_response_status(status);
 
     if status == reqwest::StatusCode::OK {
         let total_row_count = parse_total_row_count(&resp);

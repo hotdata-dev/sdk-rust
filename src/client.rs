@@ -368,22 +368,27 @@ impl Client {
         req_builder = req_builder.json(&request);
 
         let req = req_builder.build()?;
+        crate::http_log::log_request(&req);
         let resp = configuration.client.execute(req).await?;
 
         let status = resp.status();
+        crate::http_log::log_response_status(status);
 
         if status == reqwest::StatusCode::ACCEPTED {
             // 202 Accepted: the query was submitted asynchronously.
             let content = resp.text().await?;
+            crate::http_log::log_response_body(&content);
             let submitted: models::AsyncQueryResponse = serde_json::from_str(&content)?;
             Ok(QueryOutcome::Submitted(submitted))
         } else if !status.is_client_error() && !status.is_server_error() {
             // 2xx (typically 200): inline results.
             let content = resp.text().await?;
+            crate::http_log::log_response_body(&content);
             let inline: models::QueryResponse = serde_json::from_str(&content)?;
             Ok(QueryOutcome::Inline(inline))
         } else {
             let content = resp.text().await?;
+            crate::http_log::log_response_body(&content);
             let entity: Option<apis::query_api::QueryError> = serde_json::from_str(&content).ok();
             Err(Error::ResponseError(ResponseContent {
                 status,
@@ -476,9 +481,11 @@ impl Client {
         req_builder = req_builder.body(reqwest::Body::wrap_stream(body));
 
         let req = req_builder.build()?;
+        crate::http_log::log_request(&req);
         let resp = configuration.client.execute(req).await?;
 
         let status = resp.status();
+        crate::http_log::log_response_status(status);
         let content_type = resp
             .headers()
             .get("content-type")
@@ -490,6 +497,7 @@ impl Client {
 
         if !status.is_client_error() && !status.is_server_error() {
             let content = resp.text().await?;
+            crate::http_log::log_response_body(&content);
             if is_json {
                 serde_json::from_str(&content).map_err(Error::from)
             } else {
@@ -499,6 +507,7 @@ impl Client {
             }
         } else {
             let content = resp.text().await?;
+            crate::http_log::log_response_body(&content);
             let entity: Option<apis::uploads_api::UploadFileError> =
                 serde_json::from_str(&content).ok();
             Err(Error::ResponseError(ResponseContent {
