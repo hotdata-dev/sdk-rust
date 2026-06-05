@@ -19,10 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optional `arrow` feature: `get_result_arrow` / `stream_result_arrow` decode Apache Arrow IPC result streams into `RecordBatch`es, surface the `X-Total-Row-Count` and `rel="next"` Link headers, and map the `202`/`409`/`404`/`400` result states to typed `ArrowError` variants.
 - Flat re-export surface (`hotdata::Client`, `hotdata::Configuration`, `hotdata::prelude::*`) alongside the namespaced `hotdata::apis` / `hotdata::models`. The prelude also re-exports the resource handles, `PollConfig`, the `field` helpers, and (with the `arrow` feature) `ArrowError`.
 - The SDK's own error enums (`ClientError`, `TokenExchangeError`, `ArrowError`, `AwaitResultError`, `QueryToArrowError`) are `#[non_exhaustive]`, so new variants can be added without a breaking change — match them with a wildcard arm.
+- Request/response debug logging (`hotdata::http_log`) covering every HTTP call — generated ops plus the hand-written `submit_query` / `upload_stream` / Arrow fetch / JWT mint. Each emits `log::debug!` records on the `hotdata::http` target (`>>> METHOD url`, headers, body; `<<< status`, body) so a host (e.g. the CLI's `--debug`) can render them with any `log` backend. `Authorization` bearer tokens and sensitive JSON/form fields (`api_token`, `secret`, `password`, …) are masked before logging; the SDK installs no logger and stays silent without a backend. The `api.mustache` template emits the hooks so they survive regeneration, and the regen-safety CI guard verifies they remain.
 
 ### Changed
 
-- Regeneration is now safe for the hand-written ergonomic layer: the generator only overwrites generated subtrees (`src/apis`, `src/models`, `docs`) and skips `src/lib.rs`, `src/auth.rs`, `src/arrow.rs`, `src/client.rs`, `src/resources.rs`, `src/field.rs`, and `Cargo.toml` via `.openapi-generator-ignore`. The regen-safety CI guard verifies all of these survive and stay wired into `lib.rs`.
+- Regeneration is now safe for the hand-written ergonomic layer: the generator only overwrites generated subtrees (`src/apis`, `src/models`, `docs`) and skips `src/lib.rs`, `src/auth.rs`, `src/http_log.rs`, `src/arrow.rs`, `src/client.rs`, `src/resources.rs`, `src/field.rs`, and `Cargo.toml` via `.openapi-generator-ignore`. The regen-safety CI guard verifies all of these survive and stay wired into `lib.rs`.
 
 ## [0.1.0]
 

@@ -100,9 +100,11 @@ pub async fn create_saved_query(
     req_builder = req_builder.json(&p_body_create_saved_query_request);
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
     let content_type = resp
         .headers()
         .get("content-type")
@@ -112,6 +114,7 @@ pub async fn create_saved_query(
 
     if !status.is_client_error() && !status.is_server_error() {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::SavedQueryDetail`"))),
@@ -119,6 +122,7 @@ pub async fn create_saved_query(
         }
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<CreateSavedQueryError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -160,14 +164,17 @@ pub async fn delete_saved_query(
     };
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
 
     if !status.is_client_error() && !status.is_server_error() {
         Ok(())
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<DeleteSavedQueryError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -216,9 +223,11 @@ pub async fn execute_saved_query(
     req_builder = req_builder.json(&p_body_execute_saved_query_request);
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
     let content_type = resp
         .headers()
         .get("content-type")
@@ -228,6 +237,7 @@ pub async fn execute_saved_query(
 
     if !status.is_client_error() && !status.is_server_error() {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::QueryResponse`"))),
@@ -235,6 +245,7 @@ pub async fn execute_saved_query(
         }
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<ExecuteSavedQueryError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -274,9 +285,11 @@ pub async fn get_saved_query(
     };
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
     let content_type = resp
         .headers()
         .get("content-type")
@@ -286,6 +299,7 @@ pub async fn get_saved_query(
 
     if !status.is_client_error() && !status.is_server_error() {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::SavedQueryDetail`"))),
@@ -293,6 +307,7 @@ pub async fn get_saved_query(
         }
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<GetSavedQueryError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -336,9 +351,11 @@ pub async fn list_saved_queries(
     };
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
     let content_type = resp
         .headers()
         .get("content-type")
@@ -348,6 +365,7 @@ pub async fn list_saved_queries(
 
     if !status.is_client_error() && !status.is_server_error() {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ListSavedQueriesResponse`"))),
@@ -355,6 +373,7 @@ pub async fn list_saved_queries(
         }
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<ListSavedQueriesError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -404,9 +423,11 @@ pub async fn list_saved_query_versions(
     };
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
     let content_type = resp
         .headers()
         .get("content-type")
@@ -416,6 +437,7 @@ pub async fn list_saved_query_versions(
 
     if !status.is_client_error() && !status.is_server_error() {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ListSavedQueryVersionsResponse`"))),
@@ -423,6 +445,7 @@ pub async fn list_saved_query_versions(
         }
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<ListSavedQueryVersionsError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -466,9 +489,11 @@ pub async fn update_saved_query(
     req_builder = req_builder.json(&p_body_update_saved_query_request);
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
     let content_type = resp
         .headers()
         .get("content-type")
@@ -478,6 +503,7 @@ pub async fn update_saved_query(
 
     if !status.is_client_error() && !status.is_server_error() {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::SavedQueryDetail`"))),
@@ -485,6 +511,7 @@ pub async fn update_saved_query(
         }
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<UpdateSavedQueryError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,

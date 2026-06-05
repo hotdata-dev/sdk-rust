@@ -211,6 +211,31 @@ let arrow = client
     .await?;
 ```
 
+## Debug logging
+
+Every HTTP call the SDK makes — generated operations and the hand-written `submit_query`, `upload_stream`, Arrow fetch, and JWT mint — emits `log::debug!` records on the `hotdata::http` target: the request (`>>> METHOD url`, headers, body) and the response (`<<< status`, body). `Authorization` bearer tokens and sensitive body fields (`api_token`, `secret`, `password`, …) are masked before logging.
+
+The SDK installs no logger and prints nothing on its own. To see the records, wire any [`log`](https://docs.rs/log) backend and enable the `hotdata::http` target at debug level. For example with [`env_logger`](https://docs.rs/env_logger):
+
+```rust
+// RUST_LOG=hotdata::http=debug cargo run
+env_logger::init();
+```
+
+```toml
+[dependencies]
+env_logger = "0.11"
+```
+
+```text
+>>> POST https://api.hotdata.dev/v1/query
+  authorization: Bearer hd_a...cdef
+  content-type: application/json
+{"sql":"SELECT 1"}
+<<< 200 OK
+{"result_id":"…","columns":[…]}
+```
+
 ## API reference
 
 Generated documentation builds on [docs.rs](https://docs.rs/hotdata) (with `all-features` enabled, so the `arrow` surface is included).

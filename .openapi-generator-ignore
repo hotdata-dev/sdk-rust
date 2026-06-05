@@ -4,6 +4,7 @@ README.md
 Cargo.toml
 src/lib.rs
 src/auth.rs
+src/http_log.rs
 src/arrow.rs
 src/client.rs
 src/resources.rs

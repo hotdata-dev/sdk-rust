@@ -84,14 +84,17 @@ pub async fn delete_database_context(
     };
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
 
     if !status.is_client_error() && !status.is_server_error() {
         Ok(())
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<DeleteDatabaseContextError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -134,9 +137,11 @@ pub async fn get_database_context(
     };
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
     let content_type = resp
         .headers()
         .get("content-type")
@@ -146,6 +151,7 @@ pub async fn get_database_context(
 
     if !status.is_client_error() && !status.is_server_error() {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::GetDatabaseContextResponse`"))),
@@ -153,6 +159,7 @@ pub async fn get_database_context(
         }
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<GetDatabaseContextError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -192,9 +199,11 @@ pub async fn list_database_contexts(
     };
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
     let content_type = resp
         .headers()
         .get("content-type")
@@ -204,6 +213,7 @@ pub async fn list_database_contexts(
 
     if !status.is_client_error() && !status.is_server_error() {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ListDatabaseContextsResponse`"))),
@@ -211,6 +221,7 @@ pub async fn list_database_contexts(
         }
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<ListDatabaseContextsError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -256,9 +267,11 @@ pub async fn upsert_database_context(
     req_builder = req_builder.json(&p_body_upsert_database_context_request);
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
     let content_type = resp
         .headers()
         .get("content-type")
@@ -268,6 +281,7 @@ pub async fn upsert_database_context(
 
     if !status.is_client_error() && !status.is_server_error() {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::UpsertDatabaseContextResponse`"))),
@@ -275,6 +289,7 @@ pub async fn upsert_database_context(
         }
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<UpsertDatabaseContextError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,

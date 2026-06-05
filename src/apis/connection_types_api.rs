@@ -59,9 +59,11 @@ pub async fn get_connection_type(
     };
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
     let content_type = resp
         .headers()
         .get("content-type")
@@ -71,6 +73,7 @@ pub async fn get_connection_type(
 
     if !status.is_client_error() && !status.is_server_error() {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ConnectionTypeDetail`"))),
@@ -78,6 +81,7 @@ pub async fn get_connection_type(
         }
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<GetConnectionTypeError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -110,9 +114,11 @@ pub async fn list_connection_types(
     };
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
     let content_type = resp
         .headers()
         .get("content-type")
@@ -122,6 +128,7 @@ pub async fn list_connection_types(
 
     if !status.is_client_error() && !status.is_server_error() {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ListConnectionTypesResponse`"))),
@@ -129,6 +136,7 @@ pub async fn list_connection_types(
         }
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<ListConnectionTypesError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,

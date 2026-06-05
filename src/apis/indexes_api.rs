@@ -111,9 +111,11 @@ pub async fn create_dataset_index(
     req_builder = req_builder.json(&p_body_create_index_request);
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
     let content_type = resp
         .headers()
         .get("content-type")
@@ -123,6 +125,7 @@ pub async fn create_dataset_index(
 
     if !status.is_client_error() && !status.is_server_error() {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::IndexInfoResponse`"))),
@@ -130,6 +133,7 @@ pub async fn create_dataset_index(
         }
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<CreateDatasetIndexError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -181,9 +185,11 @@ pub async fn create_index(
     req_builder = req_builder.json(&p_body_create_index_request);
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
     let content_type = resp
         .headers()
         .get("content-type")
@@ -193,6 +199,7 @@ pub async fn create_index(
 
     if !status.is_client_error() && !status.is_server_error() {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::IndexInfoResponse`"))),
@@ -200,6 +207,7 @@ pub async fn create_index(
         }
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<CreateIndexError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -253,14 +261,17 @@ pub async fn delete_dataset_index(
     };
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
 
     if !status.is_client_error() && !status.is_server_error() {
         Ok(())
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<DeleteDatasetIndexError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -312,14 +323,17 @@ pub async fn delete_index(
     };
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
 
     if !status.is_client_error() && !status.is_server_error() {
         Ok(())
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<DeleteIndexError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -368,9 +382,11 @@ pub async fn list_dataset_indexes(
     };
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
     let content_type = resp
         .headers()
         .get("content-type")
@@ -380,6 +396,7 @@ pub async fn list_dataset_indexes(
 
     if !status.is_client_error() && !status.is_server_error() {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ListIndexesResponse`"))),
@@ -387,6 +404,7 @@ pub async fn list_dataset_indexes(
         }
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<ListDatasetIndexesError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -433,9 +451,11 @@ pub async fn list_indexes(
     };
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
     let content_type = resp
         .headers()
         .get("content-type")
@@ -445,6 +465,7 @@ pub async fn list_indexes(
 
     if !status.is_client_error() && !status.is_server_error() {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ListIndexesResponse`"))),
@@ -452,6 +473,7 @@ pub async fn list_indexes(
         }
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<ListIndexesError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,

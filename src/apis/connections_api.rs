@@ -130,9 +130,11 @@ pub async fn check_connection_health(
     };
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
     let content_type = resp
         .headers()
         .get("content-type")
@@ -142,6 +144,7 @@ pub async fn check_connection_health(
 
     if !status.is_client_error() && !status.is_server_error() {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ConnectionHealthResponse`"))),
@@ -149,6 +152,7 @@ pub async fn check_connection_health(
         }
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<CheckConnectionHealthError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -188,9 +192,11 @@ pub async fn create_connection(
     req_builder = req_builder.json(&p_body_create_connection_request);
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
     let content_type = resp
         .headers()
         .get("content-type")
@@ -200,6 +206,7 @@ pub async fn create_connection(
 
     if !status.is_client_error() && !status.is_server_error() {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::CreateConnectionResponse`"))),
@@ -207,6 +214,7 @@ pub async fn create_connection(
         }
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<CreateConnectionError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -249,14 +257,17 @@ pub async fn delete_connection(
     };
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
 
     if !status.is_client_error() && !status.is_server_error() {
         Ok(())
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<DeleteConnectionError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -305,14 +316,17 @@ pub async fn delete_managed_table(
     };
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
 
     if !status.is_client_error() && !status.is_server_error() {
         Ok(())
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<DeleteManagedTableError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -353,9 +367,11 @@ pub async fn get_connection(
     };
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
     let content_type = resp
         .headers()
         .get("content-type")
@@ -365,6 +381,7 @@ pub async fn get_connection(
 
     if !status.is_client_error() && !status.is_server_error() {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::GetConnectionResponse`"))),
@@ -372,6 +389,7 @@ pub async fn get_connection(
         }
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<GetConnectionError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -418,9 +436,11 @@ pub async fn get_table_profile(
     };
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
     let content_type = resp
         .headers()
         .get("content-type")
@@ -430,6 +450,7 @@ pub async fn get_table_profile(
 
     if !status.is_client_error() && !status.is_server_error() {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::TableProfileResponse`"))),
@@ -437,6 +458,7 @@ pub async fn get_table_profile(
         }
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<GetTableProfileError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -469,9 +491,11 @@ pub async fn list_connections(
     };
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
     let content_type = resp
         .headers()
         .get("content-type")
@@ -481,6 +505,7 @@ pub async fn list_connections(
 
     if !status.is_client_error() && !status.is_server_error() {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ListConnectionsResponse`"))),
@@ -488,6 +513,7 @@ pub async fn list_connections(
         }
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<ListConnectionsError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -539,9 +565,11 @@ pub async fn load_managed_table(
     req_builder = req_builder.json(&p_body_load_managed_table_request);
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
     let content_type = resp
         .headers()
         .get("content-type")
@@ -551,6 +579,7 @@ pub async fn load_managed_table(
 
     if !status.is_client_error() && !status.is_server_error() {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::LoadManagedTableResponse`"))),
@@ -558,6 +587,7 @@ pub async fn load_managed_table(
         }
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<LoadManagedTableError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -600,14 +630,17 @@ pub async fn purge_connection_cache(
     };
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
 
     if !status.is_client_error() && !status.is_server_error() {
         Ok(())
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<PurgeConnectionCacheError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -656,14 +689,17 @@ pub async fn purge_table_cache(
     };
 
     let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    crate::http_log::log_response_status(status);
 
     if !status.is_client_error() && !status.is_server_error() {
         Ok(())
     } else {
         let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
         let entity: Option<PurgeTableCacheError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
