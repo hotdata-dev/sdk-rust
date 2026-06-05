@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-06-05
+
 ### Added
 
 - Ergonomic `Client` and `ClientBuilder` (`hotdata::Client`) wrapping the generated `Configuration`: set an API token and workspace id, with thin async pass-throughs for `query`, `list_query_runs`, `list_results`, `get_result`, and `list_workspaces`.
@@ -24,9 +26,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Regeneration is now safe for the hand-written ergonomic layer: the generator only overwrites generated subtrees (`src/apis`, `src/models`, `docs`) and skips `src/lib.rs`, `src/auth.rs`, `src/http_log.rs`, `src/arrow.rs`, `src/client.rs`, `src/resources.rs`, `src/field.rs`, and `Cargo.toml` via `.openapi-generator-ignore`. The regen-safety CI guard verifies all of these survive and stay wired into `lib.rs`.
-
-## [0.1.0]
-
-### Changed
-
 - Initial generated client from the Hotdata OpenAPI spec.
