@@ -98,7 +98,13 @@ jobs:
       # ergonomic layer is left to its own formatting (and is ignore-protected
       # from the generator anyway).
       - name: Format generated code
-        run: find src/apis src/models -name '*.rs' -print0 | xargs -0 rustfmt --edition 2021
+        run: |
+          # Derive the edition from Cargo.toml so it can't drift from the crate
+          # if the edition is ever bumped (same source as the version bump above).
+          edition=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name=="hotdata") | .edition')
+          find src/apis src/models -name '*.rs' -print0 \
+            | xargs -0 rustfmt --edition "$edition"
 
       - name: Clean up fetched spec
         run: rm -f openapi.yaml
