@@ -31,6 +31,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
           toolchain: stable
+          components: rustfmt
 
       - name: Fetch merged OpenAPI spec
         env:
@@ -90,6 +91,20 @@ jobs:
             --additional-properties=packageName=hotdata,packageVersion=$PACKAGE_VERSION,library=reqwest,supportAsync=true,useChrono=false \
             --http-user-agent "hotdata-rust/${PACKAGE_VERSION}" \
             --skip-validate-spec
+
+      # The 7.22.0 generator emits compact, non-rustfmt output, which buries real
+      # spec changes under formatting churn in every regen diff. Format only the
+      # generated subtrees so the diff shows semantic changes; the hand-written
+      # ergonomic layer is left to its own formatting (and is ignore-protected
+      # from the generator anyway).
+      - name: Format generated code
+        run: |
+          # Derive the edition from Cargo.toml so it can't drift from the crate
+          # if the edition is ever bumped (same source as the version bump above).
+          edition=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name=="hotdata") | .edition')
+          find src/apis src/models -name '*.rs' -print0 \
+            | xargs -0 rustfmt --edition "$edition"
 
       - name: Clean up fetched spec
         run: rm -f openapi.yaml
