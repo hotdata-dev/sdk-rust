@@ -73,11 +73,25 @@ async fn managed_tables_lifecycle() {
     assert_eq!(loaded.table_name, table_name);
     assert_eq!(loaded.row_count, 3, "fixture has 3 rows");
 
-    // The profile reflects the loaded data.
-    let profile =
-        connections_api::get_table_profile(config, &connection_id, schema_name, table_name)
+    // The profile is populated by an async sync triggered by the load, so it can
+    // briefly 404 ("table may not be synced yet") right after load_managed_table.
+    // Poll until it's ready (bounded), then assert it reflects the loaded data.
+    let mut profile = None;
+    for _ in 0..30 {
+        match connections_api::get_table_profile(config, &connection_id, schema_name, table_name)
             .await
-            .expect("get_table_profile should succeed");
+        {
+            Ok(p) => {
+                profile = Some(p);
+                break;
+            }
+            Err(err) if common::status_of(&err) == Some(404) => {
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
+            Err(err) => panic!("get_table_profile should succeed: {err:?}"),
+        }
+    }
+    let profile = profile.expect("get_table_profile did not become available within 30s");
     assert_eq!(profile.schema, schema_name);
     assert_eq!(profile.table, table_name);
     assert_eq!(profile.row_count, 3);
