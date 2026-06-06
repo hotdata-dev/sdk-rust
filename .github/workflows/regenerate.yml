@@ -78,12 +78,16 @@ jobs:
         env:
           PACKAGE_VERSION: ${{ steps.pkg.outputs.version }}
         run: |
+          # useChrono=false: 7.22.0 flipped the Rust generator's useChrono
+          # default to true, which emits chrono::DateTime for date-time fields.
+          # The crate has no chrono dependency and the ergonomic layer + tests
+          # treat dates as String (as 7.20.0 generated them), so keep String.
           npx @openapitools/openapi-generator-cli generate \
             -i openapi.yaml \
             -g rust \
             -o . \
             -t .openapi-generator-templates \
-            --additional-properties=packageName=hotdata,packageVersion=$PACKAGE_VERSION,library=reqwest,supportAsync=true \
+            --additional-properties=packageName=hotdata,packageVersion=$PACKAGE_VERSION,library=reqwest,supportAsync=true,useChrono=false \
             --http-user-agent "hotdata-rust/${PACKAGE_VERSION}" \
             --skip-validate-spec
 
