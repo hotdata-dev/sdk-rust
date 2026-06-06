@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-06-06
+
+### Added
+
+- Database and managed-catalog schema/table management endpoints: `add_database_schema`, `add_database_table`, `add_managed_schema`, and `add_managed_table`, with their request/response models (`AddManagedSchemaRequest`, `AddManagedTableRequest`, `AddManagedTableDecl`, `ManagedSchemaResponse`, `ManagedTableResponse`).
+
+### Changed
+
+- Regenerated the client from the updated Hotdata OpenAPI spec, catching up on spec changes since 0.1.1. Generated with openapi-generator 7.22.0 (`useChrono=false`, so date-time fields remain `String` as before).
+
 ## [0.1.1] - 2026-06-05
 
 ### Changed
