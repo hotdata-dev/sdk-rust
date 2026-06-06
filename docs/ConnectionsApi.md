@@ -4,6 +4,8 @@ All URIs are relative to *https://api.hotdata.dev*
 
 Method | HTTP request | Description
 ------------- | ------------- | -------------
+[**add_managed_schema**](ConnectionsApi.md#add_managed_schema) | **POST** /v1/connections/{connection_id}/schemas | Add managed schema
+[**add_managed_table**](ConnectionsApi.md#add_managed_table) | **POST** /v1/connections/{connection_id}/schemas/{schema}/tables | Add managed table
 [**check_connection_health**](ConnectionsApi.md#check_connection_health) | **GET** /v1/connections/{connection_id}/health | Check connection health
 [**create_connection**](ConnectionsApi.md#create_connection) | **POST** /v1/connections | Create connection
 [**delete_connection**](ConnectionsApi.md#delete_connection) | **DELETE** /v1/connections/{connection_id} | Delete connection
@@ -15,6 +17,69 @@ Method | HTTP request | Description
 [**purge_connection_cache**](ConnectionsApi.md#purge_connection_cache) | **DELETE** /v1/connections/{connection_id}/cache | Purge connection cache
 [**purge_table_cache**](ConnectionsApi.md#purge_table_cache) | **DELETE** /v1/connections/{connection_id}/tables/{schema}/{table}/cache | Purge table cache
 
+
+
+## add_managed_schema
+
+> models::ManagedSchemaResponse add_managed_schema(connection_id, add_managed_schema_request)
+Add managed schema
+
+Declare a new schema (and optionally its tables) on an existing managed catalog after creation. The schema is added to the connection's declaration; declared tables can then be populated via the managed-table load endpoint. Only valid against connections whose source type is `managed`. Identifiers are normalised to lowercase.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**connection_id** | **String** | Connection ID | [required] |
+**add_managed_schema_request** | [**AddManagedSchemaRequest**](AddManagedSchemaRequest.md) |  | [required] |
+
+### Return type
+
+[**models::ManagedSchemaResponse**](ManagedSchemaResponse.md)
+
+### Authorization
+
+[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## add_managed_table
+
+> models::ManagedTableResponse add_managed_table(connection_id, schema, add_managed_table_request)
+Add managed table
+
+Declare a new table on an existing schema of a managed catalog after creation. The table is added empty (declared-but-unloaded) and can be populated via the managed-table load endpoint. Only valid against connections whose source type is `managed`. Identifiers are normalised to lowercase.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**connection_id** | **String** | Connection ID | [required] |
+**schema** | **String** | Schema name | [required] |
+**add_managed_table_request** | [**AddManagedTableRequest**](AddManagedTableRequest.md) |  | [required] |
+
+### Return type
+
+[**models::ManagedTableResponse**](ManagedTableResponse.md)
+
+### Authorization
+
+[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
 ## check_connection_health

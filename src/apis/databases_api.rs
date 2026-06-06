@@ -13,6 +13,26 @@ use crate::{apis::ResponseContent, models};
 use reqwest;
 use serde::{de::Error as _, Deserialize, Serialize};
 
+/// struct for typed errors of method [`add_database_schema`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AddDatabaseSchemaError {
+    Status400(models::ApiErrorResponse),
+    Status404(models::ApiErrorResponse),
+    Status409(models::ApiErrorResponse),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`add_database_table`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AddDatabaseTableError {
+    Status400(models::ApiErrorResponse),
+    Status404(models::ApiErrorResponse),
+    Status409(models::ApiErrorResponse),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`attach_database_catalog`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -62,6 +82,145 @@ pub enum GetDatabaseError {
 #[serde(untagged)]
 pub enum ListDatabasesError {
     UnknownValue(serde_json::Value),
+}
+
+/// Declare a new schema (and optionally its tables) on the database's auto-created default catalog after creation. The schema becomes reachable inside the database scope (e.g. `default.<schema>.<table>` and `information_schema.schemata`) without the caller addressing the internal default connection directly. Identifiers are normalised to lowercase.
+pub async fn add_database_schema(
+    configuration: &configuration::Configuration,
+    database_id: &str,
+    add_managed_schema_request: models::AddManagedSchemaRequest,
+) -> Result<models::ManagedSchemaResponse, Error<AddDatabaseSchemaError>> {
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_path_database_id = database_id;
+    let p_body_add_managed_schema_request = add_managed_schema_request;
+
+    let uri_str = format!(
+        "{}/v1/databases/{database_id}/schemas",
+        configuration.base_path,
+        database_id = crate::apis::urlencode(p_path_database_id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
+        let key = apikey.key.clone();
+        let value = match apikey.prefix {
+            Some(ref prefix) => format!("{} {}", prefix, key),
+            None => key,
+        };
+        req_builder = req_builder.header("X-Workspace-Id", value);
+    };
+    if let Some(token) = configuration.resolve_bearer_token().await {
+        req_builder = req_builder.bearer_auth(token);
+    };
+    req_builder = req_builder.json(&p_body_add_managed_schema_request);
+
+    let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    crate::http_log::log_response_status(status);
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ManagedSchemaResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ManagedSchemaResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        let entity: Option<AddDatabaseSchemaError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Declare a new table on an existing schema of the database's default catalog after creation. The table is added empty (declared-but-unloaded) and can be populated via the managed-table load endpoint targeting the default connection. Identifiers are normalised to lowercase.
+pub async fn add_database_table(
+    configuration: &configuration::Configuration,
+    database_id: &str,
+    schema: &str,
+    add_managed_table_request: models::AddManagedTableRequest,
+) -> Result<models::ManagedTableResponse, Error<AddDatabaseTableError>> {
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_path_database_id = database_id;
+    let p_path_schema = schema;
+    let p_body_add_managed_table_request = add_managed_table_request;
+
+    let uri_str = format!(
+        "{}/v1/databases/{database_id}/schemas/{schema}/tables",
+        configuration.base_path,
+        database_id = crate::apis::urlencode(p_path_database_id),
+        schema = crate::apis::urlencode(p_path_schema)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
+        let key = apikey.key.clone();
+        let value = match apikey.prefix {
+            Some(ref prefix) => format!("{} {}", prefix, key),
+            None => key,
+        };
+        req_builder = req_builder.header("X-Workspace-Id", value);
+    };
+    if let Some(token) = configuration.resolve_bearer_token().await {
+        req_builder = req_builder.bearer_auth(token);
+    };
+    req_builder = req_builder.json(&p_body_add_managed_table_request);
+
+    let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    crate::http_log::log_response_status(status);
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ManagedTableResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ManagedTableResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        let entity: Option<AddDatabaseTableError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
 }
 
 /// Attach an existing connection (catalog) to a database with an optional alias. Inside the database the catalog is reachable as the alias (when set) or its original name.

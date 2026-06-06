@@ -29,7 +29,6 @@ pub struct ColumnProfileInfo {
     /// Percentage of null values (0.0 to 100.0)
     #[serde(rename = "null_percentage")]
     pub null_percentage: f64,
-    /// Type-specific profile detail. Null when the column is all-null or has an unsupported type.
     #[serde(
         rename = "profile",
         default,
