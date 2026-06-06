@@ -26,12 +26,7 @@ pub struct DatasetVersionSummary {
 
 impl DatasetVersionSummary {
     /// Dataset version summary
-    pub fn new(
-        created_at: String,
-        id: String,
-        source_type: String,
-        version: i32,
-    ) -> DatasetVersionSummary {
+    pub fn new(created_at: String, id: String, source_type: String, version: i32) -> DatasetVersionSummary {
         DatasetVersionSummary {
             created_at,
             id,
@@ -40,3 +35,4 @@ impl DatasetVersionSummary {
         }
     }
 }
+

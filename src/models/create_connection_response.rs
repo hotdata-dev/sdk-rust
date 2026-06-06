@@ -14,12 +14,7 @@ use serde::{Deserialize, Serialize};
 /// CreateConnectionResponse : Response body for POST /connections
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CreateConnectionResponse {
-    #[serde(
-        rename = "discovery_error",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "discovery_error", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub discovery_error: Option<Option<String>>,
     #[serde(rename = "discovery_status")]
     pub discovery_status: models::DiscoveryStatus,
@@ -35,13 +30,7 @@ pub struct CreateConnectionResponse {
 
 impl CreateConnectionResponse {
     /// Response body for POST /connections
-    pub fn new(
-        discovery_status: models::DiscoveryStatus,
-        id: String,
-        name: String,
-        source_type: String,
-        tables_discovered: i32,
-    ) -> CreateConnectionResponse {
+    pub fn new(discovery_status: models::DiscoveryStatus, id: String, name: String, source_type: String, tables_discovered: i32) -> CreateConnectionResponse {
         CreateConnectionResponse {
             discovery_error: None,
             discovery_status,
@@ -52,3 +41,4 @@ impl CreateConnectionResponse {
         }
     }
 }
+

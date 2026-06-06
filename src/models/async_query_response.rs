@@ -18,12 +18,7 @@ pub struct AsyncQueryResponse {
     #[serde(rename = "query_run_id")]
     pub query_run_id: String,
     /// Human-readable reason why the query went async (e.g., caching tables for the first time).
-    #[serde(
-        rename = "reason",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "reason", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub reason: Option<Option<String>>,
     /// Current status of the query run.
     #[serde(rename = "status")]
@@ -44,3 +39,4 @@ impl AsyncQueryResponse {
         }
     }
 }
+

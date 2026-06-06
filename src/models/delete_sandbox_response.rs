@@ -21,6 +21,10 @@ pub struct DeleteSandboxResponse {
 
 impl DeleteSandboxResponse {
     pub fn new(ok: bool, deleted: bool) -> DeleteSandboxResponse {
-        DeleteSandboxResponse { ok, deleted }
+        DeleteSandboxResponse {
+            ok,
+            deleted,
+        }
     }
 }
+

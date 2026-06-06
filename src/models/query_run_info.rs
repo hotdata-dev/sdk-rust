@@ -14,66 +14,26 @@ use serde::{Deserialize, Serialize};
 /// QueryRunInfo : Single query run for listing
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct QueryRunInfo {
-    #[serde(
-        rename = "completed_at",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "completed_at", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub completed_at: Option<Option<String>>,
     #[serde(rename = "created_at")]
     pub created_at: String,
-    #[serde(
-        rename = "error_message",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "error_message", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub error_message: Option<Option<String>>,
-    #[serde(
-        rename = "execution_time_ms",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "execution_time_ms", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub execution_time_ms: Option<Option<i64>>,
     #[serde(rename = "id")]
     pub id: String,
-    #[serde(
-        rename = "result_id",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "result_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub result_id: Option<Option<String>>,
-    #[serde(
-        rename = "row_count",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "row_count", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub row_count: Option<Option<i64>>,
-    #[serde(
-        rename = "saved_query_id",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "saved_query_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub saved_query_id: Option<Option<String>>,
-    #[serde(
-        rename = "saved_query_version",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "saved_query_version", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub saved_query_version: Option<Option<i32>>,
     /// Total server-side processing time for this query (milliseconds). Measured from query start to result ready. Includes SQL execution, task spawning, and result preparation. Does not include network transit. Populated for all completed query runs (sync and async).
-    #[serde(
-        rename = "server_processing_ms",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "server_processing_ms", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub server_processing_ms: Option<Option<i64>>,
     #[serde(rename = "snapshot_id")]
     pub snapshot_id: String,
@@ -83,40 +43,18 @@ pub struct QueryRunInfo {
     pub sql_text: String,
     #[serde(rename = "status")]
     pub status: String,
-    #[serde(
-        rename = "trace_id",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "trace_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub trace_id: Option<Option<String>>,
     /// Caller identity derived from the Authorization Bearer token (SHA-256 hash). Format: `user_{first_10_hex_chars}`. Mirrors the webapp's `user_public_id_from_auth_header`.
-    #[serde(
-        rename = "user_public_id",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "user_public_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub user_public_id: Option<Option<String>>,
-    #[serde(
-        rename = "warning_message",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "warning_message", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub warning_message: Option<Option<String>>,
 }
 
 impl QueryRunInfo {
     /// Single query run for listing
-    pub fn new(
-        created_at: String,
-        id: String,
-        snapshot_id: String,
-        sql_hash: String,
-        sql_text: String,
-        status: String,
-    ) -> QueryRunInfo {
+    pub fn new(created_at: String, id: String, snapshot_id: String, sql_hash: String, sql_text: String, status: String) -> QueryRunInfo {
         QueryRunInfo {
             completed_at: None,
             created_at,
@@ -138,3 +76,4 @@ impl QueryRunInfo {
         }
     }
 }
+

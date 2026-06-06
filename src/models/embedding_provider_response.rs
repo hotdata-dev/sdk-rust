@@ -35,16 +35,7 @@ pub struct EmbeddingProviderResponse {
 
 impl EmbeddingProviderResponse {
     /// Single embedding provider for API responses
-    pub fn new(
-        config: Option<serde_json::Value>,
-        created_at: String,
-        has_secret: bool,
-        id: String,
-        name: String,
-        provider_type: String,
-        source: String,
-        updated_at: String,
-    ) -> EmbeddingProviderResponse {
+    pub fn new(config: Option<serde_json::Value>, created_at: String, has_secret: bool, id: String, name: String, provider_type: String, source: String, updated_at: String) -> EmbeddingProviderResponse {
         EmbeddingProviderResponse {
             config,
             created_at,
@@ -57,3 +48,4 @@ impl EmbeddingProviderResponse {
         }
     }
 }
+

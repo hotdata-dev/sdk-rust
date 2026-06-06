@@ -17,7 +17,6 @@ pub struct SubmitJobResponse {
     /// Job ID for status polling.
     #[serde(rename = "id")]
     pub id: String,
-    /// Current status of the submitted job.
     #[serde(rename = "status")]
     pub status: models::JobStatus,
     /// URL to poll for job status.
@@ -35,3 +34,4 @@ impl SubmitJobResponse {
         }
     }
 }
+

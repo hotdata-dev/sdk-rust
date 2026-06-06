@@ -36,7 +36,7 @@ impl ColumnProfileDetailOneOf2 {
         }
     }
 }
-///
+/// 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Type {
     #[serde(rename = "numeric")]
@@ -48,3 +48,4 @@ impl Default for Type {
         Self::Numeric
     }
 }
+

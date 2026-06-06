@@ -30,7 +30,7 @@ impl DatasetSourceOneOf1 {
         }
     }
 }
-///
+/// 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Type {
     #[serde(rename = "saved_query")]
@@ -42,3 +42,4 @@ impl Default for Type {
         Self::SavedQuery
     }
 }
+

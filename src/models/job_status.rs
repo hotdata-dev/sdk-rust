@@ -25,6 +25,7 @@ pub enum JobStatus {
     PartiallySucceeded,
     #[serde(rename = "failed")]
     Failed,
+
 }
 
 impl std::fmt::Display for JobStatus {
@@ -44,3 +45,4 @@ impl Default for JobStatus {
         Self::Pending
     }
 }
+

@@ -21,6 +21,9 @@ pub struct ListJobsResponse {
 impl ListJobsResponse {
     /// Response body for GET /v1/jobs
     pub fn new(jobs: Vec<models::JobStatusResponse>) -> ListJobsResponse {
-        ListJobsResponse { jobs }
+        ListJobsResponse {
+            jobs,
+        }
     }
 }
+

@@ -17,38 +17,18 @@ pub struct RefreshRequest {
     /// When true, submit the refresh as a background job and return immediately with a job ID for status polling. Only supported for data refresh operations.
     #[serde(rename = "async", skip_serializing_if = "Option::is_none")]
     pub r#async: Option<bool>,
-    #[serde(
-        rename = "connection_id",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "connection_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub connection_id: Option<Option<String>>,
     #[serde(rename = "data", skip_serializing_if = "Option::is_none")]
     pub data: Option<bool>,
-    #[serde(
-        rename = "dataset_id",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "dataset_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub dataset_id: Option<Option<String>>,
     /// Controls whether uncached tables are included in connection-wide data refresh.  - `false` (default): Only refresh tables that already have cached data.   This is the common case for keeping existing data up-to-date. - `true`: Also sync tables that haven't been cached yet, essentially performing   an initial sync for any new tables discovered since the connection was created.  This field only applies to connection-wide data refresh (when `data=true` and `table_name` is not specified). It has no effect on single-table refresh or schema refresh operations.
     #[serde(rename = "include_uncached", skip_serializing_if = "Option::is_none")]
     pub include_uncached: Option<bool>,
-    #[serde(
-        rename = "schema_name",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "schema_name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub schema_name: Option<Option<String>>,
-    #[serde(
-        rename = "table_name",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "table_name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub table_name: Option<Option<String>>,
 }
 
@@ -66,3 +46,4 @@ impl RefreshRequest {
         }
     }
 }
+

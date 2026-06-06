@@ -4,6 +4,8 @@ All URIs are relative to *https://api.hotdata.dev*
 
 Method | HTTP request | Description
 ------------- | ------------- | -------------
+[**add_database_schema**](DatabasesApi.md#add_database_schema) | **POST** /v1/databases/{database_id}/schemas | Add schema to database default catalog
+[**add_database_table**](DatabasesApi.md#add_database_table) | **POST** /v1/databases/{database_id}/schemas/{schema}/tables | Add table to database default catalog
 [**attach_database_catalog**](DatabasesApi.md#attach_database_catalog) | **POST** /v1/databases/{database_id}/catalogs | Attach catalog to database
 [**create_database**](DatabasesApi.md#create_database) | **POST** /v1/databases | Create database
 [**delete_database**](DatabasesApi.md#delete_database) | **DELETE** /v1/databases/{database_id} | Delete database
@@ -11,6 +13,69 @@ Method | HTTP request | Description
 [**get_database**](DatabasesApi.md#get_database) | **GET** /v1/databases/{database_id} | Get database
 [**list_databases**](DatabasesApi.md#list_databases) | **GET** /v1/databases | List databases
 
+
+
+## add_database_schema
+
+> models::ManagedSchemaResponse add_database_schema(database_id, add_managed_schema_request)
+Add schema to database default catalog
+
+Declare a new schema (and optionally its tables) on the database's auto-created default catalog after creation. The schema becomes reachable inside the database scope (e.g. `default.<schema>.<table>` and `information_schema.schemata`) without the caller addressing the internal default connection directly. Identifiers are normalised to lowercase.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**database_id** | **String** | Database ID | [required] |
+**add_managed_schema_request** | [**AddManagedSchemaRequest**](AddManagedSchemaRequest.md) |  | [required] |
+
+### Return type
+
+[**models::ManagedSchemaResponse**](ManagedSchemaResponse.md)
+
+### Authorization
+
+[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## add_database_table
+
+> models::ManagedTableResponse add_database_table(database_id, schema, add_managed_table_request)
+Add table to database default catalog
+
+Declare a new table on an existing schema of the database's default catalog after creation. The table is added empty (declared-but-unloaded) and can be populated via the managed-table load endpoint targeting the default connection. Identifiers are normalised to lowercase.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**database_id** | **String** | Database ID | [required] |
+**schema** | **String** | Schema name | [required] |
+**add_managed_table_request** | [**AddManagedTableRequest**](AddManagedTableRequest.md) |  | [required] |
+
+### Return type
+
+[**models::ManagedTableResponse**](ManagedTableResponse.md)
+
+### Authorization
+
+[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
 ## attach_database_catalog

@@ -14,19 +14,9 @@ use serde::{Deserialize, Serialize};
 /// ConnectionTypeDetail : Detailed configuration and authentication schema for a single connection type.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ConnectionTypeDetail {
-    #[serde(
-        rename = "auth",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "auth", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub auth: Option<Option<serde_json::Value>>,
-    #[serde(
-        rename = "config_schema",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "config_schema", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub config_schema: Option<Option<serde_json::Value>>,
     #[serde(rename = "label")]
     pub label: String,
@@ -45,3 +35,4 @@ impl ConnectionTypeDetail {
         }
     }
 }
+

@@ -16,12 +16,7 @@ use serde::{Deserialize, Serialize};
 pub struct ResultInfo {
     #[serde(rename = "created_at")]
     pub created_at: String,
-    #[serde(
-        rename = "error_message",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "error_message", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub error_message: Option<Option<String>>,
     #[serde(rename = "id")]
     pub id: String,
@@ -40,3 +35,4 @@ impl ResultInfo {
         }
     }
 }
+

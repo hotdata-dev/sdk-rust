@@ -18,18 +18,17 @@ pub struct CategoryValueInfo {
     #[serde(rename = "count")]
     pub count: i64,
     /// The distinct value (as a string, or null)
-    #[serde(
-        rename = "value",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "value", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub value: Option<Option<String>>,
 }
 
 impl CategoryValueInfo {
     /// A distinct value with its frequency count, used in categorical profiles.
     pub fn new(count: i64) -> CategoryValueInfo {
-        CategoryValueInfo { count, value: None }
+        CategoryValueInfo {
+            count,
+            value: None,
+        }
     }
 }
+

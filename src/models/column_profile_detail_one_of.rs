@@ -22,10 +22,13 @@ pub struct ColumnProfileDetailOneOf {
 
 impl ColumnProfileDetailOneOf {
     pub fn new(values: Vec<models::CategoryValueInfo>, r#type: Type) -> ColumnProfileDetailOneOf {
-        ColumnProfileDetailOneOf { values, r#type }
+        ColumnProfileDetailOneOf {
+            values,
+            r#type,
+        }
     }
 }
-///
+/// 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Type {
     #[serde(rename = "categorical")]
@@ -37,3 +40,4 @@ impl Default for Type {
         Self::Categorical
     }
 }
+

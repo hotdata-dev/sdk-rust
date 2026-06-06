@@ -24,6 +24,10 @@ pub struct UpsertDatabaseContextRequest {
 impl UpsertDatabaseContextRequest {
     /// Request body for POST `/v1/databases/{database_id}/context`.
     pub fn new(content: String, name: String) -> UpsertDatabaseContextRequest {
-        UpsertDatabaseContextRequest { content, name }
+        UpsertDatabaseContextRequest {
+            content,
+            name,
+        }
     }
 }
+

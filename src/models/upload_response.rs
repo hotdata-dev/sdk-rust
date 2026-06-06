@@ -14,12 +14,7 @@ use serde::{Deserialize, Serialize};
 /// UploadResponse : Response body for POST /v1/files
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UploadResponse {
-    #[serde(
-        rename = "content_type",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "content_type", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub content_type: Option<Option<String>>,
     #[serde(rename = "created_at")]
     pub created_at: String,
@@ -43,3 +38,4 @@ impl UploadResponse {
         }
     }
 }
+

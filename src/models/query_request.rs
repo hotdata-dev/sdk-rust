@@ -18,36 +18,16 @@ pub struct QueryRequest {
     #[serde(rename = "async", skip_serializing_if = "Option::is_none")]
     pub r#async: Option<bool>,
     /// If set with async=true, wait up to this many milliseconds for the query to complete synchronously before returning an async response. Minimum 1000ms. Ignored if async is false.
-    #[serde(
-        rename = "async_after_ms",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "async_after_ms", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub async_after_ms: Option<Option<i32>>,
     /// Database to scope the query to (its id). Alternative to the `X-Database-Id` header — exactly one source must be provided. If both this field and the header are set and they disagree, the request is rejected with a 400.
-    #[serde(
-        rename = "database_id",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "database_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub database_id: Option<Option<String>>,
     /// Catalog that unqualified table references resolve against within the query's database scope. Must name a catalog visible in the database (`default`, an attached catalog alias, or a system catalog). Defaults to `default` when omitted.
-    #[serde(
-        rename = "default_catalog",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "default_catalog", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub default_catalog: Option<Option<String>>,
     /// Schema that unqualified table references resolve against within the query's database scope. Defaults to `main` when omitted. Existence is not validated up front — an unknown schema surfaces as a \"table not found\" error at planning time.
-    #[serde(
-        rename = "default_schema",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "default_schema", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub default_schema: Option<Option<String>>,
     #[serde(rename = "sql")]
     pub sql: String,
@@ -66,3 +46,4 @@ impl QueryRequest {
         }
     }
 }
+

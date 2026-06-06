@@ -16,19 +16,9 @@ use serde::{Deserialize, Serialize};
 pub struct RefreshWarning {
     #[serde(rename = "message")]
     pub message: String,
-    #[serde(
-        rename = "schema_name",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "schema_name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub schema_name: Option<Option<String>>,
-    #[serde(
-        rename = "table_name",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "table_name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub table_name: Option<Option<String>>,
 }
 
@@ -42,3 +32,4 @@ impl RefreshWarning {
         }
     }
 }
+

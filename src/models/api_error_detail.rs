@@ -23,6 +23,10 @@ pub struct ApiErrorDetail {
 impl ApiErrorDetail {
     /// Error detail within an API error response
     pub fn new(code: String, message: String) -> ApiErrorDetail {
-        ApiErrorDetail { code, message }
+        ApiErrorDetail {
+            code,
+            message,
+        }
     }
 }
+

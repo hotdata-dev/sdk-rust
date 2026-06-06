@@ -21,6 +21,9 @@ pub struct ListDatabasesResponse {
 impl ListDatabasesResponse {
     /// Response body for GET /databases
     pub fn new(databases: Vec<models::DatabaseSummary>) -> ListDatabasesResponse {
-        ListDatabasesResponse { databases }
+        ListDatabasesResponse {
+            databases,
+        }
     }
 }
+

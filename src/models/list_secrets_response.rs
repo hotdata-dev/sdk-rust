@@ -21,6 +21,9 @@ pub struct ListSecretsResponse {
 impl ListSecretsResponse {
     /// Response body for GET /secrets
     pub fn new(secrets: Vec<models::SecretMetadataResponse>) -> ListSecretsResponse {
-        ListSecretsResponse { secrets }
+        ListSecretsResponse {
+            secrets,
+        }
     }
 }
+

@@ -34,7 +34,7 @@ impl DatasetSourceOneOf {
         }
     }
 }
-///
+/// 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Type {
     #[serde(rename = "upload")]
@@ -46,3 +46,4 @@ impl Default for Type {
         Self::Upload
     }
 }
+

@@ -35,7 +35,7 @@ impl DatasetSourceOneOf2 {
         }
     }
 }
-///
+/// 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Type {
     #[serde(rename = "sql_query")]
@@ -47,3 +47,4 @@ impl Default for Type {
         Self::SqlQuery
     }
 }
+

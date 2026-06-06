@@ -28,3 +28,4 @@ impl Default for RefreshResponse {
         Self::SchemaRefreshResult(Default::default())
     }
 }
+

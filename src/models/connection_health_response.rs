@@ -16,12 +16,7 @@ use serde::{Deserialize, Serialize};
 pub struct ConnectionHealthResponse {
     #[serde(rename = "connection_id")]
     pub connection_id: String,
-    #[serde(
-        rename = "error",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "error", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub error: Option<Option<String>>,
     #[serde(rename = "healthy")]
     pub healthy: bool,
@@ -40,3 +35,4 @@ impl ConnectionHealthResponse {
         }
     }
 }
+

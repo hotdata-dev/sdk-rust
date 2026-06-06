@@ -15,34 +15,14 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UpdateEmbeddingProviderRequest {
     /// Inline API key. If provided, updates (or creates) the auto-managed secret.
-    #[serde(
-        rename = "api_key",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "api_key", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub api_key: Option<Option<String>>,
-    #[serde(
-        rename = "config",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "config", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub config: Option<Option<serde_json::Value>>,
-    #[serde(
-        rename = "name",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub name: Option<Option<String>>,
     /// Secret name containing the API key. Pass null to clear.
-    #[serde(
-        rename = "secret_name",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "secret_name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub secret_name: Option<Option<String>>,
 }
 
@@ -57,3 +37,4 @@ impl UpdateEmbeddingProviderRequest {
         }
     }
 }
+

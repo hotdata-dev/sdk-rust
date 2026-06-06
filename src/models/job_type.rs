@@ -27,6 +27,7 @@ pub enum JobType {
     CreateIndex,
     #[serde(rename = "create_dataset_index")]
     CreateDatasetIndex,
+
 }
 
 impl std::fmt::Display for JobType {
@@ -47,3 +48,4 @@ impl Default for JobType {
         Self::Noop
     }
 }
+

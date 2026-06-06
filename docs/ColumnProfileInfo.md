@@ -9,7 +9,7 @@ Name | Type | Description | Notes
 **name** | **String** | Column name | 
 **null_count** | **i64** | Number of null values | 
 **null_percentage** | **f64** | Percentage of null values (0.0 to 100.0) | 
-**profile** | Option<[**models::ColumnProfileDetail**](ColumnProfileDetail.md)> | Type-specific profile detail. Null when the column is all-null or has an unsupported type. | [optional]
+**profile** | Option<[**models::ColumnProfileDetail**](ColumnProfileDetail.md)> |  | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

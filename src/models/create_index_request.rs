@@ -21,28 +21,13 @@ pub struct CreateIndexRequest {
     #[serde(rename = "columns")]
     pub columns: Vec<String>,
     /// User-facing description of the embedding (e.g., \"product descriptions\").
-    #[serde(
-        rename = "description",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "description", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub description: Option<Option<String>>,
     /// Output vector dimensions. Some models support multiple dimension sizes (e.g., OpenAI text-embedding-3-small supports 512 or 1536). If omitted, the model's default dimensions are used
-    #[serde(
-        rename = "dimensions",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "dimensions", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub dimensions: Option<Option<i32>>,
     /// Embedding provider ID. When set for a vector index, the source column is treated as text and embeddings are generated automatically. The vector index is then built on the generated embedding column (`{column}_embedding` by default).
-    #[serde(
-        rename = "embedding_provider_id",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "embedding_provider_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub embedding_provider_id: Option<Option<String>>,
     #[serde(rename = "index_name")]
     pub index_name: String,
@@ -50,20 +35,10 @@ pub struct CreateIndexRequest {
     #[serde(rename = "index_type", skip_serializing_if = "Option::is_none")]
     pub index_type: Option<String>,
     /// Distance metric for vector indexes: \"l2\", \"cosine\", or \"dot\". When omitted, defaults to \"l2\" for float array columns or the provider's preferred metric for text columns with auto-embedding.
-    #[serde(
-        rename = "metric",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "metric", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub metric: Option<Option<String>>,
     /// Custom name for the generated embedding column. Defaults to `{column}_embedding`.
-    #[serde(
-        rename = "output_column",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "output_column", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub output_column: Option<Option<String>>,
 }
 
@@ -83,3 +58,4 @@ impl CreateIndexRequest {
         }
     }
 }
+

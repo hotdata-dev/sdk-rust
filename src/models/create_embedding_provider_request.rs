@@ -15,19 +15,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CreateEmbeddingProviderRequest {
     /// Inline API key. If provided, a secret is auto-created and referenced. Cannot be used together with `secret_name`.
-    #[serde(
-        rename = "api_key",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "api_key", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub api_key: Option<Option<String>>,
-    #[serde(
-        rename = "config",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "config", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub config: Option<Option<serde_json::Value>>,
     #[serde(rename = "name")]
     pub name: String,
@@ -35,12 +25,7 @@ pub struct CreateEmbeddingProviderRequest {
     #[serde(rename = "provider_type")]
     pub provider_type: String,
     /// Reference an existing secret by name (for service providers).
-    #[serde(
-        rename = "secret_name",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "secret_name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub secret_name: Option<Option<String>>,
 }
 
@@ -56,3 +41,4 @@ impl CreateEmbeddingProviderRequest {
         }
     }
 }
+

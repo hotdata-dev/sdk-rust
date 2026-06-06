@@ -27,12 +27,7 @@ pub struct TableProfileResponse {
     #[serde(rename = "schema")]
     pub schema: String,
     /// When the table was last synced
-    #[serde(
-        rename = "synced_at",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "synced_at", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub synced_at: Option<Option<String>>,
     /// Table name
     #[serde(rename = "table")]
@@ -41,13 +36,7 @@ pub struct TableProfileResponse {
 
 impl TableProfileResponse {
     /// Column-level statistics for a synced table. Profiles are computed at sync time and include per-column cardinality, null counts, and type-specific details.
-    pub fn new(
-        columns: Vec<models::ColumnProfileInfo>,
-        connection: String,
-        row_count: i32,
-        schema: String,
-        table: String,
-    ) -> TableProfileResponse {
+    pub fn new(columns: Vec<models::ColumnProfileInfo>, connection: String, row_count: i32, schema: String, table: String) -> TableProfileResponse {
         TableProfileResponse {
             columns,
             connection,
@@ -58,3 +47,4 @@ impl TableProfileResponse {
         }
     }
 }
+

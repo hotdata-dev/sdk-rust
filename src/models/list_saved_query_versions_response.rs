@@ -30,14 +30,7 @@ pub struct ListSavedQueryVersionsResponse {
 
 impl ListSavedQueryVersionsResponse {
     /// Response body for GET /v1/queries/{id}/versions
-    pub fn new(
-        count: i32,
-        has_more: bool,
-        limit: i32,
-        offset: i32,
-        saved_query_id: String,
-        versions: Vec<models::SavedQueryVersionInfo>,
-    ) -> ListSavedQueryVersionsResponse {
+    pub fn new(count: i32, has_more: bool, limit: i32, offset: i32, saved_query_id: String, versions: Vec<models::SavedQueryVersionInfo>) -> ListSavedQueryVersionsResponse {
         ListSavedQueryVersionsResponse {
             count,
             has_more,
@@ -48,3 +41,4 @@ impl ListSavedQueryVersionsResponse {
         }
     }
 }
+

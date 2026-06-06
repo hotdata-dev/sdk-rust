@@ -17,21 +17,11 @@ pub struct DatabaseSummary {
     /// Name the database's default catalog answers to inside its query scope.
     #[serde(rename = "default_catalog")]
     pub default_catalog: String,
-    #[serde(
-        rename = "expires_at",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "expires_at", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<Option<String>>,
     #[serde(rename = "id")]
     pub id: String,
-    #[serde(
-        rename = "name",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub name: Option<Option<String>>,
 }
 
@@ -46,3 +36,4 @@ impl DatabaseSummary {
         }
     }
 }
+

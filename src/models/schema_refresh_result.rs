@@ -30,13 +30,7 @@ pub struct SchemaRefreshResult {
 
 impl SchemaRefreshResult {
     /// Response for schema refresh operations
-    pub fn new(
-        connections_failed: i32,
-        connections_refreshed: i32,
-        tables_added: i32,
-        tables_discovered: i32,
-        tables_modified: i32,
-    ) -> SchemaRefreshResult {
+    pub fn new(connections_failed: i32, connections_refreshed: i32, tables_added: i32, tables_discovered: i32, tables_modified: i32) -> SchemaRefreshResult {
         SchemaRefreshResult {
             connections_failed,
             connections_refreshed,
@@ -47,3 +41,4 @@ impl SchemaRefreshResult {
         }
     }
 }
+

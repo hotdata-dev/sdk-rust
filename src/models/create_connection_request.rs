@@ -20,20 +20,10 @@ pub struct CreateConnectionRequest {
     #[serde(rename = "name")]
     pub name: String,
     /// Optional reference to a secret by ID (e.g., \"secr_abc123\"). If provided, this secret will be used for authentication. Mutually exclusive with `secret_name`.
-    #[serde(
-        rename = "secret_id",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "secret_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub secret_id: Option<Option<String>>,
     /// Optional reference to a secret by name. If provided, this secret will be used for authentication. Mutually exclusive with `secret_id`.
-    #[serde(
-        rename = "secret_name",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "secret_name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub secret_name: Option<Option<String>>,
     /// If true, skip automatic schema discovery after registering the connection. The connection will be created but no tables will be discovered. You can run discovery later via the refresh endpoint.
     #[serde(rename = "skip_discovery", skip_serializing_if = "Option::is_none")]
@@ -41,22 +31,13 @@ pub struct CreateConnectionRequest {
     #[serde(rename = "source_type")]
     pub source_type: String,
     /// Physical storage backend for tables created under this connection. `\"parquet\"` (default) uses the versioned parquet cache. `\"ducklake\"` stores data in a DuckLake catalog in the shared metadata DB configured via `ducklake.metadata_pg_url`; accepted for any source type and requires that pool to be configured.
-    #[serde(
-        rename = "storage_backend",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "storage_backend", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub storage_backend: Option<Option<String>>,
 }
 
 impl CreateConnectionRequest {
     /// Request body for POST /connections
-    pub fn new(
-        config: std::collections::HashMap<String, serde_json::Value>,
-        name: String,
-        source_type: String,
-    ) -> CreateConnectionRequest {
+    pub fn new(config: std::collections::HashMap<String, serde_json::Value>, name: String, source_type: String) -> CreateConnectionRequest {
         CreateConnectionRequest {
             config,
             name,
@@ -68,3 +49,4 @@ impl CreateConnectionRequest {
         }
     }
 }
+

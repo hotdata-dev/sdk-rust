@@ -23,6 +23,10 @@ pub struct DatabaseDefaultSchemaDecl {
 impl DatabaseDefaultSchemaDecl {
     /// One schema declaration inside the database's default catalog at create time. Mirrors `crate::source::ManagedSchemaDecl`. Tables default to empty so callers can declare just a schema name and add tables later via the managed-tables API on the default connection.
     pub fn new(name: String) -> DatabaseDefaultSchemaDecl {
-        DatabaseDefaultSchemaDecl { name, tables: None }
+        DatabaseDefaultSchemaDecl {
+            name,
+            tables: None,
+        }
     }
 }
+

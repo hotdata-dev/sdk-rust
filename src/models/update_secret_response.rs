@@ -23,6 +23,10 @@ pub struct UpdateSecretResponse {
 impl UpdateSecretResponse {
     /// Response body for PUT /secrets/{name}
     pub fn new(name: String, updated_at: String) -> UpdateSecretResponse {
-        UpdateSecretResponse { name, updated_at }
+        UpdateSecretResponse {
+            name,
+            updated_at,
+        }
     }
 }
+

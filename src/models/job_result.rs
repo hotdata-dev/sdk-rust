@@ -27,3 +27,4 @@ impl Default for JobResult {
         Self::TableRefreshResult(Default::default())
     }
 }
+

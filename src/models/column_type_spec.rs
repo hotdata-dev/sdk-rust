@@ -15,36 +15,16 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ColumnTypeSpec {
     /// Geometry type for GEOMETRY/GEOGRAPHY columns. E.g., \"Point\", \"LineString\", \"Polygon\", \"MultiPoint\", \"MultiLineString\", \"MultiPolygon\", \"GeometryCollection\", or \"Geometry\" (any).
-    #[serde(
-        rename = "geometry_type",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "geometry_type", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub geometry_type: Option<Option<String>>,
     /// Precision for DECIMAL type (1-38)
-    #[serde(
-        rename = "precision",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "precision", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub precision: Option<Option<i32>>,
     /// Scale for DECIMAL type
-    #[serde(
-        rename = "scale",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "scale", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub scale: Option<Option<i32>>,
     /// Spatial Reference System Identifier for GEOMETRY/GEOGRAPHY types. Common values: 4326 (WGS84), 3857 (Web Mercator).
-    #[serde(
-        rename = "srid",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "srid", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub srid: Option<Option<i32>>,
     /// The data type name (e.g., \"DECIMAL\", \"TIMESTAMP\", \"GEOMETRY\")
     #[serde(rename = "type")]
@@ -63,3 +43,4 @@ impl ColumnTypeSpec {
         }
     }
 }
+

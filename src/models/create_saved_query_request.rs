@@ -14,23 +14,13 @@ use serde::{Deserialize, Serialize};
 /// CreateSavedQueryRequest : Request body for POST /v1/queries
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CreateSavedQueryRequest {
-    #[serde(
-        rename = "description",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "description", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub description: Option<Option<String>>,
     #[serde(rename = "name")]
     pub name: String,
     #[serde(rename = "sql")]
     pub sql: String,
-    #[serde(
-        rename = "tags",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "tags", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub tags: Option<Option<Vec<String>>>,
 }
 
@@ -45,3 +35,4 @@ impl CreateSavedQueryRequest {
         }
     }
 }
+

@@ -1,5 +1,7 @@
 .gitignore
-Cargo.toml
+docs/AddManagedSchemaRequest.md
+docs/AddManagedTableDecl.md
+docs/AddManagedTableRequest.md
 docs/ApiErrorDetail.md
 docs/ApiErrorResponse.md
 docs/AsyncQueryResponse.md
@@ -98,6 +100,8 @@ docs/ListUploadsResponse.md
 docs/ListWorkspacesResponse.md
 docs/LoadManagedTableRequest.md
 docs/LoadManagedTableResponse.md
+docs/ManagedSchemaResponse.md
+docs/ManagedTableResponse.md
 docs/NumericProfileDetail.md
 docs/QueryApi.md
 docs/QueryRequest.md
@@ -169,7 +173,9 @@ src/apis/saved_queries_api.rs
 src/apis/secrets_api.rs
 src/apis/uploads_api.rs
 src/apis/workspaces_api.rs
-src/lib.rs
+src/models/add_managed_schema_request.rs
+src/models/add_managed_table_decl.rs
+src/models/add_managed_table_request.rs
 src/models/api_error_detail.rs
 src/models/api_error_response.rs
 src/models/async_query_response.rs
@@ -259,6 +265,8 @@ src/models/list_uploads_response.rs
 src/models/list_workspaces_response.rs
 src/models/load_managed_table_request.rs
 src/models/load_managed_table_response.rs
+src/models/managed_schema_response.rs
+src/models/managed_table_response.rs
 src/models/mod.rs
 src/models/numeric_profile_detail.rs
 src/models/query_request.rs

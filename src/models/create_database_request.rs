@@ -15,39 +15,19 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CreateDatabaseRequest {
     /// Optional name the database's auto-created default catalog answers to inside its query scope. Must be a valid SQL identifier (`[a-z0-9_]`, not starting with a digit) and may not collide with the system catalogs `hotdata`, `datasets`, or `information_schema`. Defaults to `default` when omitted, so `default.main.<table>` keeps working.
-    #[serde(
-        rename = "default_catalog",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "default_catalog", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub default_catalog: Option<Option<String>>,
     /// When this database expires. Accepts either an RFC 3339 timestamp (e.g. `\"2026-06-01T00:00:00Z\"`) or a relative duration suffixed with `h` (hours), `m` (minutes), or `d` (days) — for example `\"24h\"`, `\"48h\"`, or `\"7d\"`. Omitted (or empty) means the database never expires. Expiry is best-effort: the database will not be deleted before `expires_at`, but cleanup may run later than the exact timestamp.
-    #[serde(
-        rename = "expires_at",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "expires_at", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<Option<String>>,
     /// Optional free-form display label (for UIs/CLIs). Not unique. Not an identifier — databases are always addressed by `id`.  Accepts the legacy `description` key as an alias so clients that predate the rename keep populating this field.
-    #[serde(
-        rename = "name",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub name: Option<Option<String>>,
     /// Optional schemas/tables to declare on the database's auto-created default catalog. Mirrors the `config.schemas` field of a managed `POST /v1/connections`. Tables declared here can be loaded via the standard managed-table load endpoint targeting `default_connection_id`. Omitted or empty means the default catalog starts empty.
     #[serde(rename = "schemas", skip_serializing_if = "Option::is_none")]
     pub schemas: Option<Vec<models::DatabaseDefaultSchemaDecl>>,
     /// Physical storage backend for the database's auto-created `default` catalog. `\"parquet\"` (default) uses the versioned parquet cache. `\"ducklake\"` stores data in a DuckLake catalog in the shared metadata DB configured via `ducklake.metadata_pg_url`, which must be configured for that value to be accepted. Omitted means `\"parquet\"`.
-    #[serde(
-        rename = "storage_backend",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "storage_backend", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub storage_backend: Option<Option<String>>,
 }
 
@@ -63,3 +43,4 @@ impl CreateDatabaseRequest {
         }
     }
 }
+

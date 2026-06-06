@@ -23,6 +23,10 @@ pub struct ConnectionTypeSummary {
 impl ConnectionTypeSummary {
     /// Summary entry for the connection-type list endpoint.
     pub fn new(label: String, name: String) -> ConnectionTypeSummary {
-        ConnectionTypeSummary { label, name }
+        ConnectionTypeSummary {
+            label,
+            name,
+        }
     }
 }
+

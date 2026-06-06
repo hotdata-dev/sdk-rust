@@ -21,6 +21,9 @@ pub struct ListDatabaseContextsResponse {
 impl ListDatabaseContextsResponse {
     /// Response body for GET `/v1/databases/{database_id}/context`.
     pub fn new(contexts: Vec<models::DatabaseContextEntry>) -> ListDatabaseContextsResponse {
-        ListDatabaseContextsResponse { contexts }
+        ListDatabaseContextsResponse {
+            contexts,
+        }
     }
 }
+

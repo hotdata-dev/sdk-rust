@@ -15,12 +15,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AttachDatabaseCatalogRequest {
     /// Optional alias under which this catalog is reachable inside the database. When omitted, it is reachable by the connection's name.
-    #[serde(
-        rename = "alias",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "alias", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub alias: Option<Option<String>>,
     #[serde(rename = "connection_id")]
     pub connection_id: String,
@@ -35,3 +30,4 @@ impl AttachDatabaseCatalogRequest {
         }
     }
 }
+

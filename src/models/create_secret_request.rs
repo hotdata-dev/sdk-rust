@@ -23,6 +23,10 @@ pub struct CreateSecretRequest {
 impl CreateSecretRequest {
     /// Request body for POST /secrets
     pub fn new(name: String, value: String) -> CreateSecretRequest {
-        CreateSecretRequest { name, value }
+        CreateSecretRequest {
+            name,
+            value,
+        }
     }
 }
+

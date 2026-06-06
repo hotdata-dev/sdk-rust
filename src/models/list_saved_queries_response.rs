@@ -28,13 +28,7 @@ pub struct ListSavedQueriesResponse {
 
 impl ListSavedQueriesResponse {
     /// Response body for GET /v1/queries
-    pub fn new(
-        count: i32,
-        has_more: bool,
-        limit: i32,
-        offset: i32,
-        queries: Vec<models::SavedQuerySummary>,
-    ) -> ListSavedQueriesResponse {
+    pub fn new(count: i32, has_more: bool, limit: i32, offset: i32, queries: Vec<models::SavedQuerySummary>) -> ListSavedQueriesResponse {
         ListSavedQueriesResponse {
             count,
             has_more,
@@ -44,3 +38,4 @@ impl ListSavedQueriesResponse {
         }
     }
 }
+
