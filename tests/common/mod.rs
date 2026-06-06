@@ -173,3 +173,19 @@ pub async fn shared_database_id(client: &Client) -> String {
         .expect("create_database should succeed");
     created.id
 }
+
+/// Create a fresh, uniquely-named `sdkci-*` database and return its id.
+///
+/// Unlike [`shared_database_id`], this is for scenarios that exercise the
+/// database lifecycle itself (contexts, catalog attach/detach) and tear the
+/// database back down at the end. The `sdkci-` prefix keeps any leak
+/// identifiable to the nightly sweep if the test panics before cleanup.
+pub async fn create_scratch_database(client: &Client, scenario: &str) -> String {
+    use hotdata::apis::databases_api;
+    let mut request = hotdata::models::CreateDatabaseRequest::new();
+    request.name = Some(Some(sdkci_name(scenario)));
+    let created = databases_api::create_database(client.configuration(), request)
+        .await
+        .expect("create_database should succeed");
+    created.id
+}
