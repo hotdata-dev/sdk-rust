@@ -11,7 +11,35 @@
 
 #![allow(dead_code)]
 
+use std::time::Duration;
+
 use hotdata::Client;
+
+/// Connect-phase ceiling for the shared test client.
+///
+/// `reqwest::Client::default()` (what the SDK uses when no client is supplied)
+/// has no connect timeout, so an unreachable API host blocks each call on the
+/// OS-level TCP timeout (~60s observed in CI). With ~20 scenario binaries run
+/// sequentially by `cargo test`, a transient connectivity blip turns into a
+/// ~20-minute red run. Bounding the connect phase fails fast — and lets hyper
+/// fall through to the next resolved address — so an outage is cheap to retry.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Overall per-request ceiling. Generous enough for the tiny fixture upload and
+/// each poll request; purely a backstop against a hung socket.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// Build the reqwest client every scenario shares: identical to the SDK default
+/// except for the bounded [`CONNECT_TIMEOUT`]/[`REQUEST_TIMEOUT`]. Pass it via
+/// `ClientBuilder::reqwest_client` (or assign to `Configuration::client`) so a
+/// down API host can't stall the suite.
+pub fn test_http_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .connect_timeout(CONNECT_TIMEOUT)
+        .timeout(REQUEST_TIMEOUT)
+        .build()
+        .expect("building the test reqwest client should not fail")
+}
 
 /// Default API host. The auth-token -> JWT exchange and every endpoint live on
 /// the API host, so the ergonomic `Client` always points here unless overridden
@@ -67,6 +95,7 @@ pub fn client_or_skip() -> Option<Client> {
         .api_token(env.api_key.expect("checked above"))
         .workspace_id(env.workspace_id.expect("checked above"))
         .base_url(env.api_url)
+        .reqwest_client(test_http_client())
         .build()
         .expect("Client::build with valid credentials should not fail");
     Some(client)

@@ -93,4 +93,27 @@ jobs:
         # --no-fail-fast runs every scenario binary even after one fails, so a
         # red run surfaces all failing scenarios at once rather than stopping at
         # the first.
-        run: cargo test --all-features --test '*' --no-fail-fast -- --nocapture
+        #
+        # These tests hit the live production API, so a transient connectivity
+        # blip (the suite has seen TCP connect timeouts to the API host) would
+        # otherwise fail the whole run and need a manual re-run. Retry the suite
+        # a few times with backoff so a brief outage self-heals; the bounded
+        # connect timeout in tests/common/mod.rs keeps a down-API attempt to
+        # seconds rather than minutes. A genuine failure still goes red after
+        # exhausting the attempts.
+        run: |
+          for attempt in 1 2 3; do
+            echo "::group::Integration test attempt ${attempt}/3"
+            if cargo test --all-features --test '*' --no-fail-fast -- --nocapture; then
+              echo "::endgroup::"
+              exit 0
+            fi
+            echo "::endgroup::"
+            if [ "${attempt}" -lt 3 ]; then
+              backoff=$((attempt * 30))
+              echo "Attempt ${attempt} failed; retrying in ${backoff}s..."
+              sleep "${backoff}"
+            fi
+          done
+          echo "::error::Integration tests failed after 3 attempts"
+          exit 1

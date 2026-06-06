@@ -27,6 +27,7 @@ async fn auth_unknown_workspace() {
         .api_token(api_key)
         .workspace_id(fake_workspace.clone())
         .base_url(env.api_url)
+        .reqwest_client(common::test_http_client())
         .build()
         .expect("Client::build should succeed");
 
