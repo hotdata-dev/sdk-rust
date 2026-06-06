@@ -40,6 +40,11 @@ tokio = { version = "^1.46.0", features = ["rt-multi-thread", "macros", "time"] 
 futures = "^0.3"
 wiremock = "0.6"
 uuid = { version = "1", features = ["v4"] }
+# Lets the integration harness build a reqwest client with a bounded connect
+# timeout (see tests/common/mod.rs). default-features = false mirrors the lib;
+# the TLS backend comes from the crate's own `native-tls`/`rustls` features via
+# Cargo feature unification.
+reqwest = { version = "^0.13", default-features = false }
 
 [package.metadata.docs.rs]
 all-features = true

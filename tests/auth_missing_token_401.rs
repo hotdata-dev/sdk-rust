@@ -20,9 +20,12 @@ async fn auth_missing_token_401() {
     let _client = skip_if_no_creds!();
     let env = common::load_env();
 
-    // No bearer token, no workspace header — just the API host.
+    // No bearer token, no workspace header — just the API host. Share the
+    // harness client so a down API host fails fast instead of stalling on the
+    // OS-level connect timeout (see common::test_http_client).
     let mut config = Configuration::new();
     config.base_path = env.api_url.trim_end_matches('/').to_string();
+    config.client = common::test_http_client();
 
     let result = workspaces_api::list_workspaces(&config, None).await;
     match result {
