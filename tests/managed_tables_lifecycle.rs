@@ -73,9 +73,23 @@ async fn managed_tables_lifecycle() {
     assert_eq!(loaded.table_name, table_name);
     assert_eq!(loaded.row_count, 3, "fixture has 3 rows");
 
-    // The profile is populated by an async sync triggered by the load, so it can
-    // briefly 404 ("table may not be synced yet") right after load_managed_table.
-    // Poll until it's ready (bounded), then assert it reflects the loaded data.
+    // A freshly-loaded managed table isn't profiled until it's synced — the
+    // profile 404s with "table may not be synced yet" otherwise. A single-table
+    // data refresh performs that initial sync (and runs synchronously unless
+    // `async` is set), so refresh first, then read the profile. (The scenario
+    // lists profile before refresh, but the table genuinely isn't profilable
+    // until the refresh syncs it.)
+    let mut refresh_req = models::RefreshRequest::new();
+    refresh_req.connection_id = Some(Some(connection_id.clone()));
+    refresh_req.schema_name = Some(Some(schema_name.to_string()));
+    refresh_req.table_name = Some(Some(table_name.to_string()));
+    refresh_req.data = Some(true);
+    refresh_api::refresh(config, refresh_req)
+        .await
+        .expect("refresh should succeed");
+
+    // Poll the profile (bounded) in case the sync settles a beat after refresh
+    // returns, then assert it reflects the loaded data.
     let mut profile = None;
     for _ in 0..30 {
         match connections_api::get_table_profile(config, &connection_id, schema_name, table_name)
@@ -95,13 +109,6 @@ async fn managed_tables_lifecycle() {
     assert_eq!(profile.schema, schema_name);
     assert_eq!(profile.table, table_name);
     assert_eq!(profile.row_count, 3);
-
-    // Refresh catalog metadata for the managed connection.
-    let mut refresh_req = models::RefreshRequest::new();
-    refresh_req.connection_id = Some(Some(connection_id.clone()));
-    refresh_api::refresh(config, refresh_req)
-        .await
-        .expect("refresh should succeed");
 
     // purge_table_cache and delete_managed_table both return () on success.
     connections_api::purge_table_cache(config, &connection_id, schema_name, table_name)
