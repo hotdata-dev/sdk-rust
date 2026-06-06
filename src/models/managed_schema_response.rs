@@ -25,7 +25,11 @@ pub struct ManagedSchemaResponse {
 
 impl ManagedSchemaResponse {
     /// Response body for a successful add-schema request. Echoes the normalised (lowercased) names so callers see exactly what was persisted.
-    pub fn new(connection_id: String, schema: String, tables: Vec<String>) -> ManagedSchemaResponse {
+    pub fn new(
+        connection_id: String,
+        schema: String,
+        tables: Vec<String>,
+    ) -> ManagedSchemaResponse {
         ManagedSchemaResponse {
             connection_id,
             schema,
@@ -33,4 +37,3 @@ impl ManagedSchemaResponse {
         }
     }
 }
-

@@ -21,7 +21,6 @@ pub enum DiscoveryStatus {
     Skipped,
     #[serde(rename = "failed")]
     Failed,
-
 }
 
 impl std::fmt::Display for DiscoveryStatus {
@@ -39,4 +38,3 @@ impl Default for DiscoveryStatus {
         Self::Success
     }
 }
-

@@ -15,10 +15,20 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SqlQueryDatasetSource {
     /// Optional description for the auto-created saved query.
-    #[serde(rename = "description", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "description",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub description: Option<Option<String>>,
     /// Optional name for the auto-created saved query. Defaults to the dataset label.
-    #[serde(rename = "name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub name: Option<Option<String>>,
     #[serde(rename = "sql")]
     pub sql: String,
@@ -34,4 +44,3 @@ impl SqlQueryDatasetSource {
         }
     }
 }
-

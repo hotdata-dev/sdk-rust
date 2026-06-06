@@ -30,7 +30,13 @@ pub struct TableRefreshResult {
 
 impl TableRefreshResult {
     /// Result payload for a `data_refresh_table` job.
-    pub fn new(connection_id: String, duration_ms: i64, rows_synced: i32, schema_name: String, table_name: String) -> TableRefreshResult {
+    pub fn new(
+        connection_id: String,
+        duration_ms: i64,
+        rows_synced: i32,
+        schema_name: String,
+        table_name: String,
+    ) -> TableRefreshResult {
         TableRefreshResult {
             connection_id,
             duration_ms,
@@ -41,4 +47,3 @@ impl TableRefreshResult {
         }
     }
 }
-

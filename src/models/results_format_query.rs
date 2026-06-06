@@ -25,7 +25,6 @@ pub enum ResultsFormatQuery {
     Md,
     #[serde(rename = "parquet")]
     Parquet,
-
 }
 
 impl std::fmt::Display for ResultsFormatQuery {
@@ -45,4 +44,3 @@ impl Default for ResultsFormatQuery {
         Self::Arrow
     }
 }
-

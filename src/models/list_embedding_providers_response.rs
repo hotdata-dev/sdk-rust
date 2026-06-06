@@ -20,10 +20,11 @@ pub struct ListEmbeddingProvidersResponse {
 
 impl ListEmbeddingProvidersResponse {
     /// Response body for GET /embedding-providers
-    pub fn new(embedding_providers: Vec<models::EmbeddingProviderResponse>) -> ListEmbeddingProvidersResponse {
+    pub fn new(
+        embedding_providers: Vec<models::EmbeddingProviderResponse>,
+    ) -> ListEmbeddingProvidersResponse {
         ListEmbeddingProvidersResponse {
             embedding_providers,
         }
     }
 }
-

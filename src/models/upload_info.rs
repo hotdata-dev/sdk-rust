@@ -14,7 +14,12 @@ use serde::{Deserialize, Serialize};
 /// UploadInfo : Single upload info for listing
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UploadInfo {
-    #[serde(rename = "content_type", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "content_type",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub content_type: Option<Option<String>>,
     #[serde(rename = "created_at")]
     pub created_at: String,
@@ -38,4 +43,3 @@ impl UploadInfo {
         }
     }
 }
-

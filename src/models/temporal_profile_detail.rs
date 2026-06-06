@@ -25,10 +25,6 @@ pub struct TemporalProfileDetail {
 impl TemporalProfileDetail {
     /// Date or timestamp column.
     pub fn new(max: String, min: String) -> TemporalProfileDetail {
-        TemporalProfileDetail {
-            max,
-            min,
-        }
+        TemporalProfileDetail { max, min }
     }
 }
-

@@ -21,10 +21,6 @@ pub struct ListWorkspacesResponse {
 
 impl ListWorkspacesResponse {
     pub fn new(ok: bool, workspaces: Vec<models::WorkspaceListItem>) -> ListWorkspacesResponse {
-        ListWorkspacesResponse {
-            ok,
-            workspaces,
-        }
+        ListWorkspacesResponse { ok, workspaces }
     }
 }
-

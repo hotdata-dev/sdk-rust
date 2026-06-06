@@ -14,23 +14,58 @@ use serde::{Deserialize, Serialize};
 /// SavedQueryDetail : Saved query detail (includes latest version's SQL)
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SavedQueryDetail {
-    #[serde(rename = "category", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "category",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub category: Option<Option<String>>,
     #[serde(rename = "created_at")]
     pub created_at: String,
     #[serde(rename = "description")]
     pub description: String,
-    #[serde(rename = "has_aggregation", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "has_aggregation",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub has_aggregation: Option<Option<bool>>,
-    #[serde(rename = "has_group_by", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "has_group_by",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub has_group_by: Option<Option<bool>>,
-    #[serde(rename = "has_join", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "has_join",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub has_join: Option<Option<bool>>,
-    #[serde(rename = "has_limit", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "has_limit",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub has_limit: Option<Option<bool>>,
-    #[serde(rename = "has_order_by", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "has_order_by",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub has_order_by: Option<Option<bool>>,
-    #[serde(rename = "has_predicate", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "has_predicate",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub has_predicate: Option<Option<bool>>,
     #[serde(rename = "id")]
     pub id: String,
@@ -38,13 +73,23 @@ pub struct SavedQueryDetail {
     pub latest_version: i32,
     #[serde(rename = "name")]
     pub name: String,
-    #[serde(rename = "num_tables", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "num_tables",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub num_tables: Option<Option<i32>>,
     #[serde(rename = "sql")]
     pub sql: String,
     #[serde(rename = "sql_hash")]
     pub sql_hash: String,
-    #[serde(rename = "table_size", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "table_size",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub table_size: Option<Option<String>>,
     #[serde(rename = "tags")]
     pub tags: Vec<String>,
@@ -54,7 +99,17 @@ pub struct SavedQueryDetail {
 
 impl SavedQueryDetail {
     /// Saved query detail (includes latest version's SQL)
-    pub fn new(created_at: String, description: String, id: String, latest_version: i32, name: String, sql: String, sql_hash: String, tags: Vec<String>, updated_at: String) -> SavedQueryDetail {
+    pub fn new(
+        created_at: String,
+        description: String,
+        id: String,
+        latest_version: i32,
+        name: String,
+        sql: String,
+        sql_hash: String,
+        tags: Vec<String>,
+        updated_at: String,
+    ) -> SavedQueryDetail {
         SavedQueryDetail {
             category: None,
             created_at,
@@ -77,4 +132,3 @@ impl SavedQueryDetail {
         }
     }
 }
-

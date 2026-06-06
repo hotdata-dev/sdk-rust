@@ -29,13 +29,24 @@ pub struct ColumnProfileInfo {
     /// Percentage of null values (0.0 to 100.0)
     #[serde(rename = "null_percentage")]
     pub null_percentage: f64,
-    #[serde(rename = "profile", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "profile",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub profile: Option<Option<Box<models::ColumnProfileDetail>>>,
 }
 
 impl ColumnProfileInfo {
     /// Statistics for a single column.
-    pub fn new(cardinality: i64, data_type: String, name: String, null_count: i64, null_percentage: f64) -> ColumnProfileInfo {
+    pub fn new(
+        cardinality: i64,
+        data_type: String,
+        name: String,
+        null_count: i64,
+        null_percentage: f64,
+    ) -> ColumnProfileInfo {
         ColumnProfileInfo {
             cardinality,
             data_type,
@@ -46,4 +57,3 @@ impl ColumnProfileInfo {
         }
     }
 }
-

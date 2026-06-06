@@ -23,10 +23,6 @@ pub struct AddManagedSchemaRequest {
 impl AddManagedSchemaRequest {
     /// Request body for adding a schema to an existing managed catalog: `POST /v1/connections/{id}/schemas` and `POST /v1/databases/{id}/schemas`. `tables` is optional — omit it to declare an empty schema and add tables later.
     pub fn new(name: String) -> AddManagedSchemaRequest {
-        AddManagedSchemaRequest {
-            name,
-            tables: None,
-        }
+        AddManagedSchemaRequest { name, tables: None }
     }
 }
-

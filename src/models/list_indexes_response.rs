@@ -21,9 +21,6 @@ pub struct ListIndexesResponse {
 impl ListIndexesResponse {
     /// Response body for GET .../indexes
     pub fn new(indexes: Vec<models::IndexInfoResponse>) -> ListIndexesResponse {
-        ListIndexesResponse {
-            indexes,
-        }
+        ListIndexesResponse { indexes }
     }
 }
-

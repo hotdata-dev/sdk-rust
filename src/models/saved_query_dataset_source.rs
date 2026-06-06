@@ -16,7 +16,12 @@ use serde::{Deserialize, Serialize};
 pub struct SavedQueryDatasetSource {
     #[serde(rename = "saved_query_id")]
     pub saved_query_id: String,
-    #[serde(rename = "version", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "version",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub version: Option<Option<i32>>,
 }
 
@@ -29,4 +34,3 @@ impl SavedQueryDatasetSource {
         }
     }
 }
-

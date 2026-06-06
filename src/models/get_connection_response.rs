@@ -28,7 +28,13 @@ pub struct GetConnectionResponse {
 
 impl GetConnectionResponse {
     /// Response body for GET /connections/{connection_id}
-    pub fn new(id: String, name: String, source_type: String, synced_table_count: i32, table_count: i32) -> GetConnectionResponse {
+    pub fn new(
+        id: String,
+        name: String,
+        source_type: String,
+        synced_table_count: i32,
+        table_count: i32,
+    ) -> GetConnectionResponse {
         GetConnectionResponse {
             id,
             name,
@@ -38,4 +44,3 @@ impl GetConnectionResponse {
         }
     }
 }
-

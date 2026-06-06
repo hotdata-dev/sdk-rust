@@ -20,10 +20,9 @@ pub struct ListConnectionTypesResponse {
 
 impl ListConnectionTypesResponse {
     /// Envelope for the connection-types list response.
-    pub fn new(connection_types: Vec<models::ConnectionTypeSummary>) -> ListConnectionTypesResponse {
-        ListConnectionTypesResponse {
-            connection_types,
-        }
+    pub fn new(
+        connection_types: Vec<models::ConnectionTypeSummary>,
+    ) -> ListConnectionTypesResponse {
+        ListConnectionTypesResponse { connection_types }
     }
 }
-

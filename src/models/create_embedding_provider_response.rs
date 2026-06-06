@@ -28,7 +28,13 @@ pub struct CreateEmbeddingProviderResponse {
 
 impl CreateEmbeddingProviderResponse {
     /// Response body for POST /embedding-providers
-    pub fn new(config: Option<serde_json::Value>, created_at: String, id: String, name: String, provider_type: String) -> CreateEmbeddingProviderResponse {
+    pub fn new(
+        config: Option<serde_json::Value>,
+        created_at: String,
+        id: String,
+        name: String,
+        provider_type: String,
+    ) -> CreateEmbeddingProviderResponse {
         CreateEmbeddingProviderResponse {
             config,
             created_at,
@@ -38,4 +44,3 @@ impl CreateEmbeddingProviderResponse {
         }
     }
 }
-

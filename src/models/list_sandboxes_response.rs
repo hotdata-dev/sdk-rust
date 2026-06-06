@@ -21,10 +21,6 @@ pub struct ListSandboxesResponse {
 
 impl ListSandboxesResponse {
     pub fn new(ok: bool, sandboxes: Vec<models::Sandbox>) -> ListSandboxesResponse {
-        ListSandboxesResponse {
-            ok,
-            sandboxes,
-        }
+        ListSandboxesResponse { ok, sandboxes }
     }
 }
-

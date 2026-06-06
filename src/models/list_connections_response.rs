@@ -21,9 +21,6 @@ pub struct ListConnectionsResponse {
 impl ListConnectionsResponse {
     /// Response body for GET /connections
     pub fn new(connections: Vec<models::ConnectionInfo>) -> ListConnectionsResponse {
-        ListConnectionsResponse {
-            connections,
-        }
+        ListConnectionsResponse { connections }
     }
 }
-

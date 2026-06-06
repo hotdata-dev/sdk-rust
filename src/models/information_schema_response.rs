@@ -20,7 +20,12 @@ pub struct InformationSchemaResponse {
     pub has_more: bool,
     #[serde(rename = "limit")]
     pub limit: i32,
-    #[serde(rename = "next_cursor", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "next_cursor",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub next_cursor: Option<Option<String>>,
     #[serde(rename = "tables")]
     pub tables: Vec<models::TableInfo>,
@@ -28,7 +33,12 @@ pub struct InformationSchemaResponse {
 
 impl InformationSchemaResponse {
     /// Response body for GET /information_schema
-    pub fn new(count: i32, has_more: bool, limit: i32, tables: Vec<models::TableInfo>) -> InformationSchemaResponse {
+    pub fn new(
+        count: i32,
+        has_more: bool,
+        limit: i32,
+        tables: Vec<models::TableInfo>,
+    ) -> InformationSchemaResponse {
         InformationSchemaResponse {
             count,
             has_more,
@@ -38,4 +48,3 @@ impl InformationSchemaResponse {
         }
     }
 }
-

@@ -21,9 +21,6 @@ pub struct AddManagedTableRequest {
 impl AddManagedTableRequest {
     /// Request body for adding a table to an existing schema: `POST /v1/connections/{id}/schemas/{schema}/tables` and `POST /v1/databases/{id}/schemas/{schema}/tables`.
     pub fn new(name: String) -> AddManagedTableRequest {
-        AddManagedTableRequest {
-            name,
-        }
+        AddManagedTableRequest { name }
     }
 }
-

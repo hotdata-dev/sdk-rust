@@ -14,11 +14,21 @@ use serde::{Deserialize, Serialize};
 /// TableInfo : Single table metadata
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TableInfo {
-    #[serde(rename = "columns", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "columns",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub columns: Option<Option<Vec<models::ColumnInfo>>>,
     #[serde(rename = "connection")]
     pub connection: String,
-    #[serde(rename = "last_sync", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "last_sync",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub last_sync: Option<Option<String>>,
     #[serde(rename = "schema")]
     pub schema: String,
@@ -41,4 +51,3 @@ impl TableInfo {
         }
     }
 }
-

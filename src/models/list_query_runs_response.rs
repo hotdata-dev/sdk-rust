@@ -20,7 +20,12 @@ pub struct ListQueryRunsResponse {
     pub has_more: bool,
     #[serde(rename = "limit")]
     pub limit: i32,
-    #[serde(rename = "next_cursor", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "next_cursor",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub next_cursor: Option<Option<String>>,
     #[serde(rename = "query_runs")]
     pub query_runs: Vec<models::QueryRunInfo>,
@@ -28,7 +33,12 @@ pub struct ListQueryRunsResponse {
 
 impl ListQueryRunsResponse {
     /// Response body for GET /query-runs
-    pub fn new(count: i32, has_more: bool, limit: i32, query_runs: Vec<models::QueryRunInfo>) -> ListQueryRunsResponse {
+    pub fn new(
+        count: i32,
+        has_more: bool,
+        limit: i32,
+        query_runs: Vec<models::QueryRunInfo>,
+    ) -> ListQueryRunsResponse {
         ListQueryRunsResponse {
             count,
             has_more,
@@ -38,4 +48,3 @@ impl ListQueryRunsResponse {
         }
     }
 }
-

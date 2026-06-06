@@ -21,17 +21,31 @@ pub struct CreateDatabaseResponse {
     #[serde(rename = "default_connection_id")]
     pub default_connection_id: String,
     /// When this database expires.
-    #[serde(rename = "expires_at", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "expires_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub expires_at: Option<Option<String>>,
     #[serde(rename = "id")]
     pub id: String,
-    #[serde(rename = "name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub name: Option<Option<String>>,
 }
 
 impl CreateDatabaseResponse {
     /// Response body for POST /databases
-    pub fn new(default_catalog: String, default_connection_id: String, id: String) -> CreateDatabaseResponse {
+    pub fn new(
+        default_catalog: String,
+        default_connection_id: String,
+        id: String,
+    ) -> CreateDatabaseResponse {
         CreateDatabaseResponse {
             default_catalog,
             default_connection_id,
@@ -41,4 +55,3 @@ impl CreateDatabaseResponse {
         }
     }
 }
-

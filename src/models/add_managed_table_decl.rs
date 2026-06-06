@@ -21,9 +21,6 @@ pub struct AddManagedTableDecl {
 impl AddManagedTableDecl {
     /// One table declaration inside an add-schema request body.
     pub fn new(name: String) -> AddManagedTableDecl {
-        AddManagedTableDecl {
-            name,
-        }
+        AddManagedTableDecl { name }
     }
 }
-

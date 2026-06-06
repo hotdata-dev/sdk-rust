@@ -30,7 +30,14 @@ pub struct CreateDatasetResponse {
 
 impl CreateDatasetResponse {
     /// Response body for POST /v1/datasets
-    pub fn new(created_at: String, id: String, label: String, schema_name: String, status: String, table_name: String) -> CreateDatasetResponse {
+    pub fn new(
+        created_at: String,
+        id: String,
+        label: String,
+        schema_name: String,
+        status: String,
+        table_name: String,
+    ) -> CreateDatasetResponse {
         CreateDatasetResponse {
             created_at,
             id,
@@ -41,4 +48,3 @@ impl CreateDatasetResponse {
         }
     }
 }
-

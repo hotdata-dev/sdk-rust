@@ -26,7 +26,7 @@ impl Default for ColumnProfileDetail {
         Self::ColumnProfileDetailOneOf(Default::default())
     }
 }
-/// 
+///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Type {
     #[serde(rename = "categorical")]
@@ -46,4 +46,3 @@ impl Default for Type {
         Self::Categorical
     }
 }
-

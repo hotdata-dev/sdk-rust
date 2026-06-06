@@ -26,7 +26,12 @@ pub struct RefreshDatasetResponse {
 
 impl RefreshDatasetResponse {
     /// Response body for POST /v1/datasets/{id}/refresh
-    pub fn new(created_at: String, id: String, status: String, version: i32) -> RefreshDatasetResponse {
+    pub fn new(
+        created_at: String,
+        id: String,
+        status: String,
+        version: i32,
+    ) -> RefreshDatasetResponse {
         RefreshDatasetResponse {
             created_at,
             id,
@@ -35,4 +40,3 @@ impl RefreshDatasetResponse {
         }
     }
 }
-

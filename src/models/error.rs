@@ -20,9 +20,6 @@ pub struct Error {
 
 impl Error {
     pub fn new(error: String) -> Error {
-        Error {
-            error,
-        }
+        Error { error }
     }
 }
-

@@ -34,7 +34,7 @@ impl DatasetSourceOneOf3 {
         }
     }
 }
-/// 
+///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Type {
     #[serde(rename = "url")]
@@ -46,4 +46,3 @@ impl Default for Type {
         Self::Url
     }
 }
-

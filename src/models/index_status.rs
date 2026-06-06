@@ -19,7 +19,6 @@ pub enum IndexStatus {
     Ready,
     #[serde(rename = "pending")]
     Pending,
-
 }
 
 impl std::fmt::Display for IndexStatus {
@@ -36,4 +35,3 @@ impl Default for IndexStatus {
         Self::Ready
     }
 }
-

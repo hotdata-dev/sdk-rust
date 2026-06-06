@@ -14,12 +14,27 @@ use serde::{Deserialize, Serialize};
 /// UpdateDatasetRequest : Request body for PUT /v1/datasets/{id}
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UpdateDatasetRequest {
-    #[serde(rename = "label", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "label",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub label: Option<Option<String>>,
     /// Pin to a specific version, or send null to unpin. Omit the field entirely to leave pinning unchanged.
-    #[serde(rename = "pinned_version", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "pinned_version",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub pinned_version: Option<Option<i32>>,
-    #[serde(rename = "table_name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "table_name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub table_name: Option<Option<String>>,
 }
 
@@ -33,4 +48,3 @@ impl UpdateDatasetRequest {
         }
     }
 }
-

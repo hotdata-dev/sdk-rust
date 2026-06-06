@@ -30,7 +30,14 @@ pub struct ListDatasetVersionsResponse {
 
 impl ListDatasetVersionsResponse {
     /// Response body for GET /v1/datasets/{id}/versions
-    pub fn new(count: i32, dataset_id: String, has_more: bool, limit: i32, offset: i32, versions: Vec<models::DatasetVersionSummary>) -> ListDatasetVersionsResponse {
+    pub fn new(
+        count: i32,
+        dataset_id: String,
+        has_more: bool,
+        limit: i32,
+        offset: i32,
+        versions: Vec<models::DatasetVersionSummary>,
+    ) -> ListDatasetVersionsResponse {
         ListDatasetVersionsResponse {
             count,
             dataset_id,
@@ -41,4 +48,3 @@ impl ListDatasetVersionsResponse {
         }
     }
 }
-

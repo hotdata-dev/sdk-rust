@@ -19,10 +19,20 @@ pub struct CreateDatasetRequest {
     #[serde(rename = "source")]
     pub source: Box<models::DatasetSource>,
     /// Optional storage backend: `\"parquet\"` (default) or `\"ducklake\"`. `\"ducklake\"` requires `ducklake.metadata_pg_url` to be configured at engine boot; the engine also rejects the combo of `storage_backend: \"ducklake\"` with a saved-query source or with explicit geometry columns (both deferred to a follow-up).
-    #[serde(rename = "storage_backend", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "storage_backend",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub storage_backend: Option<Option<String>>,
     /// Optional table_name - if not provided, derived from label
-    #[serde(rename = "table_name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "table_name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub table_name: Option<Option<String>>,
 }
 
@@ -37,4 +47,3 @@ impl CreateDatasetRequest {
         }
     }
 }
-

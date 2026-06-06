@@ -23,7 +23,12 @@ pub struct IndexInfoResponse {
     #[serde(rename = "index_type")]
     pub index_type: String,
     /// Distance metric this index was built with. Only present for vector indexes.
-    #[serde(rename = "metric", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "metric",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub metric: Option<Option<String>>,
     #[serde(rename = "status")]
     pub status: models::IndexStatus,
@@ -33,7 +38,14 @@ pub struct IndexInfoResponse {
 
 impl IndexInfoResponse {
     /// Result payload for a `create_index` job, and response for index endpoints.
-    pub fn new(columns: Vec<String>, created_at: String, index_name: String, index_type: String, status: models::IndexStatus, updated_at: String) -> IndexInfoResponse {
+    pub fn new(
+        columns: Vec<String>,
+        created_at: String,
+        index_name: String,
+        index_type: String,
+        status: models::IndexStatus,
+        updated_at: String,
+    ) -> IndexInfoResponse {
         IndexInfoResponse {
             columns,
             created_at,
@@ -45,4 +57,3 @@ impl IndexInfoResponse {
         }
     }
 }
-

@@ -25,7 +25,12 @@ pub struct QueryResponse {
     #[serde(rename = "query_run_id")]
     pub query_run_id: String,
     /// Unique identifier for retrieving this result via GET /results/{id}. Null if catalog registration failed (see `warning` field for details). When non-null, the result is being persisted asynchronously.
-    #[serde(rename = "result_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "result_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub result_id: Option<Option<String>>,
     #[serde(rename = "row_count")]
     pub row_count: i32,
@@ -33,13 +38,25 @@ pub struct QueryResponse {
     #[serde(rename = "rows")]
     pub rows: Vec<Vec<serde_json::Value>>,
     /// Warning message if result persistence could not be initiated. When present, `result_id` will be null and the result cannot be retrieved later. The query results are still returned in this response.
-    #[serde(rename = "warning", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "warning",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub warning: Option<Option<String>>,
 }
 
 impl QueryResponse {
     /// Response body for POST /query  Query results are returned immediately along with a `result_id` for later retrieval. The actual persistence to storage happens asynchronously in the background.  To check if a result is ready for SQL queries, poll GET /results/{id} and check `status`: - `\"processing\"`: Persistence is still in progress - `\"ready\"`: Result is available for retrieval and SQL queries - `\"failed\"`: Persistence failed (check `error_message` for details)
-    pub fn new(columns: Vec<String>, execution_time_ms: i64, nullable: Vec<bool>, query_run_id: String, row_count: i32, rows: Vec<Vec<serde_json::Value>>) -> QueryResponse {
+    pub fn new(
+        columns: Vec<String>,
+        execution_time_ms: i64,
+        nullable: Vec<bool>,
+        query_run_id: String,
+        row_count: i32,
+        rows: Vec<Vec<serde_json::Value>>,
+    ) -> QueryResponse {
         QueryResponse {
             columns,
             execution_time_ms,
@@ -52,4 +69,3 @@ impl QueryResponse {
         }
     }
 }
-

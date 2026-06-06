@@ -27,7 +27,13 @@ pub struct Sandbox {
 }
 
 impl Sandbox {
-    pub fn new(public_id: String, name: String, markdown: String, created_at: String, updated_at: String) -> Sandbox {
+    pub fn new(
+        public_id: String,
+        name: String,
+        markdown: String,
+        created_at: String,
+        updated_at: String,
+    ) -> Sandbox {
         Sandbox {
             public_id,
             name,
@@ -37,4 +43,3 @@ impl Sandbox {
         }
     }
 }
-

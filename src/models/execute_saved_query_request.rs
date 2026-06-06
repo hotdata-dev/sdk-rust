@@ -14,16 +14,18 @@ use serde::{Deserialize, Serialize};
 /// ExecuteSavedQueryRequest : Request body for POST /v1/queries/{id}/execute
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ExecuteSavedQueryRequest {
-    #[serde(rename = "version", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "version",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub version: Option<Option<i32>>,
 }
 
 impl ExecuteSavedQueryRequest {
     /// Request body for POST /v1/queries/{id}/execute
     pub fn new() -> ExecuteSavedQueryRequest {
-        ExecuteSavedQueryRequest {
-            version: None,
-        }
+        ExecuteSavedQueryRequest { version: None }
     }
 }
-

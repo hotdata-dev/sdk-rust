@@ -21,9 +21,6 @@ pub struct DatabaseDefaultTableDecl {
 impl DatabaseDefaultTableDecl {
     /// One table declaration inside a default-catalog schema at database-create time. Mirrors `crate::source::ManagedTableDecl` shape so the controller can convert with a simple `.map`.
     pub fn new(name: String) -> DatabaseDefaultTableDecl {
-        DatabaseDefaultTableDecl {
-            name,
-        }
+        DatabaseDefaultTableDecl { name }
     }
 }
-

@@ -17,7 +17,10 @@ pub struct CreateWorkspaceRequest {
     #[serde(rename = "name")]
     pub name: String,
     /// Target organization. Defaults to the user's current organization.
-    #[serde(rename = "organization_public_id", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "organization_public_id",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub organization_public_id: Option<String>,
 }
 
@@ -29,4 +32,3 @@ impl CreateWorkspaceRequest {
         }
     }
 }
-

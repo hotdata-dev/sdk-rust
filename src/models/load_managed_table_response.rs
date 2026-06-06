@@ -30,7 +30,13 @@ pub struct LoadManagedTableResponse {
 
 impl LoadManagedTableResponse {
     /// Response body for `POST /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads`.
-    pub fn new(arrow_schema_json: String, connection_id: String, row_count: i64, schema_name: String, table_name: String) -> LoadManagedTableResponse {
+    pub fn new(
+        arrow_schema_json: String,
+        connection_id: String,
+        row_count: i64,
+        schema_name: String,
+        table_name: String,
+    ) -> LoadManagedTableResponse {
         LoadManagedTableResponse {
             arrow_schema_json,
             connection_id,
@@ -40,4 +46,3 @@ impl LoadManagedTableResponse {
         }
     }
 }
-

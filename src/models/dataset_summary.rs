@@ -22,7 +22,12 @@ pub struct DatasetSummary {
     pub label: String,
     #[serde(rename = "latest_version")]
     pub latest_version: i32,
-    #[serde(rename = "pinned_version", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "pinned_version",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub pinned_version: Option<Option<i32>>,
     #[serde(rename = "schema_name")]
     pub schema_name: String,
@@ -34,7 +39,15 @@ pub struct DatasetSummary {
 
 impl DatasetSummary {
     /// Dataset summary for listing
-    pub fn new(created_at: String, id: String, label: String, latest_version: i32, schema_name: String, table_name: String, updated_at: String) -> DatasetSummary {
+    pub fn new(
+        created_at: String,
+        id: String,
+        label: String,
+        latest_version: i32,
+        schema_name: String,
+        table_name: String,
+        updated_at: String,
+    ) -> DatasetSummary {
         DatasetSummary {
             created_at,
             id,
@@ -47,4 +60,3 @@ impl DatasetSummary {
         }
     }
 }
-

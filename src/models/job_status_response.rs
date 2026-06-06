@@ -17,18 +17,33 @@ pub struct JobStatusResponse {
     /// Number of execution attempts (including the current one).
     #[serde(rename = "attempts")]
     pub attempts: i32,
-    #[serde(rename = "completed_at", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "completed_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub completed_at: Option<Option<String>>,
     #[serde(rename = "created_at")]
     pub created_at: String,
     /// Error or warning message. Set when status is `failed` or `partially_succeeded`.
-    #[serde(rename = "error_message", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "error_message",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub error_message: Option<Option<String>>,
     #[serde(rename = "id")]
     pub id: String,
     #[serde(rename = "job_type")]
     pub job_type: models::JobType,
-    #[serde(rename = "result", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "result",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub result: Option<Option<Box<models::JobResult>>>,
     #[serde(rename = "status")]
     pub status: models::JobStatus,
@@ -36,7 +51,13 @@ pub struct JobStatusResponse {
 
 impl JobStatusResponse {
     /// Response body for GET /v1/jobs/{id}
-    pub fn new(attempts: i32, created_at: String, id: String, job_type: models::JobType, status: models::JobStatus) -> JobStatusResponse {
+    pub fn new(
+        attempts: i32,
+        created_at: String,
+        id: String,
+        job_type: models::JobType,
+        status: models::JobStatus,
+    ) -> JobStatusResponse {
         JobStatusResponse {
             attempts,
             completed_at: None,
@@ -49,4 +70,3 @@ impl JobStatusResponse {
         }
     }
 }
-

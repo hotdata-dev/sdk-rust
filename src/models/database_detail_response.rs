@@ -22,17 +22,32 @@ pub struct DatabaseDetailResponse {
     #[serde(rename = "default_connection_id")]
     pub default_connection_id: String,
     /// When this database expires.
-    #[serde(rename = "expires_at", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "expires_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub expires_at: Option<Option<String>>,
     #[serde(rename = "id")]
     pub id: String,
-    #[serde(rename = "name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub name: Option<Option<String>>,
 }
 
 impl DatabaseDetailResponse {
     /// Response body for GET /databases/{database_id}
-    pub fn new(attachments: Vec<models::DatabaseAttachmentInfo>, default_catalog: String, default_connection_id: String, id: String) -> DatabaseDetailResponse {
+    pub fn new(
+        attachments: Vec<models::DatabaseAttachmentInfo>,
+        default_catalog: String,
+        default_connection_id: String,
+        id: String,
+    ) -> DatabaseDetailResponse {
         DatabaseDetailResponse {
             attachments,
             default_catalog,
@@ -43,4 +58,3 @@ impl DatabaseDetailResponse {
         }
     }
 }
-

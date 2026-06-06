@@ -32,7 +32,13 @@ pub struct ConnectionRefreshResult {
 
 impl ConnectionRefreshResult {
     /// Result payload for a `data_refresh_connection` job.
-    pub fn new(connection_id: String, duration_ms: i64, tables_failed: i32, tables_refreshed: i32, total_rows: i32) -> ConnectionRefreshResult {
+    pub fn new(
+        connection_id: String,
+        duration_ms: i64,
+        tables_failed: i32,
+        tables_refreshed: i32,
+        total_rows: i32,
+    ) -> ConnectionRefreshResult {
         ConnectionRefreshResult {
             connection_id,
             duration_ms,
@@ -44,4 +50,3 @@ impl ConnectionRefreshResult {
         }
     }
 }
-
