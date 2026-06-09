@@ -673,11 +673,6 @@ impl Client {
         crate::resources::RefreshApi::new(&self.configuration)
     }
 
-    /// Sandboxes resource handle.
-    pub fn sandboxes(&self) -> crate::resources::SandboxesApi<'_> {
-        crate::resources::SandboxesApi::new(&self.configuration)
-    }
-
     /// Saved-queries resource handle.
     pub fn saved_queries(&self) -> crate::resources::SavedQueriesApi<'_> {
         crate::resources::SavedQueriesApi::new(&self.configuration)
