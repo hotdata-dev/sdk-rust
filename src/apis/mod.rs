@@ -126,7 +126,6 @@ pub mod query_api;
 pub mod query_runs_api;
 pub mod refresh_api;
 pub mod results_api;
-pub mod sandboxes_api;
 pub mod saved_queries_api;
 pub mod secrets_api;
 pub mod uploads_api;

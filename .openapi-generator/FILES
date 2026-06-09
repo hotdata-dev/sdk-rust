@@ -35,7 +35,6 @@ docs/CreateDatasetResponse.md
 docs/CreateEmbeddingProviderRequest.md
 docs/CreateEmbeddingProviderResponse.md
 docs/CreateIndexRequest.md
-docs/CreateSandboxRequest.md
 docs/CreateSavedQueryRequest.md
 docs/CreateSecretRequest.md
 docs/CreateSecretResponse.md
@@ -58,7 +57,6 @@ docs/DatasetSourceOneOf4.md
 docs/DatasetSummary.md
 docs/DatasetVersionSummary.md
 docs/DatasetsApi.md
-docs/DeleteSandboxResponse.md
 docs/DiscoveryStatus.md
 docs/EmbeddingProviderResponse.md
 docs/EmbeddingProvidersApi.md
@@ -69,6 +67,7 @@ docs/GetDatabaseContextResponse.md
 docs/GetDatasetResponse.md
 docs/GetResultResponse.md
 docs/GetSecretResponse.md
+docs/IndexEntryResponse.md
 docs/IndexInfoResponse.md
 docs/IndexStatus.md
 docs/IndexesApi.md
@@ -88,11 +87,11 @@ docs/ListDatabasesResponse.md
 docs/ListDatasetVersionsResponse.md
 docs/ListDatasetsResponse.md
 docs/ListEmbeddingProvidersResponse.md
+docs/ListIndexesPageResponse.md
 docs/ListIndexesResponse.md
 docs/ListJobsResponse.md
 docs/ListQueryRunsResponse.md
 docs/ListResultsResponse.md
-docs/ListSandboxesResponse.md
 docs/ListSavedQueriesResponse.md
 docs/ListSavedQueryVersionsResponse.md
 docs/ListSecretsResponse.md
@@ -116,9 +115,6 @@ docs/RefreshWarning.md
 docs/ResultInfo.md
 docs/ResultsApi.md
 docs/ResultsFormatQuery.md
-docs/Sandbox.md
-docs/SandboxResponse.md
-docs/SandboxesApi.md
 docs/SavedQueriesApi.md
 docs/SavedQueryDatasetSource.md
 docs/SavedQueryDetail.md
@@ -139,7 +135,6 @@ docs/UpdateDatasetRequest.md
 docs/UpdateDatasetResponse.md
 docs/UpdateEmbeddingProviderRequest.md
 docs/UpdateEmbeddingProviderResponse.md
-docs/UpdateSandboxRequest.md
 docs/UpdateSavedQueryRequest.md
 docs/UpdateSecretRequest.md
 docs/UpdateSecretResponse.md
@@ -168,7 +163,6 @@ src/apis/query_api.rs
 src/apis/query_runs_api.rs
 src/apis/refresh_api.rs
 src/apis/results_api.rs
-src/apis/sandboxes_api.rs
 src/apis/saved_queries_api.rs
 src/apis/secrets_api.rs
 src/apis/uploads_api.rs
@@ -207,7 +201,6 @@ src/models/create_dataset_response.rs
 src/models/create_embedding_provider_request.rs
 src/models/create_embedding_provider_response.rs
 src/models/create_index_request.rs
-src/models/create_sandbox_request.rs
 src/models/create_saved_query_request.rs
 src/models/create_secret_request.rs
 src/models/create_secret_response.rs
@@ -227,7 +220,6 @@ src/models/dataset_source_one_of_3.rs
 src/models/dataset_source_one_of_4.rs
 src/models/dataset_summary.rs
 src/models/dataset_version_summary.rs
-src/models/delete_sandbox_response.rs
 src/models/discovery_status.rs
 src/models/embedding_provider_response.rs
 src/models/error.rs
@@ -237,6 +229,7 @@ src/models/get_database_context_response.rs
 src/models/get_dataset_response.rs
 src/models/get_result_response.rs
 src/models/get_secret_response.rs
+src/models/index_entry_response.rs
 src/models/index_info_response.rs
 src/models/index_status.rs
 src/models/information_schema_response.rs
@@ -253,11 +246,11 @@ src/models/list_databases_response.rs
 src/models/list_dataset_versions_response.rs
 src/models/list_datasets_response.rs
 src/models/list_embedding_providers_response.rs
+src/models/list_indexes_page_response.rs
 src/models/list_indexes_response.rs
 src/models/list_jobs_response.rs
 src/models/list_query_runs_response.rs
 src/models/list_results_response.rs
-src/models/list_sandboxes_response.rs
 src/models/list_saved_queries_response.rs
 src/models/list_saved_query_versions_response.rs
 src/models/list_secrets_response.rs
@@ -278,8 +271,6 @@ src/models/refresh_response.rs
 src/models/refresh_warning.rs
 src/models/result_info.rs
 src/models/results_format_query.rs
-src/models/sandbox.rs
-src/models/sandbox_response.rs
 src/models/saved_query_dataset_source.rs
 src/models/saved_query_detail.rs
 src/models/saved_query_summary.rs
@@ -298,7 +289,6 @@ src/models/update_dataset_request.rs
 src/models/update_dataset_response.rs
 src/models/update_embedding_provider_request.rs
 src/models/update_embedding_provider_response.rs
-src/models/update_sandbox_request.rs
 src/models/update_saved_query_request.rs
 src/models/update_secret_request.rs
 src/models/update_secret_response.rs

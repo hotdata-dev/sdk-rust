@@ -10,6 +10,7 @@ Method | HTTP request | Description
 [**delete_index**](IndexesApi.md#delete_index) | **DELETE** /v1/connections/{connection_id}/tables/{schema}/{table}/indexes/{index_name} | Delete an index
 [**list_dataset_indexes**](IndexesApi.md#list_dataset_indexes) | **GET** /v1/datasets/{dataset_id}/indexes | List indexes on a dataset
 [**list_indexes**](IndexesApi.md#list_indexes) | **GET** /v1/connections/{connection_id}/tables/{schema}/{table}/indexes | List indexes on a table
+[**list_indexes_collection**](IndexesApi.md#list_indexes_collection) | **GET** /v1/indexes | List indexes across tables in a database
 
 
 
@@ -190,6 +191,42 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::ListIndexesResponse**](ListIndexesResponse.md)
+
+### Authorization
+
+[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## list_indexes_collection
+
+> models::ListIndexesPageResponse list_indexes_collection(x_database_id, connection_id, schema, table, index_type, limit, cursor)
+List indexes across tables in a database
+
+List all indexes in the database identified by the required X-Database-Id header, paginated. Optional filters narrow by connection, schema, table, or index type.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**x_database_id** | **String** | Database to scope to (required) | [required] |
+**connection_id** | Option<**String**> | Filter to one connection |  |
+**schema** | Option<**String**> | Filter by schema name |  |
+**table** | Option<**String**> | Filter by table name |  |
+**index_type** | Option<**String**> | Filter by index type |  |
+**limit** | Option<**i32**> | Max indexes per page |  |
+**cursor** | Option<**String**> | Pagination cursor |  |
+
+### Return type
+
+[**models::ListIndexesPageResponse**](ListIndexesPageResponse.md)
 
 ### Authorization
 

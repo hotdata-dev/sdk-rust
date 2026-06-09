@@ -65,7 +65,7 @@ impl Default for Configuration {
     fn default() -> Self {
         Configuration {
             base_path: "https://api.hotdata.dev".to_owned(),
-            user_agent: Some("hotdata-rust/0.1.2".to_owned()),
+            user_agent: Some("hotdata-rust/0.1.3".to_owned()),
             client: reqwest::Client::new(),
             basic_auth: None,
             oauth_access_token: None,
