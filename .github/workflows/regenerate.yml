@@ -174,13 +174,13 @@ jobs:
           fi
           echo "Ergonomic layer survived regeneration: hand-written modules, lib.rs wiring, and JWT/bearer + debug-logging hooks all intact."
 
-      # cargo check is the template-drift tripwire. --all-features compiles the
-      # optional arrow surface too. The --no-run test build catches breakage in
-      # the integration tests that target the generated apis.
-      - name: Verify generated client compiles
-        run: |
-          cargo check --all-features
-          cargo test --all-features --no-run
+      # NOTE: regeneration deliberately does NOT compile the crate. A compile
+      # failure here used to abort the job before "Create PR", so a regen that
+      # produced valid-but-not-yet-wired output (e.g. a spec change that orphans
+      # part of the hand-written ergonomic layer) failed silently with no PR to
+      # act on. The PR is the artifact we want: integration-tests.yml runs
+      # `cargo test --all-features` on every PR to main, so any breakage shows
+      # up loudly as red CI on the filed PR instead of a buried workflow run.
 
       # Soft parity warning: surface scenarios that still lack a tests/<name>.rs.
       # Non-fatal during the per-scenario rollout (rust is exempt until its tests
