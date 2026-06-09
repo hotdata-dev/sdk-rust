@@ -44,7 +44,7 @@ pub use client::{
 pub use resources::{
     ConnectionTypesApi, ConnectionsApi, DatabaseContextApi, DatabasesApi, DatasetsApi,
     EmbeddingProvidersApi, IndexesApi, InformationSchemaApi, JobsApi, QueryApi, QueryRunsApi,
-    RefreshApi, ResultsApi, SandboxesApi, SavedQueriesApi, SecretsApi, UploadsApi, WorkspacesApi,
+    RefreshApi, ResultsApi, SavedQueriesApi, SecretsApi, UploadsApi, WorkspacesApi,
 };
 pub use status::{QueryRunStatus, QueryRunStatusExt, ResultStatus, ResultStatusExt};
 

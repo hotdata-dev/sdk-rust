@@ -656,57 +656,6 @@ impl<'a> RefreshApi<'a> {
     }
 }
 
-/// Sandboxes resource handle. Wraps [`apis::sandboxes_api`](crate::apis::sandboxes_api).
-pub struct SandboxesApi<'a> {
-    config: &'a Configuration,
-}
-
-impl<'a> SandboxesApi<'a> {
-    pub(crate) fn new(config: &'a Configuration) -> Self {
-        Self { config }
-    }
-
-    /// Create a new sandbox.
-    pub async fn create(
-        &self,
-        request: models::CreateSandboxRequest,
-    ) -> Result<models::SandboxResponse, Error<apis::sandboxes_api::CreateSandboxError>> {
-        apis::sandboxes_api::create_sandbox(self.config, request).await
-    }
-
-    /// Fetch a sandbox by public id.
-    pub async fn get(
-        &self,
-        public_id: &str,
-    ) -> Result<models::SandboxResponse, Error<apis::sandboxes_api::GetSandboxError>> {
-        apis::sandboxes_api::get_sandbox(self.config, public_id).await
-    }
-
-    /// List sandboxes.
-    pub async fn list(
-        &self,
-    ) -> Result<models::ListSandboxesResponse, Error<apis::sandboxes_api::ListSandboxesError>> {
-        apis::sandboxes_api::list_sandboxes(self.config).await
-    }
-
-    /// Update a sandbox by public id.
-    pub async fn update(
-        &self,
-        public_id: &str,
-        request: models::UpdateSandboxRequest,
-    ) -> Result<models::SandboxResponse, Error<apis::sandboxes_api::UpdateSandboxError>> {
-        apis::sandboxes_api::update_sandbox(self.config, public_id, request).await
-    }
-
-    /// Delete a sandbox by public id.
-    pub async fn delete(
-        &self,
-        public_id: &str,
-    ) -> Result<models::DeleteSandboxResponse, Error<apis::sandboxes_api::DeleteSandboxError>> {
-        apis::sandboxes_api::delete_sandbox(self.config, public_id).await
-    }
-}
-
 /// Saved-queries resource handle. Wraps [`apis::saved_queries_api`](crate::apis::saved_queries_api).
 pub struct SavedQueriesApi<'a> {
     config: &'a Configuration,
@@ -951,7 +900,6 @@ mod tests {
         let _ = QueryRunsApi::new(&config);
         let _ = ResultsApi::new(&config);
         let _ = RefreshApi::new(&config);
-        let _ = SandboxesApi::new(&config);
         let _ = SavedQueriesApi::new(&config);
         let _ = SecretsApi::new(&config);
         let _ = UploadsApi::new(&config);

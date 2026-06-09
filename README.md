@@ -96,7 +96,7 @@ let runs     = client.query_runs().list(Some(50), None, None, None).await?;
 Handles exist for every resource — `datasets`, `connections`, `connection_types`,
 `databases`, `database_context`, `embedding_providers`, `indexes`,
 `information_schema`, `jobs`, `queries`, `query_runs`, `results`, `refresh`,
-`sandboxes`, `saved_queries`, `secrets`, `uploads`, `workspaces`. The hottest
+`saved_queries`, `secrets`, `uploads`, `workspaces`. The hottest
 operations also have flat shortcuts directly on `Client` (`query`, `get_result`,
 `list_results`, `list_query_runs`, `list_workspaces`).
 
