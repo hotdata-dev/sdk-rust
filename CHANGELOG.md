@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-06-09
+
+### Added
+
+- `list_indexes_collection` (`GET /v1/indexes`) in `hotdata::apis::indexes_api` — lists indexes across every table in a database, scoped by the `X-Database-Id` header — along with the `IndexEntryResponse` and `ListIndexesPageResponse` models.
+
+### Removed
+
+- Sandbox endpoints and their models (`sandboxes_api`, `Sandbox`, `SandboxResponse`, `CreateSandboxRequest`, `UpdateSandboxRequest`, `ListSandboxesResponse`, `DeleteSandboxResponse`), following their removal from the Hotdata OpenAPI spec.
+
+### Changed
+
+- Regenerated the client from the updated Hotdata OpenAPI spec.
+
 ## [0.1.2] - 2026-06-06
 
 ### Added
