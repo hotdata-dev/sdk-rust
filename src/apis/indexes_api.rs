@@ -67,6 +67,16 @@ pub enum ListIndexesError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`list_indexes_collection`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ListIndexesCollectionError {
+    Status400(models::ApiErrorResponse),
+    Status404(models::ApiErrorResponse),
+    Status500(models::ApiErrorResponse),
+    UnknownValue(serde_json::Value),
+}
+
 /// Create a sorted, BM25, or vector index on a dataset.
 pub async fn create_dataset_index(
     configuration: &configuration::Configuration,
@@ -475,6 +485,96 @@ pub async fn list_indexes(
         let content = resp.text().await?;
         crate::http_log::log_response_body(&content);
         let entity: Option<ListIndexesError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// List all indexes in the database identified by the required X-Database-Id header, paginated. Optional filters narrow by connection, schema, table, or index type.
+pub async fn list_indexes_collection(
+    configuration: &configuration::Configuration,
+    x_database_id: &str,
+    connection_id: Option<&str>,
+    schema: Option<&str>,
+    table: Option<&str>,
+    index_type: Option<&str>,
+    limit: Option<i32>,
+    cursor: Option<&str>,
+) -> Result<models::ListIndexesPageResponse, Error<ListIndexesCollectionError>> {
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_header_x_database_id = x_database_id;
+    let p_query_connection_id = connection_id;
+    let p_query_schema = schema;
+    let p_query_table = table;
+    let p_query_index_type = index_type;
+    let p_query_limit = limit;
+    let p_query_cursor = cursor;
+
+    let uri_str = format!("{}/v1/indexes", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = p_query_connection_id {
+        req_builder = req_builder.query(&[("connection_id", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = p_query_schema {
+        req_builder = req_builder.query(&[("schema", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = p_query_table {
+        req_builder = req_builder.query(&[("table", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = p_query_index_type {
+        req_builder = req_builder.query(&[("index_type", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = p_query_limit {
+        req_builder = req_builder.query(&[("limit", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = p_query_cursor {
+        req_builder = req_builder.query(&[("cursor", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    req_builder = req_builder.header("X-Database-Id", p_header_x_database_id.to_string());
+    if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
+        let key = apikey.key.clone();
+        let value = match apikey.prefix {
+            Some(ref prefix) => format!("{} {}", prefix, key),
+            None => key,
+        };
+        req_builder = req_builder.header("X-Workspace-Id", value);
+    };
+    if let Some(token) = configuration.resolve_bearer_token().await {
+        req_builder = req_builder.bearer_auth(token);
+    };
+
+    let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    crate::http_log::log_response_status(status);
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ListIndexesPageResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ListIndexesPageResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        let entity: Option<ListIndexesCollectionError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

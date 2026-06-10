@@ -19,22 +19,14 @@ pub struct WorkspaceDetail {
     pub name: String,
     #[serde(rename = "provision_status")]
     pub provision_status: String,
-    #[serde(rename = "namespace")]
-    pub namespace: String,
 }
 
 impl WorkspaceDetail {
-    pub fn new(
-        public_id: String,
-        name: String,
-        provision_status: String,
-        namespace: String,
-    ) -> WorkspaceDetail {
+    pub fn new(public_id: String, name: String, provision_status: String) -> WorkspaceDetail {
         WorkspaceDetail {
             public_id,
             name,
             provision_status,
-            namespace,
         }
     }
 }

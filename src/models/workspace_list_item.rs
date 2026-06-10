@@ -23,8 +23,6 @@ pub struct WorkspaceListItem {
     pub favorite: bool,
     #[serde(rename = "provision_status")]
     pub provision_status: String,
-    #[serde(rename = "namespace")]
-    pub namespace: String,
 }
 
 impl WorkspaceListItem {
@@ -34,7 +32,6 @@ impl WorkspaceListItem {
         active: bool,
         favorite: bool,
         provision_status: String,
-        namespace: String,
     ) -> WorkspaceListItem {
         WorkspaceListItem {
             public_id,
@@ -42,7 +39,6 @@ impl WorkspaceListItem {
             active,
             favorite,
             provision_status,
-            namespace,
         }
     }
 }
