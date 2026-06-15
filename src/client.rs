@@ -29,6 +29,7 @@ use crate::apis::configuration::{ApiKey, Configuration};
 use crate::apis::{self, Error};
 use crate::auth::{TokenManager, TokenManagerOptions};
 use crate::models;
+use crate::query::{self, QueryConfig};
 
 /// Default API host. Matches the generated `Configuration::default()` base
 /// path and the OpenAPI spec server. The JWT exchange endpoint
@@ -103,6 +104,7 @@ pub struct ClientBuilder {
     user_agent: Option<String>,
     client_id: Option<String>,
     reqwest_client: Option<reqwest::Client>,
+    query_config: Option<QueryConfig>,
 }
 
 impl ClientBuilder {
@@ -156,6 +158,15 @@ impl ClientBuilder {
     /// the out-of-band JWT exchange so transport settings are shared.
     pub fn reqwest_client(mut self, client: reqwest::Client) -> Self {
         self.reqwest_client = Some(client);
+        self
+    }
+
+    /// Override the default [`QueryConfig`] applied by [`Client::query`] — the
+    /// 429 retry policy, result-poll policy, and truncation auto-follow guards.
+    /// Defaults to [`QueryConfig::default`] (auto-follow on, 1M-row / 64 MiB
+    /// ceilings). Per-call overrides are available via [`Client::query_with`].
+    pub fn query_config(mut self, query_config: QueryConfig) -> Self {
+        self.query_config = Some(query_config);
         self
     }
 
@@ -249,7 +260,10 @@ impl ClientBuilder {
         );
         configuration.token_provider = Some(std::sync::Arc::new(token_manager));
 
-        Ok(Client { configuration })
+        Ok(Client {
+            configuration,
+            query_config: self.query_config.unwrap_or_default(),
+        })
     }
 }
 
@@ -262,6 +276,7 @@ impl ClientBuilder {
 #[derive(Debug, Clone)]
 pub struct Client {
     configuration: Configuration,
+    query_config: QueryConfig,
 }
 
 impl Client {
@@ -274,7 +289,24 @@ impl Client {
     /// have already wired up authentication, a workspace header, and a base path
     /// can use this to get the ergonomic pass-throughs without the builder.
     pub fn from_configuration(configuration: Configuration) -> Self {
-        Client { configuration }
+        Client {
+            configuration,
+            query_config: QueryConfig::default(),
+        }
+    }
+
+    /// Replace the client's default [`QueryConfig`] (consuming `self`), for use
+    /// after [`Client::from_configuration`]. The builder's
+    /// [`ClientBuilder::query_config`] is the usual path.
+    pub fn with_query_config(mut self, query_config: QueryConfig) -> Self {
+        self.query_config = query_config;
+        self
+    }
+
+    /// The client's default [`QueryConfig`]. Clone-with-override to build a
+    /// per-call config for [`Client::query_with`].
+    pub fn query_config(&self) -> &QueryConfig {
+        &self.query_config
     }
 
     /// Borrow the underlying [`Configuration`] so any generated API free
@@ -292,17 +324,94 @@ impl Client {
 
     // --- Common pass-throughs -------------------------------------------------
 
-    /// Execute a SQL query. Thin wrapper over
-    /// [`apis::query_api::query`](crate::apis::query_api::query).
+    /// Execute a SQL query, with transparent HTTP 429 (`OVERLOADED`) retry and
+    /// truncation auto-follow (#688).
+    ///
+    /// This is the enhanced default query path: a query shed with HTTP 429 is
+    /// retried under a deadline budget (honoring `Retry-After`), and a response
+    /// flagged `truncated` is followed to its full row set — guarded by the
+    /// instance [`QueryConfig`] so an oversized result fails loudly rather than
+    /// exhausting client memory. Use [`Client::query_with`] for a per-call
+    /// config override (e.g. to opt out of auto-follow), or the raw generated
+    /// op via `client.queries().execute()` for the unenhanced contract.
+    ///
+    /// An asynchronous submission (`async = true` → HTTP 202) is the dedicated
+    /// job of [`Client::submit_query`]; this method surfaces it as
+    /// [`query::QueryError::Async`](crate::query::QueryError::Async) rather than
+    /// guessing.
     pub async fn query(
         &self,
         request: models::QueryRequest,
-    ) -> Result<models::QueryResponse, Error<apis::query_api::QueryError>> {
-        apis::query_api::query(&self.configuration, request, None).await
+    ) -> Result<models::QueryResponse, query::QueryError> {
+        query::execute_query(&self.configuration, request, None, &self.query_config).await
+    }
+
+    /// Like [`Client::query`] but scoped to a database (`X-Database-Id`) and
+    /// driven by an explicit [`QueryConfig`] — clone
+    /// [`Client::query_config`] and override the fields you need:
+    ///
+    /// ```no_run
+    /// # use hotdata::{Client, QueryConfig, models::QueryRequest};
+    /// # async fn run(client: &Client) -> Result<(), Box<dyn std::error::Error>> {
+    /// let cfg = QueryConfig { auto_follow: false, ..client.query_config().clone() };
+    /// let preview = client
+    ///     .query_with(QueryRequest::new("select 1".into()), Some("db_123"), &cfg)
+    ///     .await?;
+    /// # let _ = preview;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn query_with(
+        &self,
+        request: models::QueryRequest,
+        database_id: Option<&str>,
+        config: &QueryConfig,
+    ) -> Result<models::QueryResponse, query::QueryError> {
+        query::execute_query(&self.configuration, request, database_id, config).await
+    }
+
+    /// Like [`Client::query`] but scoped to a database via the `X-Database-Id`
+    /// header, using the instance [`QueryConfig`].
+    ///
+    /// This is the no-ceremony way to scope a query: [`query_with`](Client::query_with)
+    /// also takes a database id, but only alongside a full [`QueryConfig`] — reach
+    /// for it when you additionally need to tune retry/auto-follow.
+    pub async fn query_in(
+        &self,
+        request: models::QueryRequest,
+        database_id: &str,
+    ) -> Result<models::QueryResponse, query::QueryError> {
+        query::execute_query(
+            &self.configuration,
+            request,
+            Some(database_id),
+            &self.query_config,
+        )
+        .await
+    }
+
+    /// Execute a query and return the bounded inline preview *without*
+    /// auto-following a truncated result.
+    ///
+    /// The one-call shortcut for "just give me the preview" — equivalent to
+    /// [`query_with`](Client::query_with) with [`auto_follow`](QueryConfig::auto_follow)
+    /// off, but without building a [`QueryConfig`]. 429 retry still applies; the
+    /// returned [`QueryResponse`](models::QueryResponse) may have `truncated =
+    /// true` with only a preview in `rows` (page the full result yourself, e.g.
+    /// via [`get_result_arrow`](Client::get_result_arrow)).
+    pub async fn query_preview(
+        &self,
+        request: models::QueryRequest,
+    ) -> Result<models::QueryResponse, query::QueryError> {
+        let config = self.query_config.clone().with_auto_follow(false);
+        query::execute_query(&self.configuration, request, None, &config).await
     }
 
     /// Submit a query to `POST /v1/query`, surfacing BOTH response shapes the
-    /// server can return.
+    /// server can return. This is the entry point for **asynchronous** queries
+    /// (`async = true`) and any query that may go async; for the synchronous
+    /// path that returns rows directly (with 429 retry + truncation auto-follow)
+    /// use [`Client::query`].
     ///
     /// The generated [`apis::query_api::query`](crate::apis::query_api::query)
     /// op only models the `200 QueryResponse` branch — the generator collapsed
@@ -757,8 +866,11 @@ impl Client {
         offset: Option<i64>,
         limit: Option<i64>,
     ) -> Result<crate::arrow::ArrowResult, QueryToArrowError> {
-        let submitted = self
-            .query(request)
+        // Use the raw generated query (not the enhanced `Client::query`): the
+        // Arrow path polls and fetches the persisted result itself, so it must
+        // not also trigger truncation auto-follow, which would materialize the
+        // full result as JSON before we re-fetch it as Arrow.
+        let submitted = apis::query_api::query(&self.configuration, request, None)
             .await
             .map_err(QueryToArrowError::Query)?;
         let result_id =
@@ -1061,9 +1173,11 @@ mod tests {
                 "columns": ["n"],
                 "execution_time_ms": 3,
                 "nullable": [false],
+                "preview_row_count": 1,
                 "query_run_id": "qr_inline",
                 "row_count": 1,
                 "rows": [[1]],
+                "truncated": false,
             })))
             .mount(&server)
             .await;

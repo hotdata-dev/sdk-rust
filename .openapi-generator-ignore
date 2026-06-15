@@ -10,6 +10,7 @@ src/client.rs
 src/resources.rs
 src/field.rs
 src/status.rs
+src/query.rs
 CHANGELOG.md
 RELEASING.md
 examples/
