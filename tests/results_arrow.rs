@@ -19,7 +19,7 @@ use arrow_array::cast::AsArray;
 use arrow_array::types::Int64Type;
 use arrow_array::{Array, RecordBatch};
 use hotdata::apis::query_runs_api;
-use hotdata::models;
+use hotdata::{models, QueryOutcome};
 
 const POLL_TIMEOUT: Duration = Duration::from_secs(60);
 const POLL_INTERVAL: Duration = Duration::from_secs(1);
@@ -81,8 +81,18 @@ async fn results_arrow() {
     request.r#async = Some(true);
     request.async_after_ms = Some(Some(1000));
     request.database_id = Some(Some(database_id));
-    let submitted = client.query(request).await.expect("query should succeed");
-    let query_run_id = submitted.query_run_id.clone();
+    // `submit_query` recovers the run id whether the query ran inline (HTTP 200)
+    // or went async (HTTP 202); the enhanced `client.query` reports a 202 as
+    // `QueryError::Async`, so the async submission path uses `submit_query`.
+    let outcome = client
+        .submit_query(request, None)
+        .await
+        .expect("submit_query should succeed");
+    let query_run_id = match outcome {
+        QueryOutcome::Inline(resp) => resp.query_run_id,
+        QueryOutcome::Submitted(resp) => resp.query_run_id,
+        other => panic!("unexpected query outcome: {other:?}"),
+    };
     assert!(!query_run_id.is_empty(), "expected a query_run_id");
 
     // Poll the run to a terminal/succeeded state and capture its result_id.
