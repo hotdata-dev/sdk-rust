@@ -21,6 +21,9 @@ pub struct QueryResponse {
     /// Nullable flags for each column (parallel to columns vec). True if the column allows NULL values, false if NOT NULL.
     #[serde(rename = "nullable")]
     pub nullable: Vec<bool>,
+    /// Number of rows in *this* response body (`rows.len()`). Always present. For a large result this is a bounded preview, not the grand total — see `total_row_count` and `truncated` (#640).
+    #[serde(rename = "preview_row_count")]
+    pub preview_row_count: i64,
     /// Unique identifier for the query run record (qrun...).
     #[serde(rename = "query_run_id")]
     pub query_run_id: String,
@@ -32,11 +35,23 @@ pub struct QueryResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub result_id: Option<Option<String>>,
+    /// **Deprecated** — use `preview_row_count` (rows in this body) and `total_row_count` (grand total) instead. Retained for backward compatibility and currently always equal to `preview_row_count`; it will be removed in a future release once clients migrate to the count fields below (#640).
     #[serde(rename = "row_count")]
     pub row_count: i32,
     /// Array of rows, where each row is an array of column values. Values can be strings, numbers, booleans, or null.
     #[serde(rename = "rows")]
     pub rows: Vec<Vec<serde_json::Value>>,
+    /// Grand total rows in the full result. Present (and equal to `preview_row_count`) when the whole result fit in this response; `null` while a truncated result is still being persisted. When `null`, read the authoritative total from `GET /v1/query-runs/{id}` (`row_count`) or the `X-Total-Row-Count` header on `GET /v1/results/{id}` (#640).
+    #[serde(
+        rename = "total_row_count",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub total_row_count: Option<Option<i64>>,
+    /// True when `rows` is a bounded preview of a larger result. Fetch the full result via `result_id` (#640). Always `false` until bounded streaming is enabled; clients should still branch on it so no code change is needed when truncation goes live.
+    #[serde(rename = "truncated")]
+    pub truncated: bool,
     /// Warning message if result persistence could not be initiated. When present, `result_id` will be null and the result cannot be retrieved later. The query results are still returned in this response.
     #[serde(
         rename = "warning",
@@ -53,18 +68,23 @@ impl QueryResponse {
         columns: Vec<String>,
         execution_time_ms: i64,
         nullable: Vec<bool>,
+        preview_row_count: i64,
         query_run_id: String,
         row_count: i32,
         rows: Vec<Vec<serde_json::Value>>,
+        truncated: bool,
     ) -> QueryResponse {
         QueryResponse {
             columns,
             execution_time_ms,
             nullable,
+            preview_row_count,
             query_run_id,
             result_id: None,
             row_count,
             rows,
+            total_row_count: None,
+            truncated,
             warning: None,
         }
     }
