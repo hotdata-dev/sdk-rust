@@ -64,8 +64,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // .base_url("https://api.hotdata.dev")  // optional
         .build()?;
 
-    // Submit a query. Rows come back inline, plus a result_id that is persisted
-    // asynchronously for later retrieval.
+    // Submit a query. `query` transparently retries HTTP 429 (server overload)
+    // and auto-follows a truncated large result to its full row set. Rows come
+    // back inline, plus a result_id persisted for later retrieval.
     let response = client
         .query(QueryRequest::new("SELECT 1 AS n".to_string()))
         .await?;
@@ -97,8 +98,10 @@ Handles exist for every resource — `datasets`, `connections`, `connection_type
 `databases`, `database_context`, `embedding_providers`, `indexes`,
 `information_schema`, `jobs`, `queries`, `query_runs`, `results`, `refresh`,
 `saved_queries`, `secrets`, `uploads`, `workspaces`. The hottest
-operations also have flat shortcuts directly on `Client` (`query`, `get_result`,
-`list_results`, `list_query_runs`, `list_workspaces`).
+operations also have flat shortcuts directly on `Client` (`query` — with
+`query_in` to scope to a database, `query_preview` to skip auto-follow, and
+`query_with` for a per-call `QueryConfig` — plus `get_result`, `list_results`,
+`list_query_runs`, `list_workspaces`).
 
 For anything not yet wrapped, the full generated surface is one call away via
 `client.configuration()`:
@@ -152,7 +155,11 @@ types under `hotdata::models`. The flat `prelude` re-exports `Client`,
 models for convenience.
 
 Errors from generated operations are returned as `hotdata::Error<T>`; builder
-and configuration failures are `hotdata::ClientError`. Result-polling and
+and configuration failures are `hotdata::ClientError`. The enhanced `query`
+family returns `hotdata::QueryError` — `Overloaded` (429 retries exhausted),
+`Submit` (the underlying request failed), `AsyncRequested` (use `submit_query`
+for `async` queries), and `Result(ResultError)` for truncation auto-follow
+failures (`TooLarge` / `Timeout` / `Incomplete` / …). Result-polling and
 one-call helpers return `hotdata::AwaitResultError` / `hotdata::QueryToArrowError`.
 The SDK's own error enums are `#[non_exhaustive]`, so match them with a wildcard
 arm.

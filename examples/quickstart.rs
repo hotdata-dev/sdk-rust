@@ -94,6 +94,12 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     //
     // POST /query returns rows inline *and* a result_id; persistence to the
     // result store then completes asynchronously.
+    //
+    // `query` is the enhanced default: it retries HTTP 429 (`OVERLOADED`)
+    // transparently and, if the server truncates a large result, auto-follows it
+    // — paging the full row set into `response.rows` — bounded by the instance
+    // `QueryConfig` (default ceilings: 1M rows / 64 MiB). Exceed a ceiling and you
+    // get `QueryError::Result(ResultError::TooLarge { .. })` instead of an OOM.
     let response = client
         .query(QueryRequest::new(
             "select 1 as id, 'hello' as greeting".to_string(),
@@ -104,6 +110,25 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         "Query ran in {} ms, returned {} row(s) inline. Columns: {:?}",
         response.execution_time_ms, response.row_count, response.columns
     );
+
+    // Tuning the auto-follow behavior per call: clone the instance config and
+    // override just what you need. Here we opt out of auto-follow entirely —
+    // `query_preview` is the one-call shortcut for "give me only the inline
+    // preview" (handy when you'll page the full result yourself, e.g. as Arrow).
+    let preview = client
+        .query_preview(QueryRequest::new("select 1 as id".to_string()))
+        .await?;
+    println!(
+        "Preview: {} row(s){}",
+        preview.row_count,
+        if preview.truncated {
+            " (truncated — full result available via result_id)"
+        } else {
+            ""
+        }
+    );
+    // For finer control, e.g. a tighter row guard scoped to a database:
+    let _tight = QueryConfig::default().with_max_auto_rows(Some(10_000));
 
     // result_id is Option<Option<String>>: outer None = field absent, inner
     // None = explicit null (persistence could not be initiated, see `warning`).
