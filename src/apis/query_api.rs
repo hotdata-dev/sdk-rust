@@ -19,6 +19,7 @@ use serde::{de::Error as _, Deserialize, Serialize};
 pub enum QueryError {
     Status400(models::ApiErrorResponse),
     Status404(models::ApiErrorResponse),
+    Status429(models::ApiErrorResponse),
     Status500(models::ApiErrorResponse),
     UnknownValue(serde_json::Value),
 }

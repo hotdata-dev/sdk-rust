@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-06-15
+
+### Changed
+
+- feat(queries): add preview and total row count fields
+
 ## [0.1.3] - 2026-06-09
 
 ### Added
