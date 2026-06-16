@@ -20,6 +20,12 @@ pub struct Configuration {
     pub bearer_access_token: Option<String>,
     pub token_provider: Option<std::sync::Arc<dyn crate::auth::BearerTokenProvider>>,
     pub api_keys: HashMap<String, ApiKey>,
+    /// HTTP 429 (`OVERLOADED`) retry policy applied to every generated `apis::*`
+    /// operation: the request is retried with `Retry-After`/backoff before the
+    /// op returns. Defaults to [`RetryPolicy::default`]; set `max_retries` to 0
+    /// to disable retry. The enhanced query path ([`crate::query`]) uses its own
+    /// per-call [`QueryConfig::retry`](crate::query::QueryConfig::retry) instead.
+    pub retry: crate::query::RetryPolicy,
 }
 
 pub type BasicAuth = (String, Option<String>);
@@ -72,6 +78,7 @@ impl Default for Configuration {
             bearer_access_token: None,
             token_provider: None,
             api_keys: HashMap::new(),
+            retry: crate::query::RetryPolicy::default(),
         }
     }
 }
