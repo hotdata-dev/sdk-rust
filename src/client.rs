@@ -335,10 +335,12 @@ impl Client {
     /// config override (e.g. to opt out of auto-follow), or the raw generated
     /// op via `client.queries().execute()` for the unenhanced contract.
     ///
-    /// An asynchronous submission (`async = true` → HTTP 202) is the dedicated
-    /// job of [`Client::submit_query`]; this method surfaces it as
-    /// [`query::QueryError::Async`](crate::query::QueryError::Async) rather than
-    /// guessing.
+    /// An explicit asynchronous submission (`async = true`) is the dedicated job
+    /// of [`Client::submit_query`]; this method rejects it up front with
+    /// [`query::QueryError::AsyncRequested`](crate::query::QueryError::AsyncRequested).
+    /// If the server instead escalates a sync request to async on its own (HTTP
+    /// 202, e.g. via `async_after_ms`), that surfaces as
+    /// [`query::QueryError::Async`](crate::query::QueryError::Async).
     pub async fn query(
         &self,
         request: models::QueryRequest,
