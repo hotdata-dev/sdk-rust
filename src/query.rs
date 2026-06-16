@@ -52,12 +52,13 @@
 // accept clippy's large-Err lint for this module.
 #![allow(clippy::result_large_err)]
 
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
 use reqwest::StatusCode;
 use serde_json::Value;
 
 use crate::apis::configuration::Configuration;
+use crate::http::{backoff_delay, parse_retry_after};
 use crate::apis::query_api::QueryError as GeneratedQueryError;
 use crate::apis::results_api::GetResultError;
 use crate::apis::{query_runs_api, results_api, Error, ResponseContent};
@@ -565,33 +566,6 @@ fn overloaded(attempts: u32, raw: RawResponse) -> QueryError {
     }
 }
 
-/// Delay before the next 429 retry: honor `Retry-After` when present (exactly,
-/// uncapped, plus additive jitter so it is never below the server's value),
-/// else bounded exponential backoff with jitter.
-fn backoff_delay(retry: &RetryPolicy, attempt: u32, retry_after: Option<Duration>) -> Duration {
-    if let Some(ra) = retry_after {
-        // The server told us exactly how long to wait — honor it. Add jitter on
-        // top (never below) to desync retries onto the freed slot, and do NOT
-        // cap with max_backoff: capping would dishonor a Retry-After larger than
-        // the cap. The overall deadline budget is the only bound.
-        return ra + ra.mul_f64(retry.jitter * jitter_fraction());
-    }
-    let factor = 2f64.powi(attempt.saturating_sub(1) as i32);
-    let base = retry.base_backoff.mul_f64(factor);
-    let with_jitter = base.mul_f64(1.0 + retry.jitter * jitter_fraction());
-    with_jitter.min(retry.max_backoff)
-}
-
-/// A pseudo-random fraction in `[0, 1)` for jitter. Derived from the wall clock
-/// (no `rand` dependency); when `RetryPolicy::jitter` is 0 this value is
-/// multiplied out, so timing is fully deterministic for tests.
-fn jitter_fraction() -> f64 {
-    match SystemTime::now().duration_since(UNIX_EPOCH) {
-        Ok(d) => (d.subsec_nanos() % 1_000) as f64 / 1_000.0,
-        Err(_) => 0.0,
-    }
-}
-
 /// Build and send one `POST /v1/query`, returning the status, parsed
 /// `Retry-After`, and body. Mirrors the generated op's request construction.
 async fn send_query(
@@ -646,27 +620,6 @@ fn apply_apikey_headers(
         }
     }
     req_builder
-}
-
-/// Parse `Retry-After` (integer/float seconds form) into a [`Duration`]. The
-/// HTTP-date form is not emitted by this API, so it is intentionally ignored.
-fn parse_retry_after(resp: &reqwest::Response) -> Option<Duration> {
-    resp.headers()
-        .get(reqwest::header::RETRY_AFTER)
-        .and_then(|v| v.to_str().ok())
-        .and_then(retry_after_secs)
-}
-
-/// Parse a `Retry-After` header value (seconds form) into a [`Duration`].
-///
-/// Uses the fallible [`Duration::try_from_secs_f64`], which rejects negative,
-/// non-finite (`inf`/`nan`), and overflowing values uniformly — so a malformed
-/// or hostile server-supplied header degrades to normal backoff instead of
-/// panicking inside the async retry path (`from_secs_f64` would panic on
-/// `"inf"` or an overflowing value like `"1e30"`).
-fn retry_after_secs(value: &str) -> Option<Duration> {
-    let secs = value.trim().parse::<f64>().ok()?;
-    Duration::try_from_secs_f64(secs).ok()
 }
 
 /// Poll `GET /v1/results/{id}` until the result is `ready`, returning the ready
@@ -1541,23 +1494,6 @@ mod tests {
         let big = estimate_rows_bytes(&[vec![json!("aaaaaaaaaa")]]);
         assert!(small > 0);
         assert!(big > small);
-    }
-
-    #[test]
-    fn retry_after_secs_parses_and_rejects_malformed() {
-        // Valid seconds forms.
-        assert_eq!(retry_after_secs("2"), Some(Duration::from_secs(2)));
-        assert_eq!(retry_after_secs(" 1.5 "), Some(Duration::from_secs_f64(1.5)));
-        assert_eq!(retry_after_secs("0"), Some(Duration::ZERO));
-        // Malformed / hostile server-supplied values must degrade to None, never
-        // panic: `inf` and an overflowing `1e30` both panic `from_secs_f64` (the
-        // prior impl), and the old `>= 0.0` filter let `inf` through.
-        assert_eq!(retry_after_secs("inf"), None);
-        assert_eq!(retry_after_secs("nan"), None);
-        assert_eq!(retry_after_secs("1e30"), None);
-        assert_eq!(retry_after_secs("-5"), None);
-        assert_eq!(retry_after_secs("abc"), None);
-        assert_eq!(retry_after_secs(""), None);
     }
 
     #[test]

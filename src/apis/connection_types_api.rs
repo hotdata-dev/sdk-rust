@@ -60,7 +60,11 @@ pub async fn get_connection_type(
 
     let req = req_builder.build()?;
     crate::http_log::log_request(&req);
-    let resp = configuration.client.execute(req).await?;
+    // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
+    // shedding) is retried per `configuration.retry` on every generated op, not
+    // just the hand-written query path. See crate::http::execute_retrying.
+    let resp =
+        crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
 
     let status = resp.status();
     crate::http_log::log_response_status(status);
@@ -115,7 +119,11 @@ pub async fn list_connection_types(
 
     let req = req_builder.build()?;
     crate::http_log::log_request(&req);
-    let resp = configuration.client.execute(req).await?;
+    // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
+    // shedding) is retried per `configuration.retry` on every generated op, not
+    // just the hand-written query path. See crate::http::execute_retrying.
+    let resp =
+        crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
 
     let status = resp.status();
     crate::http_log::log_response_status(status);
