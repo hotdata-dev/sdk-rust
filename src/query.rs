@@ -648,15 +648,25 @@ fn apply_apikey_headers(
     req_builder
 }
 
-/// Parse `Retry-After` (integer seconds form) into a [`Duration`]. The HTTP-date
-/// form is not emitted by this API, so it is intentionally ignored.
+/// Parse `Retry-After` (integer/float seconds form) into a [`Duration`]. The
+/// HTTP-date form is not emitted by this API, so it is intentionally ignored.
 fn parse_retry_after(resp: &reqwest::Response) -> Option<Duration> {
     resp.headers()
         .get(reqwest::header::RETRY_AFTER)
         .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.trim().parse::<f64>().ok())
-        .filter(|secs| *secs >= 0.0)
-        .map(Duration::from_secs_f64)
+        .and_then(retry_after_secs)
+}
+
+/// Parse a `Retry-After` header value (seconds form) into a [`Duration`].
+///
+/// Uses the fallible [`Duration::try_from_secs_f64`], which rejects negative,
+/// non-finite (`inf`/`nan`), and overflowing values uniformly — so a malformed
+/// or hostile server-supplied header degrades to normal backoff instead of
+/// panicking inside the async retry path (`from_secs_f64` would panic on
+/// `"inf"` or an overflowing value like `"1e30"`).
+fn retry_after_secs(value: &str) -> Option<Duration> {
+    let secs = value.trim().parse::<f64>().ok()?;
+    Duration::try_from_secs_f64(secs).ok()
 }
 
 /// Poll `GET /v1/results/{id}` until the result is `ready`, returning the ready
@@ -1531,6 +1541,23 @@ mod tests {
         let big = estimate_rows_bytes(&[vec![json!("aaaaaaaaaa")]]);
         assert!(small > 0);
         assert!(big > small);
+    }
+
+    #[test]
+    fn retry_after_secs_parses_and_rejects_malformed() {
+        // Valid seconds forms.
+        assert_eq!(retry_after_secs("2"), Some(Duration::from_secs(2)));
+        assert_eq!(retry_after_secs(" 1.5 "), Some(Duration::from_secs_f64(1.5)));
+        assert_eq!(retry_after_secs("0"), Some(Duration::ZERO));
+        // Malformed / hostile server-supplied values must degrade to None, never
+        // panic: `inf` and an overflowing `1e30` both panic `from_secs_f64` (the
+        // prior impl), and the old `>= 0.0` filter let `inf` through.
+        assert_eq!(retry_after_secs("inf"), None);
+        assert_eq!(retry_after_secs("nan"), None);
+        assert_eq!(retry_after_secs("1e30"), None);
+        assert_eq!(retry_after_secs("-5"), None);
+        assert_eq!(retry_after_secs("abc"), None);
+        assert_eq!(retry_after_secs(""), None);
     }
 
     #[test]
