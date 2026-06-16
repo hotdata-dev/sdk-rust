@@ -21,7 +21,7 @@
 //! This module is hand-written and listed in `.openapi-generator-ignore`, so it
 //! survives client regeneration.
 
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use reqwest::StatusCode;
 
@@ -33,13 +33,21 @@ const HTTP_TOO_MANY_REQUESTS: StatusCode = StatusCode::TOO_MANY_REQUESTS;
 
 /// Execute `req`, retrying on HTTP 429 (OVERLOADED admission-shedding) per
 /// `retry`: honor `Retry-After` when present, else bounded exponential backoff
-/// with jitter, capped at `retry.max_retries`. The request is cloned per
-/// attempt; a non-clonable (streaming) body degrades to a single attempt.
+/// with jitter. Retries stop at `retry.max_retries` OR once the overall
+/// `retry.deadline` budget would be exceeded — whichever comes first. The
+/// request is cloned per attempt; a non-clonable (streaming) body degrades to a
+/// single attempt.
+///
+/// When the budget or retry count is exhausted the last response (the 429) is
+/// returned so the op's normal error mapping surfaces it to the caller — no new
+/// error type. This mirrors `crate::query::submit_with_retry`, which enforces
+/// the same `deadline` on the hand-written query path, so the two stay aligned.
 pub(crate) async fn execute_retrying(
     client: &reqwest::Client,
     req: reqwest::Request,
     retry: &RetryPolicy,
 ) -> reqwest::Result<reqwest::Response> {
+    let start = Instant::now();
     // attempt 0 is the initial request; 1..=max_retries are the retries.
     for attempt in 0..=retry.max_retries {
         // Clone the request before consuming it so a 429 can be retried. A
@@ -54,6 +62,13 @@ pub(crate) async fn execute_retrying(
         // HTTP 429 OVERLOADED with attempts remaining: honor Retry-After when
         // present, else bounded exponential backoff with jitter.
         let delay = backoff_delay(retry, attempt + 1, parse_retry_after(&resp));
+        // Stop if the deadline budget is already spent or this delay would push
+        // total elapsed past it — max_backoff intentionally does not cap an
+        // honored Retry-After, so the deadline is its only bound. Return the
+        // 429 rather than sleeping past the budget.
+        if start.elapsed() + delay > retry.deadline {
+            return Ok(resp);
+        }
         tokio::time::sleep(delay).await;
     }
     // Unreachable: the loop always returns on its last iteration (attempt ==
@@ -182,6 +197,37 @@ mod tests {
             .expect("should return the final 429, not a transport error");
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
         assert_eq!(server.received_requests().await.unwrap().len(), 3);
+    }
+
+    #[tokio::test]
+    async fn deadline_stops_retries_before_max_retries() {
+        let server = MockServer::start().await;
+        // Every response is a 429 with a Retry-After far larger than the budget.
+        // max_backoff intentionally does NOT cap Retry-After, so only the
+        // deadline can stop the loop — and it must, before max_retries is hit.
+        Mock::given(method("POST"))
+            .and(path("/thing"))
+            .respond_with(ResponseTemplate::new(429).insert_header("Retry-After", "100"))
+            .mount(&server)
+            .await;
+
+        let retry = RetryPolicy {
+            max_retries: 10,
+            base_backoff: Duration::from_millis(1),
+            max_backoff: Duration::from_secs(1),
+            // Tiny budget: the first 100s Retry-After overshoots it immediately.
+            deadline: Duration::from_millis(10),
+            jitter: 0.0,
+        };
+        let client = reqwest::Client::new();
+        let url = format!("{}/thing", server.uri());
+        let resp = execute_retrying(&client, post_req(&client, &url), &retry)
+            .await
+            .expect("should return the 429 after the deadline stops retries");
+        assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+        // The deadline stops retries after the very first 429 — well before the
+        // 10 max_retries — so only one request reaches the server.
+        assert_eq!(server.received_requests().await.unwrap().len(), 1);
     }
 
     #[tokio::test]

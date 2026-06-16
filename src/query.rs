@@ -35,7 +35,7 @@
 //! | [`query_with`](crate::Client::query_with) | Per-call control: a custom [`QueryConfig`] (and optional database scope). |
 //! | [`submit_query`](crate::Client::submit_query) | Asynchronous submission (`async = true`): returns an acknowledgement to poll. |
 //! | [`query_to_arrow`](crate::Client::query_to_arrow) | Run a query and fetch its persisted result as Arrow in one call. |
-//! | `client.queries().execute()` / [`apis::query_api::query`](crate::apis::query_api::query) | The raw generated op, without retry or auto-follow. |
+//! | `client.queries().execute()` / [`apis::query_api::query`](crate::apis::query_api::query) | The raw generated op: 429 retry applies (per `Configuration::retry`), but without auto-follow. |
 //!
 //! Instance defaults come from [`ClientBuilder::query_config`](crate::ClientBuilder::query_config);
 //! tweak one for a single call by chaining [`QueryConfig`]'s `with_*` setters off
