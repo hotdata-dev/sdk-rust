@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Every generated `apis::*` operation now transparently retries HTTP 429
+  (`OVERLOADED`) admission shedding, honoring `Retry-After` with backoff before
+  the op returns (#58). The policy is the new `Configuration::retry` field
+  (`crate::query::RetryPolicy`, defaulting to `RetryPolicy::default`); set
+  `max_retries` to 0 to disable. The enhanced query path (`crate::query`) keeps
+  using its own per-call `QueryConfig::retry` instead.
 
 ## [0.2.0] - 2026-06-15
 
