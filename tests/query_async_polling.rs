@@ -3,17 +3,20 @@
 //! Submit a query, poll get_query_run until terminal status, fetch results, and
 //! verify list_query_runs / list_results surface the run.
 //!
-//! The generated synchronous `query` returns immediately with a `query_run_id`
-//! and (once persistence starts) a `result_id`; we still drive the full polling
-//! loop against `get_query_run` to exercise the async surface and to be robust
-//! to the run not being instantly terminal.
+//! `submit_query` surfaces both response shapes: a fast query comes back inline
+//! (HTTP 200) with a `query_run_id`, a slower one as an async acknowledgement
+//! (HTTP 202). Either way we recover the `query_run_id` and drive the full
+//! polling loop against `get_query_run` to exercise the async surface and to be
+//! robust to the run not being instantly terminal. (The enhanced `client.query`
+//! is the synchronous-results path and reports a 202 as `QueryError::Async`, so
+//! the async path uses `submit_query`.)
 
 mod common;
 
 use std::time::{Duration, Instant};
 
 use hotdata::apis::query_runs_api;
-use hotdata::models;
+use hotdata::{models, QueryOutcome};
 
 const POLL_TIMEOUT: Duration = Duration::from_secs(60);
 const POLL_INTERVAL: Duration = Duration::from_secs(1);
@@ -37,8 +40,16 @@ async fn query_async_polling() {
     request.r#async = Some(true);
     request.async_after_ms = Some(Some(1000));
     request.database_id = Some(Some(database_id));
-    let submitted = client.query(request).await.expect("query should succeed");
-    let query_run_id = submitted.query_run_id.clone();
+    let outcome = client
+        .submit_query(request, None)
+        .await
+        .expect("submit_query should succeed");
+    // The run id is on both outcomes — inline (ran sync) or async submission.
+    let query_run_id = match outcome {
+        QueryOutcome::Inline(resp) => resp.query_run_id,
+        QueryOutcome::Submitted(resp) => resp.query_run_id,
+        other => panic!("unexpected query outcome: {other:?}"),
+    };
     assert!(!query_run_id.is_empty(), "expected a query_run_id");
 
     let deadline = Instant::now() + POLL_TIMEOUT;

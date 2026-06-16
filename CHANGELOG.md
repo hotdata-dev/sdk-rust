@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Enhanced `Client::query`: transparently retries HTTP 429 (`OVERLOADED`)
+  admission shedding honoring `Retry-After` under a deadline budget, and
+  auto-follows truncated results to materialize the full row set, guarded by
+  configurable `max_auto_rows` (default 1M) and `max_auto_bytes` (default
+  64 MiB) ceilings (#688). The raw generated op remains reachable via
+  `client.queries().execute()` / `hotdata::apis::query_api::query`.
+- `hotdata::query` module with `QueryConfig`, `RetryPolicy`, `PollPolicy`, the
+  `QueryError` enum, and the `ResultError` family (`Failed` / `Timeout` /
+  `TooLarge` / `Incomplete` / `Unavailable`). `ClientBuilder::query_config` sets
+  the instance default; `Client::query_with` takes a per-call override.
+- `Client::query_in` (scope a query to a database) and `Client::query_preview`
+  (return the bounded preview without auto-following), plus `QueryConfig::with_*`
+  setters for fluent per-call overrides
+  (`client.query_config().clone().with_auto_follow(false)`).
+
+### Changed
+
+- `Client::query` now returns `Result<QueryResponse, hotdata::QueryError>`
+  instead of `Result<QueryResponse, Error<QueryError>>` to carry the overload
+  and result-lifecycle errors the bounded-memory query contract introduces.
+  Migration: where you matched the old error, e.g.
+  `Err(Error::ResponseError(rc))`, now match `Err(QueryError::Submit(
+  Error::ResponseError(rc)))`; overload and auto-follow failures arrive as the
+  new `QueryError::Overloaded` / `QueryError::Result(..)` variants.
+- `Client::query` rejects an explicit `async = true` request up front with
+  `QueryError::AsyncRequested` (it is the synchronous-results path); use
+  `Client::submit_query` for asynchronous submissions.
+
 ## [0.1.4] - 2026-06-15
 
 ### Changed

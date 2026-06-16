@@ -23,6 +23,7 @@ pub mod client;
 pub mod field;
 pub mod http_log;
 pub mod models;
+pub mod query;
 pub mod resources;
 pub mod status;
 
@@ -38,8 +39,10 @@ pub use auth::{
 };
 #[cfg(feature = "arrow")]
 pub use client::QueryToArrowError;
-pub use client::{
-    AwaitResultError, Client, ClientBuilder, ClientError, PollConfig, QueryOutcome,
+pub use client::{AwaitResultError, Client, ClientBuilder, ClientError, PollConfig, QueryOutcome};
+pub use query::{
+    PollPolicy, QueryConfig, QueryError, ResultError, RetryPolicy, TooLargeKind,
+    DEFAULT_MAX_AUTO_BYTES, DEFAULT_MAX_AUTO_ROWS, OVERLOADED_ERROR_CODE,
 };
 pub use resources::{
     ConnectionTypesApi, ConnectionsApi, DatabaseContextApi, DatabasesApi, DatasetsApi,
@@ -61,6 +64,9 @@ pub mod prelude {
     pub use crate::client::{Client, ClientBuilder, PollConfig, QueryOutcome};
     pub use crate::field;
     pub use crate::models::*;
+    pub use crate::query::{
+        PollPolicy, QueryConfig, QueryError, ResultError, RetryPolicy, TooLargeKind,
+    };
     pub use crate::resources::*;
     pub use crate::status::{QueryRunStatus, QueryRunStatusExt, ResultStatus, ResultStatusExt};
 }
