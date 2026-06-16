@@ -69,6 +69,9 @@ jobs:
       # succeeded. Posts via the shared Hotdata CI Slack app (bot token), so the
       # same SLACK_CI_BOT_TOKEN org secret drives notifications across SDK repos.
       - name: "Notify #deploy on Slack"
+        # The publish above is irreversible, so a Slack/token hiccup must not
+        # mark a successful release as failed and trigger false-alarm retries.
+        continue-on-error: true
         env:
           SLACK_CI_BOT_TOKEN: ${{ secrets.SLACK_CI_BOT_TOKEN }}
         run: |
