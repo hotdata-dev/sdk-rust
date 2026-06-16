@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 
+## [0.3.1] - 2026-06-16
+
+### Fixed
+
+- `Client::submit_query` (the hand-written 202/async query path the CLI drives
+  directly) now retries HTTP 429 (`OVERLOADED`) admission shedding per
+  `Configuration::retry`, like every generated op and `Client::query`. It was
+  the one query path the 0.3.0 migration missed, so under admission shedding a
+  submitted query surfaced the 429 as an error with no retry (#688).
+
 ## [0.3.0] - 2026-06-16
 
 ### Added

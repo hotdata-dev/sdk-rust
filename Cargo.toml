@@ -1,6 +1,6 @@
 [package]
 name = "hotdata"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["developers@hotdata.dev"]
 description = "Powerful data platform API for datasets, queries, and analytics."
 license = "MIT"
