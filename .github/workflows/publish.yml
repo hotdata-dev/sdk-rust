@@ -68,7 +68,7 @@ jobs:
       # Announce the release in #deploy. Runs only when the publish above
       # succeeded. Posts via the shared Hotdata CI Slack app (bot token), so the
       # same SLACK_CI_BOT_TOKEN org secret drives notifications across SDK repos.
-      - name: Notify #deploy on Slack
+      - name: "Notify #deploy on Slack"
         env:
           SLACK_CI_BOT_TOKEN: ${{ secrets.SLACK_CI_BOT_TOKEN }}
         run: |
