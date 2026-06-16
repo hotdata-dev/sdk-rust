@@ -480,7 +480,11 @@ impl Client {
 
         let req = req_builder.build()?;
         crate::http_log::log_request(&req);
-        let resp = configuration.client.execute(req).await?;
+        // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
+        // shedding) is retried per `configuration.retry`, matching the generated
+        // ops. The JSON body clones cleanly, so retries work fully.
+        let resp =
+            crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
 
         let status = resp.status();
         crate::http_log::log_response_status(status);
@@ -1279,6 +1283,152 @@ mod tests {
             .expect("submit_query should succeed with scoped headers");
 
         assert!(matches!(outcome, QueryOutcome::Submitted(_)));
+    }
+
+    /// A fast, deterministic retry policy (tiny backoff, no jitter) so the 429
+    /// retry tests run without real delay. `Retry-After: 0` on the mocks makes
+    /// the per-attempt delay zero regardless, but a small `max_retries` also
+    /// bounds the exhaustion test's request count.
+    fn fast_retry(max_retries: u32) -> crate::query::RetryPolicy {
+        crate::query::RetryPolicy {
+            max_retries,
+            base_backoff: std::time::Duration::from_millis(1),
+            max_backoff: std::time::Duration::from_millis(5),
+            deadline: std::time::Duration::from_secs(30),
+            jitter: 0.0,
+        }
+    }
+
+    /// Like [`query_test_client`] but with a fast retry policy installed, for the
+    /// 429-retry tests.
+    fn retry_test_client(base_url: &str, max_retries: u32) -> Client {
+        let mut client = query_test_client(base_url);
+        client.configuration_mut().retry = fast_retry(max_retries);
+        client
+    }
+
+    /// `submit_query` must retry HTTP 429 (OVERLOADED admission shedding) like
+    /// the generated ops: N 429s then a 200 returns `QueryOutcome::Inline`.
+    #[tokio::test]
+    async fn submit_query_retries_429_then_200_inline() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let _g = env_guard();
+        clear_env();
+        let server = MockServer::start().await;
+        // Two 429s (Retry-After: 0) then a 200 inline result.
+        Mock::given(method("POST"))
+            .and(path("/v1/query"))
+            .respond_with(ResponseTemplate::new(429).insert_header("Retry-After", "0"))
+            .up_to_n_times(2)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/v1/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "columns": ["n"],
+                "execution_time_ms": 3,
+                "nullable": [false],
+                "preview_row_count": 1,
+                "query_run_id": "qr_after_retry",
+                "row_count": 1,
+                "rows": [[1]],
+                "truncated": false,
+            })))
+            .mount(&server)
+            .await;
+
+        let client = retry_test_client(&server.uri(), 5);
+        let outcome = client
+            .submit_query(models::QueryRequest::new("select 1".into()), None)
+            .await
+            .expect("submit_query should succeed after retrying the 429s");
+
+        match outcome {
+            QueryOutcome::Inline(resp) => assert_eq!(resp.query_run_id, "qr_after_retry"),
+            other => panic!("expected Inline, got {other:?}"),
+        }
+        // 2 retried 429s + 1 success = 3 requests reached the server.
+        assert_eq!(server.received_requests().await.unwrap().len(), 3);
+    }
+
+    /// `submit_query` retries 429 on the async path too: a 429 then a 202 returns
+    /// `QueryOutcome::Submitted`.
+    #[tokio::test]
+    async fn submit_query_retries_429_then_202_submitted() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let _g = env_guard();
+        clear_env();
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/query"))
+            .respond_with(ResponseTemplate::new(429).insert_header("Retry-After", "0"))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/v1/query"))
+            .respond_with(ResponseTemplate::new(202).set_body_json(serde_json::json!({
+                "query_run_id": "qr_async_retry",
+                "status": "pending",
+                "status_url": "https://api.hotdata.dev/v1/query-runs/qr_async_retry",
+            })))
+            .mount(&server)
+            .await;
+
+        let client = retry_test_client(&server.uri(), 5);
+        let outcome = client
+            .submit_query(
+                models::QueryRequest {
+                    r#async: Some(true),
+                    ..models::QueryRequest::new("select 1".into())
+                },
+                None,
+            )
+            .await
+            .expect("submit_query should succeed after retrying the 429");
+
+        match outcome {
+            QueryOutcome::Submitted(resp) => assert_eq!(resp.query_run_id, "qr_async_retry"),
+            other => panic!("expected Submitted, got {other:?}"),
+        }
+        // 1 retried 429 + 1 success = 2 requests reached the server.
+        assert_eq!(server.received_requests().await.unwrap().len(), 2);
+    }
+
+    /// A 429 that persists beyond `max_retries` surfaces as the 429 error (the
+    /// SDK's `Error::ResponseError`), not a panic or hang.
+    #[tokio::test]
+    async fn submit_query_429_beyond_max_retries_errors() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let _g = env_guard();
+        clear_env();
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/query"))
+            .respond_with(ResponseTemplate::new(429).insert_header("Retry-After", "0"))
+            .mount(&server)
+            .await;
+
+        let client = retry_test_client(&server.uri(), 2);
+        let err = client
+            .submit_query(models::QueryRequest::new("select 1".into()), None)
+            .await
+            .expect_err("submit_query should surface the 429 after exhausting retries");
+
+        match err {
+            Error::ResponseError(content) => {
+                assert_eq!(content.status, reqwest::StatusCode::TOO_MANY_REQUESTS);
+            }
+            other => panic!("expected ResponseError(429), got {other:?}"),
+        }
+        // 1 initial + 2 retries = 3 requests, all 429.
+        assert_eq!(server.received_requests().await.unwrap().len(), 3);
     }
 
     /// A streamed body POSTs to `/v1/files`, parses the `201 UploadResponse`,
