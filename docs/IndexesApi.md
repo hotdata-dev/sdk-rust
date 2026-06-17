@@ -26,7 +26,7 @@ Create a sorted, BM25, or vector index on a dataset.
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**dataset_id** | **String** | Dataset identifier | [required] |
+**dataset_id** | **String** | Dataset ID | [required] |
 **create_index_request** | [**CreateIndexRequest**](CreateIndexRequest.md) |  | [required] |
 
 ### Return type
@@ -57,7 +57,7 @@ Create a sorted or BM25 full-text index on a cached table.
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**connection_id** | **String** | Connection identifier | [required] |
+**connection_id** | **String** | Connection ID | [required] |
 **schema** | **String** | Schema name | [required] |
 **table** | **String** | Table name | [required] |
 **create_index_request** | [**CreateIndexRequest**](CreateIndexRequest.md) |  | [required] |
@@ -90,7 +90,7 @@ Delete a specific index from a dataset.
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**dataset_id** | **String** | Dataset identifier | [required] |
+**dataset_id** | **String** | Dataset ID | [required] |
 **index_name** | **String** | Index name | [required] |
 
 ### Return type
@@ -121,7 +121,7 @@ Delete a specific index from a cached table.
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**connection_id** | **String** | Connection identifier | [required] |
+**connection_id** | **String** | Connection ID | [required] |
 **schema** | **String** | Schema name | [required] |
 **table** | **String** | Table name | [required] |
 **index_name** | **String** | Index name | [required] |
@@ -154,7 +154,7 @@ List all indexes created on a dataset.
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**dataset_id** | **String** | Dataset identifier | [required] |
+**dataset_id** | **String** | Dataset ID | [required] |
 
 ### Return type
 
@@ -184,7 +184,7 @@ List all indexes created on a cached table.
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**connection_id** | **String** | Connection identifier | [required] |
+**connection_id** | **String** | Connection ID | [required] |
 **schema** | **String** | Schema name | [required] |
 **table** | **String** | Table name | [required] |
 

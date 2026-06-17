@@ -40,14 +40,6 @@ pub struct CreateConnectionRequest {
     pub skip_discovery: Option<bool>,
     #[serde(rename = "source_type")]
     pub source_type: String,
-    /// Physical storage backend for tables created under this connection. `\"parquet\"` (default) uses the versioned parquet cache. `\"ducklake\"` stores data in a DuckLake catalog in the shared metadata DB configured via `ducklake.metadata_pg_url`; accepted for any source type and requires that pool to be configured.
-    #[serde(
-        rename = "storage_backend",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub storage_backend: Option<Option<String>>,
 }
 
 impl CreateConnectionRequest {
@@ -64,7 +56,6 @@ impl CreateConnectionRequest {
             secret_name: None,
             skip_discovery: None,
             source_type,
-            storage_backend: None,
         }
     }
 }

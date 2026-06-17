@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// DatabaseDefaultTableDecl : One table declaration inside a default-catalog schema at database-create time. Mirrors `crate::source::ManagedTableDecl` shape so the controller can convert with a simple `.map`.
+/// DatabaseDefaultTableDecl : One table declaration inside a default-catalog schema, supplied at database-create time.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DatabaseDefaultTableDecl {
     #[serde(rename = "name")]
@@ -19,7 +19,7 @@ pub struct DatabaseDefaultTableDecl {
 }
 
 impl DatabaseDefaultTableDecl {
-    /// One table declaration inside a default-catalog schema at database-create time. Mirrors `crate::source::ManagedTableDecl` shape so the controller can convert with a simple `.map`.
+    /// One table declaration inside a default-catalog schema, supplied at database-create time.
     pub fn new(name: String) -> DatabaseDefaultTableDecl {
         DatabaseDefaultTableDecl { name }
     }

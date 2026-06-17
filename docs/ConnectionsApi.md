@@ -24,7 +24,7 @@ Method | HTTP request | Description
 > models::ManagedSchemaResponse add_managed_schema(connection_id, add_managed_schema_request)
 Add managed schema
 
-Declare a new schema (and optionally its tables) on an existing managed catalog after creation. The schema is added to the connection's declaration; declared tables can then be populated via the managed-table load endpoint. Only valid against connections whose source type is `managed`. Identifiers are normalised to lowercase.
+Declare a new schema (and optionally its tables) on an existing managed catalog after creation. The schema is added to the connection's declaration; declared tables can then be populated via the managed-table load endpoint. Only valid against connections whose source type is `managed`. Identifiers are normalized to lowercase.
 
 ### Parameters
 
@@ -55,7 +55,7 @@ Name | Type | Description  | Required | Notes
 > models::ManagedTableResponse add_managed_table(connection_id, schema, add_managed_table_request)
 Add managed table
 
-Declare a new table on an existing schema of a managed catalog after creation. The table is added empty (declared-but-unloaded) and can be populated via the managed-table load endpoint. Only valid against connections whose source type is `managed`. Identifiers are normalised to lowercase.
+Declare a new table on an existing schema of a managed catalog after creation. The table is added empty (declared-but-unloaded) and can be populated via the managed-table load endpoint. Only valid against connections whose source type is `managed`. Identifiers are normalized to lowercase.
 
 ### Parameters
 
@@ -177,7 +177,7 @@ Name | Type | Description  | Required | Notes
 > delete_managed_table(connection_id, schema, table)
 Delete managed table
 
-Delete a single managed-catalog table. The catalog row is removed and the backing parquet file (if any) is scheduled for deletion. Only valid against connections whose source type is `managed`.
+Delete a single managed-catalog table. The table and its data are removed. Only valid against connections whose source type is `managed`.
 
 ### Parameters
 
@@ -298,7 +298,7 @@ This endpoint does not need any parameter.
 > models::LoadManagedTableResponse load_managed_table(connection_id, schema, table, load_managed_table_request)
 Load managed table from upload
 
-Publish a previously-uploaded parquet file as the new generation of a managed table. The upload must reference a parquet file (verified by magic bytes). Only `mode = \"replace\"` is supported. Concurrent loads against the same upload return 409.
+Publish a previously-uploaded parquet file as the new contents of a managed table. The upload must reference a parquet file. Only `mode = \"replace\"` is supported. Concurrent loads against the same upload return 409.
 
 ### Parameters
 

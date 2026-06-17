@@ -27,6 +27,8 @@ pub enum JobType {
     CreateIndex,
     #[serde(rename = "create_dataset_index")]
     CreateDatasetIndex,
+    #[serde(rename = "managed_load")]
+    ManagedLoad,
 }
 
 impl std::fmt::Display for JobType {
@@ -38,6 +40,7 @@ impl std::fmt::Display for JobType {
             Self::DatasetRefresh => write!(f, "dataset_refresh"),
             Self::CreateIndex => write!(f, "create_index"),
             Self::CreateDatasetIndex => write!(f, "create_dataset_index"),
+            Self::ManagedLoad => write!(f, "managed_load"),
         }
     }
 }

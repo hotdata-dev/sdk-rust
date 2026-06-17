@@ -21,13 +21,13 @@ pub struct QueryResponse {
     /// Nullable flags for each column (parallel to columns vec). True if the column allows NULL values, false if NOT NULL.
     #[serde(rename = "nullable")]
     pub nullable: Vec<bool>,
-    /// Number of rows in *this* response body (`rows.len()`). Always present. For a large result this is a bounded preview, not the grand total — see `total_row_count` and `truncated` (#640).
+    /// Number of rows in *this* response body. Always present. For a large result this is a bounded preview, not the grand total — see `total_row_count` and `truncated`.
     #[serde(rename = "preview_row_count")]
     pub preview_row_count: i64,
     /// Unique identifier for the query run record (qrun...).
     #[serde(rename = "query_run_id")]
     pub query_run_id: String,
-    /// Unique identifier for retrieving this result via GET /results/{id}. Null if catalog registration failed (see `warning` field for details). When non-null, the result is being persisted asynchronously.
+    /// Unique identifier for retrieving this result via GET /results/{id}. When non-null, the result is being persisted asynchronously. Null only when the result fit entirely in this response (`truncated: false`) but could not be persisted for later retrieval — see the `warning` field. A `truncated: true` response ALWAYS carries a non-null, resolvable `result_id` (#640 F1): a truncated result that cannot be persisted fails the request with a retryable HTTP 503 (`PERSISTENCE_UNAVAILABLE`, with a `Retry-After` header) rather than returning a partial body with a dead ticket.
     #[serde(
         rename = "result_id",
         default,
@@ -35,13 +35,13 @@ pub struct QueryResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub result_id: Option<Option<String>>,
-    /// **Deprecated** — use `preview_row_count` (rows in this body) and `total_row_count` (grand total) instead. Retained for backward compatibility and currently always equal to `preview_row_count`; it will be removed in a future release once clients migrate to the count fields below (#640).
+    /// **Deprecated** — use `preview_row_count` (rows in this body) and `total_row_count` (grand total) instead. Retained as a back-compat alias and always equal to `preview_row_count`; for a truncated result it is the preview count, *not* the grand total — read `total_row_count` for that. Will be removed in a future release once clients migrate.
     #[serde(rename = "row_count")]
     pub row_count: i32,
     /// Array of rows, where each row is an array of column values. Values can be strings, numbers, booleans, or null.
     #[serde(rename = "rows")]
     pub rows: Vec<Vec<serde_json::Value>>,
-    /// Grand total rows in the full result. Present (and equal to `preview_row_count`) when the whole result fit in this response; `null` while a truncated result is still being persisted. When `null`, read the authoritative total from `GET /v1/query-runs/{id}` (`row_count`) or the `X-Total-Row-Count` header on `GET /v1/results/{id}` (#640).
+    /// Grand total rows in the full result. Present (and equal to `preview_row_count`) when the whole result fit in this response; `null` while a truncated result is still being persisted. When `null`, read the authoritative total from `GET /v1/query-runs/{id}` (`row_count`) or the `X-Total-Row-Count` header on `GET /v1/results/{id}`.
     #[serde(
         rename = "total_row_count",
         default,
@@ -49,10 +49,10 @@ pub struct QueryResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub total_row_count: Option<Option<i64>>,
-    /// True when `rows` is a bounded preview of a larger result. Fetch the full result via `result_id` (#640). Always `false` until bounded streaming is enabled; clients should still branch on it so no code change is needed when truncation goes live.
+    /// True when `rows` is a bounded preview of a larger result. Fetch the full result via `result_id`.
     #[serde(rename = "truncated")]
     pub truncated: bool,
-    /// Warning message if result persistence could not be initiated. When present, `result_id` will be null and the result cannot be retrieved later. The query results are still returned in this response.
+    /// Warning message if result persistence could not be initiated. Present only when the full result is returned inline (`truncated: false`) but could not be persisted: `result_id` is then null and the result cannot be re-fetched later, though every row is in this response. A truncated result never carries a warning — if it cannot be persisted the request fails with a retryable HTTP 503 (`PERSISTENCE_UNAVAILABLE`, with a `Retry-After` header) instead (#640 F1).
     #[serde(
         rename = "warning",
         default,

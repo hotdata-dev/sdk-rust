@@ -4,7 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**arrow_schema_json** | **String** | Arrow schema (JSON) parsed from the uploaded parquet footer. | 
+**arrow_schema_json** | **String** | Schema of the loaded table, as JSON. | 
 **connection_id** | **String** |  | 
 **row_count** | **i64** | Total rows in the published parquet file. | 
 **schema_name** | **String** |  | 
