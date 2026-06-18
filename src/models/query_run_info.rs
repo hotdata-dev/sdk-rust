@@ -14,6 +14,14 @@ use serde::{Deserialize, Serialize};
 /// QueryRunInfo : Single query run for listing
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct QueryRunInfo {
+    /// Total bytes of table data read from storage to run this query. `null` when the query touches no table at all (for example a constant expression like `SELECT 1`). May be `0` when the query reads a table but not its row data — for example a row count served from table statistics.
+    #[serde(
+        rename = "bytes_scanned",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub bytes_scanned: Option<Option<i64>>,
     #[serde(
         rename = "completed_at",
         default,
@@ -53,6 +61,14 @@ pub struct QueryRunInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub row_count: Option<Option<i64>>,
+    /// Total rows read from storage to run this query, before any filtering or aggregation. Distinct from `row_count`, which is how many rows the query returned. `null` when the query reads no table data from storage.
+    #[serde(
+        rename = "rows_scanned",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub rows_scanned: Option<Option<i64>>,
     #[serde(
         rename = "saved_query_id",
         default,
@@ -90,7 +106,7 @@ pub struct QueryRunInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub trace_id: Option<Option<String>>,
-    /// Caller identity derived from the Authorization Bearer token (SHA-256 hash). Format: `user_{first_10_hex_chars}`. Mirrors the webapp's `user_public_id_from_auth_header`.
+    /// Caller identity derived from the Authorization Bearer token (SHA-256 hash). Format: `user_{first_10_hex_chars}`.
     #[serde(
         rename = "user_public_id",
         default,
@@ -118,6 +134,7 @@ impl QueryRunInfo {
         status: String,
     ) -> QueryRunInfo {
         QueryRunInfo {
+            bytes_scanned: None,
             completed_at: None,
             created_at,
             error_message: None,
@@ -125,6 +142,7 @@ impl QueryRunInfo {
             id,
             result_id: None,
             row_count: None,
+            rows_scanned: None,
             saved_query_id: None,
             saved_query_version: None,
             server_processing_ms: None,

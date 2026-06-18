@@ -8,7 +8,7 @@ Name | Type | Description | Notes
 **error_message** | Option<**String**> |  | [optional]
 **nullable** | Option<**Vec<bool>**> |  | [optional]
 **result_id** | **String** |  | 
-**row_count** | Option<**i32**> |  | [optional]
+**row_count** | Option<**i64**> |  | [optional]
 **rows** | Option<[**Vec<Vec<serde_json::Value>>**](Vec.md)> | Array of rows, where each row is an array of column values. | [optional]
 **status** | **String** |  | 
 

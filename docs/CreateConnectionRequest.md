@@ -10,7 +10,6 @@ Name | Type | Description | Notes
 **secret_name** | Option<**String**> | Optional reference to a secret by name. If provided, this secret will be used for authentication. Mutually exclusive with `secret_id`. | [optional]
 **skip_discovery** | Option<**bool**> | If true, skip automatic schema discovery after registering the connection. The connection will be created but no tables will be discovered. You can run discovery later via the refresh endpoint. | [optional]
 **source_type** | **String** |  | 
-**storage_backend** | Option<**String**> | Physical storage backend for tables created under this connection. `\"parquet\"` (default) uses the versioned parquet cache. `\"ducklake\"` stores data in a DuckLake catalog in the shared metadata DB configured via `ducklake.metadata_pg_url`; accepted for any source type and requires that pool to be configured. | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

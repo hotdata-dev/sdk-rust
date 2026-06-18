@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// LoadManagedTableRequest : Request body for `POST /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads`.  Publishes a previously-uploaded parquet file as the new generation for the named managed table. `mode` is fixed to `\"replace\"` today; the field is kept in the request body so future modes (e.g. append) are an additive change.
+/// LoadManagedTableRequest : Request body for `POST /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads`.  Publishes a previously-uploaded parquet file as the new contents of the named managed table. `mode` is fixed to `\"replace\"` today; the field is kept in the request body so future modes (e.g. append) are an additive change.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LoadManagedTableRequest {
     /// Load mode. Only `\"replace\"` is supported in this release.
@@ -23,7 +23,7 @@ pub struct LoadManagedTableRequest {
 }
 
 impl LoadManagedTableRequest {
-    /// Request body for `POST /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads`.  Publishes a previously-uploaded parquet file as the new generation for the named managed table. `mode` is fixed to `\"replace\"` today; the field is kept in the request body so future modes (e.g. append) are an additive change.
+    /// Request body for `POST /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads`.  Publishes a previously-uploaded parquet file as the new contents of the named managed table. `mode` is fixed to `\"replace\"` today; the field is kept in the request body so future modes (e.g. append) are an additive change.
     pub fn new(mode: String, upload_id: String) -> LoadManagedTableRequest {
         LoadManagedTableRequest { mode, upload_id }
     }

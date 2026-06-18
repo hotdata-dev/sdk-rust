@@ -30,6 +30,14 @@ pub struct IndexInfoResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub metric: Option<Option<String>>,
+    /// Source text column for an embedding-backed vector index. A query searches it via `vector_distance(<source_column>, …)`; the indexed `columns` hold the generated embedding column instead. Absent for BM25, sorted, and direct (existing-column) vector indexes.
+    #[serde(
+        rename = "source_column",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub source_column: Option<Option<String>>,
     #[serde(rename = "status")]
     pub status: models::IndexStatus,
     #[serde(rename = "updated_at")]
@@ -52,6 +60,7 @@ impl IndexInfoResponse {
             index_name,
             index_type,
             metric: None,
+            source_column: None,
             status,
             updated_at,
         }

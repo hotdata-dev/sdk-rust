@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 /// LoadManagedTableResponse : Response body for `POST /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads`.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LoadManagedTableResponse {
-    /// Arrow schema (JSON) parsed from the uploaded parquet footer.
+    /// Schema of the loaded table, as JSON.
     #[serde(rename = "arrow_schema_json")]
     pub arrow_schema_json: String,
     #[serde(rename = "connection_id")]
