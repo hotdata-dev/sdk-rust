@@ -63,53 +63,62 @@ jobs:
       - name: Clean generated source
         run: rm -rf src/apis src/models docs
 
-      # Cargo.toml is ignore-protected, so the generator no longer rewrites the
-      # version. We own the patch bump here via cargo-edit and feed the result
-      # to the generator as packageVersion + user-agent for consistency.
-      - name: Bump patch version
+      # Read (do NOT bump) the current crate version. A regen is just a set of
+      # changes; which release ships them — and the bump kind — is decided later
+      # by the release tooling, not minted per regen. The version is still read
+      # here because the generator bakes it into the default user-agent and
+      # packageVersion below, so generated output reflects the committed crate
+      # version (Cargo.toml is ignore-protected, so the generator never edits it).
+      - name: Read package version
         id: pkg
         run: |
-          cargo install cargo-edit --locked >/dev/null 2>&1 || cargo install cargo-edit
-          cargo set-version --bump patch
           version=$(cargo metadata --no-deps --format-version 1 \
             | jq -r '.packages[] | select(.name=="hotdata") | .version')
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      # check-release.yml gates merges on a `## [x.y.z]` CHANGELOG section
-      # matching the bumped version, so without a seeded entry every regen PR
-      # fails that check. Insert a stub (the spec-change title under ### Changed)
-      # just above the most recent released section; the PR author refines the
-      # wording before merge. Idempotent: skips if a section for this version
-      # already exists.
-      - name: Seed changelog entry
+      # Seed the regen notes under [Unreleased] so they accumulate there until a
+      # release rolls them into a version. check-release.py is a no-op when the
+      # version is unchanged, so a non-bumping regen PR still passes; the regen
+      # still touches CHANGELOG.md, so check-release.yml runs as before.
+      - name: Seed changelog entry under [Unreleased]
         env:
-          VERSION: ${{ steps.pkg.outputs.version }}
           TITLE: ${{ inputs.title }}
         run: |
-          export CHANGELOG_DATE=$(date -u +%Y-%m-%d)
           python3 - <<'PY'
           import os, pathlib, re
-          version = os.environ["VERSION"]
-          date = os.environ["CHANGELOG_DATE"]
           title = (os.environ.get("TITLE") or "").strip() \
               or "Regenerate the client from the updated Hotdata OpenAPI spec"
+          bullet = f"- {title}"
           path = pathlib.Path("CHANGELOG.md")
           text = path.read_text()
-          if re.search(rf"^## \[{re.escape(version)}\]", text, re.M):
-              print(f"CHANGELOG already has a [{version}] section; leaving it untouched.")
-              raise SystemExit(0)
-          unreleased = re.search(r"^## \[Unreleased\]", text, re.M)
-          if not unreleased:
+
+          heading = re.search(r"^## \[Unreleased\][^\n]*\n", text, re.M)
+          if not heading:
               raise SystemExit("CHANGELOG.md has no '## [Unreleased]' section to anchor the new entry")
-          # Insert before the first released section after [Unreleased] (falling
-          # back to end of file) so any pending entries under [Unreleased] stay
-          # attributed to it rather than being absorbed by the new version.
-          nxt = re.search(r"^## \[", text[unreleased.end():], re.M)
-          insert_at = unreleased.end() + nxt.start() if nxt else len(text)
-          entry = f"## [{version}] - {date}\n\n### Changed\n\n- {title}\n\n"
-          text = text[:insert_at] + entry + text[insert_at:]
-          path.write_text(text)
-          print(f"Inserted CHANGELOG [{version}] section.")
+
+          # Scope edits to the [Unreleased] body (up to the next '## [' or EOF).
+          start = heading.end()
+          nxt = re.search(r"^## \[", text[start:], re.M)
+          end = start + nxt.start() if nxt else len(text)
+          body = text[start:end]
+
+          if bullet in body:
+              print("CHANGELOG [Unreleased] already lists this entry; leaving it untouched.")
+              raise SystemExit(0)
+
+          changed = re.search(r"^### Changed[ \t]*\n", body, re.M)
+          if changed:
+              # Prepend the bullet to the existing ### Changed list.
+              i = changed.end()
+              while i < len(body) and body[i] == "\n":
+                  i += 1
+              body = body[:i] + bullet + "\n" + body[i:]
+          else:
+              # No ### Changed yet: open one right under the heading.
+              body = "\n### Changed\n\n" + bullet + "\n\n" + body.lstrip("\n")
+
+          path.write_text(text[:start] + body + text[end:])
+          print("Added regen entry under CHANGELOG [Unreleased].")
           PY
 
       - name: Generate client
