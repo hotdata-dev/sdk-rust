@@ -43,7 +43,7 @@ pub struct GetResultResponse {
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub row_count: Option<Option<i32>>,
+    pub row_count: Option<Option<i64>>,
     /// Array of rows, where each row is an array of column values.
     #[serde(
         rename = "rows",

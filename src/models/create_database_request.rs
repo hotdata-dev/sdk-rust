@@ -38,17 +38,9 @@ pub struct CreateDatabaseRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub name: Option<Option<String>>,
-    /// Optional schemas/tables to declare on the database's auto-created default catalog. Mirrors the `config.schemas` field of a managed `POST /v1/connections`. Tables declared here can be loaded via the standard managed-table load endpoint targeting `default_connection_id`. Omitted or empty means the default catalog starts empty.
+    /// Optional schemas/tables to declare on the database's auto-created default catalog. Tables declared here can be loaded via the standard managed-table load endpoint targeting `default_connection_id`. Omitted or empty means the default catalog starts empty.
     #[serde(rename = "schemas", skip_serializing_if = "Option::is_none")]
     pub schemas: Option<Vec<models::DatabaseDefaultSchemaDecl>>,
-    /// Physical storage backend for the database's auto-created `default` catalog. `\"parquet\"` (default) uses the versioned parquet cache. `\"ducklake\"` stores data in a DuckLake catalog in the shared metadata DB configured via `ducklake.metadata_pg_url`, which must be configured for that value to be accepted. Omitted means `\"parquet\"`.
-    #[serde(
-        rename = "storage_backend",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub storage_backend: Option<Option<String>>,
 }
 
 impl CreateDatabaseRequest {
@@ -59,7 +51,6 @@ impl CreateDatabaseRequest {
             expires_at: None,
             name: None,
             schemas: None,
-            storage_backend: None,
         }
     }
 }

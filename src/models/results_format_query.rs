@@ -11,8 +11,8 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// ResultsFormatQuery : Schema for the `?format=` query parameter on `GET /v1/results/{id}`.  Documents the canonical values that SDKs should treat as a closed set (`arrow`, `json`, `csv`, `md`, `parquet`). The runtime handler's negotiator (`negotiate_results_format`) additionally accepts `markdown` as an alias for `md` — case-insensitive, with unknown values falling through to the `Accept` header — but `markdown` is intentionally NOT listed in this enum so SDK generators emit a single canonical `Markdown` (or equivalent) variant rather than two distinct ones for the same logical format.
-/// Schema for the `?format=` query parameter on `GET /v1/results/{id}`.  Documents the canonical values that SDKs should treat as a closed set (`arrow`, `json`, `csv`, `md`, `parquet`). The runtime handler's negotiator (`negotiate_results_format`) additionally accepts `markdown` as an alias for `md` — case-insensitive, with unknown values falling through to the `Accept` header — but `markdown` is intentionally NOT listed in this enum so SDK generators emit a single canonical `Markdown` (or equivalent) variant rather than two distinct ones for the same logical format.
+/// ResultsFormatQuery : The `?format=` query parameter on `GET /v1/results/{id}`. One of `arrow`, `json`, `csv`, `md`, or `parquet`.
+/// The `?format=` query parameter on `GET /v1/results/{id}`. One of `arrow`, `json`, `csv`, `md`, or `parquet`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum ResultsFormatQuery {
     #[serde(rename = "arrow")]

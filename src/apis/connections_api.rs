@@ -119,7 +119,7 @@ pub enum PurgeTableCacheError {
     UnknownValue(serde_json::Value),
 }
 
-/// Declare a new schema (and optionally its tables) on an existing managed catalog after creation. The schema is added to the connection's declaration; declared tables can then be populated via the managed-table load endpoint. Only valid against connections whose source type is `managed`. Identifiers are normalised to lowercase.
+/// Declare a new schema (and optionally its tables) on an existing managed catalog after creation. The schema is added to the connection's declaration; declared tables can then be populated via the managed-table load endpoint. Only valid against connections whose source type is `managed`. Identifiers are normalized to lowercase.
 pub async fn add_managed_schema(
     configuration: &configuration::Configuration,
     connection_id: &str,
@@ -191,7 +191,7 @@ pub async fn add_managed_schema(
     }
 }
 
-/// Declare a new table on an existing schema of a managed catalog after creation. The table is added empty (declared-but-unloaded) and can be populated via the managed-table load endpoint. Only valid against connections whose source type is `managed`. Identifiers are normalised to lowercase.
+/// Declare a new table on an existing schema of a managed catalog after creation. The table is added empty (declared-but-unloaded) and can be populated via the managed-table load endpoint. Only valid against connections whose source type is `managed`. Identifiers are normalized to lowercase.
 pub async fn add_managed_table(
     configuration: &configuration::Configuration,
     connection_id: &str,
@@ -456,7 +456,7 @@ pub async fn delete_connection(
     }
 }
 
-/// Delete a single managed-catalog table. The catalog row is removed and the backing parquet file (if any) is scheduled for deletion. Only valid against connections whose source type is `managed`.
+/// Delete a single managed-catalog table. The table and its data are removed. Only valid against connections whose source type is `managed`.
 pub async fn delete_managed_table(
     configuration: &configuration::Configuration,
     connection_id: &str,
@@ -718,7 +718,7 @@ pub async fn list_connections(
     }
 }
 
-/// Publish a previously-uploaded parquet file as the new generation of a managed table. The upload must reference a parquet file (verified by magic bytes). Only `mode = \"replace\"` is supported. Concurrent loads against the same upload return 409.
+/// Publish a previously-uploaded parquet file as the new contents of a managed table. The upload must reference a parquet file. Only `mode = \"replace\"` is supported. Concurrent loads against the same upload return 409.
 pub async fn load_managed_table(
     configuration: &configuration::Configuration,
     connection_id: &str,

@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// DatabaseDefaultSchemaDecl : One schema declaration inside the database's default catalog at create time. Mirrors `crate::source::ManagedSchemaDecl`. Tables default to empty so callers can declare just a schema name and add tables later via the managed-tables API on the default connection.
+/// DatabaseDefaultSchemaDecl : One schema declaration inside the database's default catalog, supplied at create time. `tables` defaults to empty, so you can declare just a schema name and add tables later.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DatabaseDefaultSchemaDecl {
     #[serde(rename = "name")]
@@ -21,7 +21,7 @@ pub struct DatabaseDefaultSchemaDecl {
 }
 
 impl DatabaseDefaultSchemaDecl {
-    /// One schema declaration inside the database's default catalog at create time. Mirrors `crate::source::ManagedSchemaDecl`. Tables default to empty so callers can declare just a schema name and add tables later via the managed-tables API on the default connection.
+    /// One schema declaration inside the database's default catalog, supplied at create time. `tables` defaults to empty, so you can declare just a schema name and add tables later.
     pub fn new(name: String) -> DatabaseDefaultSchemaDecl {
         DatabaseDefaultSchemaDecl { name, tables: None }
     }

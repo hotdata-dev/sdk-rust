@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// ManagedSchemaResponse : Response body for a successful add-schema request. Echoes the normalised (lowercased) names so callers see exactly what was persisted.
+/// ManagedSchemaResponse : Response body for a successful add-schema request. Echoes the normalized (lowercased) names so callers see exactly what was persisted.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ManagedSchemaResponse {
     /// Connection backing the catalog the schema was added to. For a database default catalog this is the database's `default_connection_id`.
@@ -24,7 +24,7 @@ pub struct ManagedSchemaResponse {
 }
 
 impl ManagedSchemaResponse {
-    /// Response body for a successful add-schema request. Echoes the normalised (lowercased) names so callers see exactly what was persisted.
+    /// Response body for a successful add-schema request. Echoes the normalized (lowercased) names so callers see exactly what was persisted.
     pub fn new(
         connection_id: String,
         schema: String,
