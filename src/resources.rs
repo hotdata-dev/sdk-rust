@@ -9,80 +9,13 @@
 //! operation to the matching free function.
 //!
 //! Handles are obtained from [`Client`](crate::Client) accessors, e.g.
-//! `client.datasets().create(req).await?`. They hold only a `&Configuration`, so
+//! `client.connections().list().await?`. They hold only a `&Configuration`, so
 //! they are cheap to construct and never own state.
 
 use crate::apis;
 use crate::apis::configuration::Configuration;
 use crate::apis::Error;
 use crate::models;
-
-/// Datasets resource handle. Wraps [`apis::datasets_api`](crate::apis::datasets_api).
-pub struct DatasetsApi<'a> {
-    config: &'a Configuration,
-}
-
-impl<'a> DatasetsApi<'a> {
-    pub(crate) fn new(config: &'a Configuration) -> Self {
-        Self { config }
-    }
-
-    /// Create a new dataset. `x_database_id` is required for SQL/saved-query sources.
-    pub async fn create(
-        &self,
-        request: models::CreateDatasetRequest,
-        x_database_id: Option<&str>,
-    ) -> Result<models::CreateDatasetResponse, Error<apis::datasets_api::CreateDatasetError>> {
-        apis::datasets_api::create_dataset(self.config, request, x_database_id).await
-    }
-
-    /// Fetch a dataset by id.
-    pub async fn get(
-        &self,
-        id: &str,
-    ) -> Result<models::GetDatasetResponse, Error<apis::datasets_api::GetDatasetError>> {
-        apis::datasets_api::get_dataset(self.config, id).await
-    }
-
-    /// List datasets.
-    pub async fn list(
-        &self,
-        limit: Option<i32>,
-        offset: Option<i32>,
-    ) -> Result<models::ListDatasetsResponse, Error<apis::datasets_api::ListDatasetsError>> {
-        apis::datasets_api::list_datasets(self.config, limit, offset).await
-    }
-
-    /// Update a dataset by id.
-    pub async fn update(
-        &self,
-        id: &str,
-        request: models::UpdateDatasetRequest,
-    ) -> Result<models::UpdateDatasetResponse, Error<apis::datasets_api::UpdateDatasetError>> {
-        apis::datasets_api::update_dataset(self.config, id, request).await
-    }
-
-    /// Delete a dataset by id.
-    pub async fn delete(
-        &self,
-        id: &str,
-    ) -> Result<(), Error<apis::datasets_api::DeleteDatasetError>> {
-        apis::datasets_api::delete_dataset(self.config, id).await
-    }
-
-    /// List versions of a dataset.
-    pub async fn list_versions(
-        &self,
-        id: &str,
-        limit: Option<i32>,
-        offset: Option<i32>,
-    ) -> Result<
-        models::ListDatasetVersionsResponse,
-        Error<apis::datasets_api::ListDatasetVersionsError>,
-    > {
-        apis::datasets_api::list_dataset_versions(self.config, id, limit, offset).await
-    }
-}
 
 /// Connections resource handle. Wraps [`apis::connections_api`](crate::apis::connections_api).
 pub struct ConnectionsApi<'a> {
@@ -411,8 +344,7 @@ impl<'a> EmbeddingProvidersApi<'a> {
 
 /// Indexes resource handle. Wraps [`apis::indexes_api`](crate::apis::indexes_api).
 ///
-/// Covers both dataset-scoped indexes and managed-table (connection/schema/table)
-/// indexes, so method names keep the disambiguating suffix.
+/// Covers managed-table (connection/schema/table) indexes.
 pub struct IndexesApi<'a> {
     config: &'a Configuration,
 }
@@ -420,33 +352,6 @@ pub struct IndexesApi<'a> {
 impl<'a> IndexesApi<'a> {
     pub(crate) fn new(config: &'a Configuration) -> Self {
         Self { config }
-    }
-
-    /// Create an index on a dataset.
-    pub async fn create_dataset_index(
-        &self,
-        dataset_id: &str,
-        request: models::CreateIndexRequest,
-    ) -> Result<models::IndexInfoResponse, Error<apis::indexes_api::CreateDatasetIndexError>> {
-        apis::indexes_api::create_dataset_index(self.config, dataset_id, request).await
-    }
-
-    /// List indexes on a dataset.
-    pub async fn list_dataset_indexes(
-        &self,
-        dataset_id: &str,
-    ) -> Result<models::ListIndexesResponse, Error<apis::indexes_api::ListDatasetIndexesError>>
-    {
-        apis::indexes_api::list_dataset_indexes(self.config, dataset_id).await
-    }
-
-    /// Delete an index from a dataset.
-    pub async fn delete_dataset_index(
-        &self,
-        dataset_id: &str,
-        index_name: &str,
-    ) -> Result<(), Error<apis::indexes_api::DeleteDatasetIndexError>> {
-        apis::indexes_api::delete_dataset_index(self.config, dataset_id, index_name).await
     }
 
     /// Create an index on a managed table.
@@ -647,7 +552,7 @@ impl<'a> RefreshApi<'a> {
         Self { config }
     }
 
-    /// Refresh a dataset or other refreshable resource.
+    /// Refresh a refreshable resource.
     pub async fn refresh(
         &self,
         request: models::RefreshRequest,
@@ -864,7 +769,7 @@ mod tests {
     #[test]
     fn handle_borrows_provided_config() {
         let config = Configuration::default();
-        let handle = DatasetsApi::new(&config);
+        let handle = ConnectionsApi::new(&config);
         assert!(std::ptr::eq(handle.config, &config));
     }
 
@@ -873,11 +778,11 @@ mod tests {
     #[test]
     fn multiple_handles_share_one_config() {
         let config = Configuration::default();
-        let datasets = DatasetsApi::new(&config);
+        let databases = DatabasesApi::new(&config);
         let connections = ConnectionsApi::new(&config);
         let queries = QueryApi::new(&config);
 
-        assert!(std::ptr::eq(datasets.config, &config));
+        assert!(std::ptr::eq(databases.config, &config));
         assert!(std::ptr::eq(connections.config, &config));
         assert!(std::ptr::eq(queries.config, &config));
     }
@@ -887,7 +792,6 @@ mod tests {
     #[test]
     fn all_handles_constructible() {
         let config = Configuration::default();
-        let _ = DatasetsApi::new(&config);
         let _ = ConnectionsApi::new(&config);
         let _ = ConnectionTypesApi::new(&config);
         let _ = DatabaseContextApi::new(&config);

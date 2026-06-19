@@ -2,8 +2,7 @@
 //!
 //! Exempt for every SDK (`optional_for: [python, typescript, rust]` in
 //! test-scenarios.yaml) — indexes are scoped to (connection_id, schema, table)
-//! of *real* source tables, which the inline-CSV datasets used elsewhere in the
-//! suite can't reach. Implementing it requires a dedicated indexable test table
+//! of *real* source tables. Implementing it requires a dedicated indexable test table
 //! plus env vars naming the schema/table/column to target, and the generated
 //! Rust client does not (yet) expose an indexes API.
 //!
