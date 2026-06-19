@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [0.3.3] - 2026-06-19
+
 ### Changed
 
 - chore: remove datasets API and related job types
@@ -21,7 +24,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hand-written `Client::query` / `Client::submit_query` paths, governed by the
   same `RetryPolicy` budget as 429. Response-phase transport errors are left
   un-retried so a non-idempotent `POST` can't double-execute (#63).
-
 
 ## [0.3.2] - 2026-06-18
 
