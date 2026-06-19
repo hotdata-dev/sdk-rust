@@ -21,12 +21,8 @@ pub enum JobType {
     DataRefreshTable,
     #[serde(rename = "data_refresh_connection")]
     DataRefreshConnection,
-    #[serde(rename = "dataset_refresh")]
-    DatasetRefresh,
     #[serde(rename = "create_index")]
     CreateIndex,
-    #[serde(rename = "create_dataset_index")]
-    CreateDatasetIndex,
     #[serde(rename = "managed_load")]
     ManagedLoad,
 }
@@ -37,9 +33,7 @@ impl std::fmt::Display for JobType {
             Self::Noop => write!(f, "noop"),
             Self::DataRefreshTable => write!(f, "data_refresh_table"),
             Self::DataRefreshConnection => write!(f, "data_refresh_connection"),
-            Self::DatasetRefresh => write!(f, "dataset_refresh"),
             Self::CreateIndex => write!(f, "create_index"),
-            Self::CreateDatasetIndex => write!(f, "create_dataset_index"),
             Self::ManagedLoad => write!(f, "managed_load"),
         }
     }

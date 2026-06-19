@@ -18,7 +18,6 @@ use serde::{Deserialize, Serialize};
 pub enum JobResult {
     TableRefreshResult(Box<models::TableRefreshResult>),
     ConnectionRefreshResult(Box<models::ConnectionRefreshResult>),
-    RefreshDatasetResponse(Box<models::RefreshDatasetResponse>),
     IndexInfoResponse(Box<models::IndexInfoResponse>),
 }
 

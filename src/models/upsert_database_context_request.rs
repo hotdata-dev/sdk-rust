@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 pub struct UpsertDatabaseContextRequest {
     #[serde(rename = "content")]
     pub content: String,
-    /// Upsert key in the catalog. Validated with dataset table-name rules (preserves case): ASCII letter or `_` first; then alphanumeric or `_` only; 1–128 chars; not a SQL reserved word.
+    /// Upsert key in the catalog. Validated with table-name rules (preserves case): ASCII letter or `_` first; then alphanumeric or `_` only; 1–128 chars; not a SQL reserved word.
     #[serde(rename = "name")]
     pub name: String,
 }

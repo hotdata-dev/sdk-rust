@@ -24,7 +24,7 @@ Removes a named context document from a database.
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **database_id** | **String** | Database ID | [required] |
-**name** | **String** | Context key: same character rules as a dataset table name | [required] |
+**name** | **String** | Context key: same character rules as a table name | [required] |
 
 ### Return type
 
@@ -53,7 +53,7 @@ Get one database context
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **database_id** | **String** | Database ID | [required] |
-**name** | **String** | Context key: same character rules as a dataset table name | [required] |
+**name** | **String** | Context key: same character rules as a table name | [required] |
 
 ### Return type
 

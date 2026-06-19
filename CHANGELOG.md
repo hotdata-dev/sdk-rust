@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- chore: remove datasets API and related job types
+
 ### Fixed
 
 - Pre-response connection errors are now retried transparently on **any** method,

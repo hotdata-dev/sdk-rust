@@ -19,7 +19,6 @@ pub enum RefreshResponse {
     SchemaRefreshResult(Box<models::SchemaRefreshResult>),
     TableRefreshResult(Box<models::TableRefreshResult>),
     ConnectionRefreshResult(Box<models::ConnectionRefreshResult>),
-    RefreshDatasetResponse(Box<models::RefreshDatasetResponse>),
     SubmitJobResponse(Box<models::SubmitJobResponse>),
 }
 

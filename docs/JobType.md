@@ -7,9 +7,7 @@
 | Noop | noop |
 | DataRefreshTable | data_refresh_table |
 | DataRefreshConnection | data_refresh_connection |
-| DatasetRefresh | dataset_refresh |
 | CreateIndex | create_index |
-| CreateDatasetIndex | create_dataset_index |
 | ManagedLoad | managed_load |
 
 

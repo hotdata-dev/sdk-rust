@@ -13,16 +13,6 @@ use crate::{apis::ResponseContent, models};
 use reqwest;
 use serde::{de::Error as _, Deserialize, Serialize};
 
-/// struct for typed errors of method [`create_dataset_index`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum CreateDatasetIndexError {
-    Status400(models::ApiErrorResponse),
-    Status404(models::ApiErrorResponse),
-    Status500(models::ApiErrorResponse),
-    UnknownValue(serde_json::Value),
-}
-
 /// struct for typed errors of method [`create_index`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -33,28 +23,12 @@ pub enum CreateIndexError {
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`delete_dataset_index`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum DeleteDatasetIndexError {
-    Status404(models::ApiErrorResponse),
-    UnknownValue(serde_json::Value),
-}
-
 /// struct for typed errors of method [`delete_index`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DeleteIndexError {
     Status404(models::ApiErrorResponse),
     Status500(models::ApiErrorResponse),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`list_dataset_indexes`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum ListDatasetIndexesError {
-    Status404(models::ApiErrorResponse),
     UnknownValue(serde_json::Value),
 }
 
@@ -75,86 +49,6 @@ pub enum ListIndexesCollectionError {
     Status404(models::ApiErrorResponse),
     Status500(models::ApiErrorResponse),
     UnknownValue(serde_json::Value),
-}
-
-/// Create a sorted, BM25, or vector index on a dataset.
-pub async fn create_dataset_index(
-    configuration: &configuration::Configuration,
-    dataset_id: &str,
-    create_index_request: models::CreateIndexRequest,
-) -> Result<models::IndexInfoResponse, Error<CreateDatasetIndexError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_path_dataset_id = dataset_id;
-    let p_body_create_index_request = create_index_request;
-
-    let uri_str = format!(
-        "{}/v1/datasets/{dataset_id}/indexes",
-        configuration.base_path,
-        dataset_id = crate::apis::urlencode(p_path_dataset_id)
-    );
-    let mut req_builder = configuration
-        .client
-        .request(reqwest::Method::POST, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
-        let key = apikey.key.clone();
-        let value = match apikey.prefix {
-            Some(ref prefix) => format!("{} {}", prefix, key),
-            None => key,
-        };
-        req_builder = req_builder.header("X-Workspace-Id", value);
-    };
-    if let Some(apikey) = configuration.api_keys.get("X-Session-Id") {
-        let key = apikey.key.clone();
-        let value = match apikey.prefix {
-            Some(ref prefix) => format!("{} {}", prefix, key),
-            None => key,
-        };
-        req_builder = req_builder.header("X-Session-Id", value);
-    };
-    if let Some(token) = configuration.resolve_bearer_token().await {
-        req_builder = req_builder.bearer_auth(token);
-    };
-    req_builder = req_builder.json(&p_body_create_index_request);
-
-    let req = req_builder.build()?;
-    crate::http_log::log_request(&req);
-    // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
-    // shedding) is retried per `configuration.retry` on every generated op, not
-    // just the hand-written query path. See crate::http::execute_retrying.
-    let resp =
-        crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
-
-    let status = resp.status();
-    crate::http_log::log_response_status(status);
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
-
-    if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        crate::http_log::log_response_body(&content);
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::IndexInfoResponse`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::IndexInfoResponse`")))),
-        }
-    } else {
-        let content = resp.text().await?;
-        crate::http_log::log_response_body(&content);
-        let entity: Option<CreateDatasetIndexError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent {
-            status,
-            content,
-            entity,
-        }))
-    }
 }
 
 /// Create a sorted or BM25 full-text index on a cached table.
@@ -235,74 +129,6 @@ pub async fn create_index(
     }
 }
 
-/// Delete a specific index from a dataset.
-pub async fn delete_dataset_index(
-    configuration: &configuration::Configuration,
-    dataset_id: &str,
-    index_name: &str,
-) -> Result<(), Error<DeleteDatasetIndexError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_path_dataset_id = dataset_id;
-    let p_path_index_name = index_name;
-
-    let uri_str = format!(
-        "{}/v1/datasets/{dataset_id}/indexes/{index_name}",
-        configuration.base_path,
-        dataset_id = crate::apis::urlencode(p_path_dataset_id),
-        index_name = crate::apis::urlencode(p_path_index_name)
-    );
-    let mut req_builder = configuration
-        .client
-        .request(reqwest::Method::DELETE, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
-        let key = apikey.key.clone();
-        let value = match apikey.prefix {
-            Some(ref prefix) => format!("{} {}", prefix, key),
-            None => key,
-        };
-        req_builder = req_builder.header("X-Workspace-Id", value);
-    };
-    if let Some(apikey) = configuration.api_keys.get("X-Session-Id") {
-        let key = apikey.key.clone();
-        let value = match apikey.prefix {
-            Some(ref prefix) => format!("{} {}", prefix, key),
-            None => key,
-        };
-        req_builder = req_builder.header("X-Session-Id", value);
-    };
-    if let Some(token) = configuration.resolve_bearer_token().await {
-        req_builder = req_builder.bearer_auth(token);
-    };
-
-    let req = req_builder.build()?;
-    crate::http_log::log_request(&req);
-    // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
-    // shedding) is retried per `configuration.retry` on every generated op, not
-    // just the hand-written query path. See crate::http::execute_retrying.
-    let resp =
-        crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
-
-    let status = resp.status();
-    crate::http_log::log_response_status(status);
-
-    if !status.is_client_error() && !status.is_server_error() {
-        Ok(())
-    } else {
-        let content = resp.text().await?;
-        crate::http_log::log_response_body(&content);
-        let entity: Option<DeleteDatasetIndexError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent {
-            status,
-            content,
-            entity,
-        }))
-    }
-}
-
 /// Delete a specific index from a cached table.
 pub async fn delete_index(
     configuration: &configuration::Configuration,
@@ -361,81 +187,6 @@ pub async fn delete_index(
         let content = resp.text().await?;
         crate::http_log::log_response_body(&content);
         let entity: Option<DeleteIndexError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent {
-            status,
-            content,
-            entity,
-        }))
-    }
-}
-
-/// List all indexes created on a dataset.
-pub async fn list_dataset_indexes(
-    configuration: &configuration::Configuration,
-    dataset_id: &str,
-) -> Result<models::ListIndexesResponse, Error<ListDatasetIndexesError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_path_dataset_id = dataset_id;
-
-    let uri_str = format!(
-        "{}/v1/datasets/{dataset_id}/indexes",
-        configuration.base_path,
-        dataset_id = crate::apis::urlencode(p_path_dataset_id)
-    );
-    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
-        let key = apikey.key.clone();
-        let value = match apikey.prefix {
-            Some(ref prefix) => format!("{} {}", prefix, key),
-            None => key,
-        };
-        req_builder = req_builder.header("X-Workspace-Id", value);
-    };
-    if let Some(apikey) = configuration.api_keys.get("X-Session-Id") {
-        let key = apikey.key.clone();
-        let value = match apikey.prefix {
-            Some(ref prefix) => format!("{} {}", prefix, key),
-            None => key,
-        };
-        req_builder = req_builder.header("X-Session-Id", value);
-    };
-    if let Some(token) = configuration.resolve_bearer_token().await {
-        req_builder = req_builder.bearer_auth(token);
-    };
-
-    let req = req_builder.build()?;
-    crate::http_log::log_request(&req);
-    // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
-    // shedding) is retried per `configuration.retry` on every generated op, not
-    // just the hand-written query path. See crate::http::execute_retrying.
-    let resp =
-        crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
-
-    let status = resp.status();
-    crate::http_log::log_response_status(status);
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
-
-    if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        crate::http_log::log_response_body(&content);
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ListIndexesResponse`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ListIndexesResponse`")))),
-        }
-    } else {
-        let content = resp.text().await?;
-        crate::http_log::log_response_body(&content);
-        let entity: Option<ListDatasetIndexesError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
