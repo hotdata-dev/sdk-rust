@@ -207,98 +207,11 @@ pub(crate) fn retry_after_secs(value: &str) -> Option<Duration> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    use crate::test_support::reset_then_ok_server;
     use serde_json::json;
-    #[cfg(unix)]
-    use std::io::{Read, Write};
-    #[cfg(unix)]
-    use std::net::TcpListener;
-    #[cfg(unix)]
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    #[cfg(unix)]
-    use std::sync::Arc;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    /// Force a TCP RST on close by setting `SO_LINGER` to 0. `std`'s
-    /// `TcpStream::set_linger` is still unstable, so go through `setsockopt`
-    /// directly (test-only, `unix`-only). A reset, not a graceful FIN, is the
-    /// stale keep-alive symptom #63 targets (hyper surfaces it as a
-    /// `ConnectionReset` `io::Error`, distinct from an `IncompleteMessage`).
-    #[cfg(unix)]
-    fn force_rst_on_close(fd: i32) {
-        #[repr(C)]
-        struct Linger {
-            l_onoff: i32,
-            l_linger: i32,
-        }
-        extern "C" {
-            fn setsockopt(
-                s: i32,
-                level: i32,
-                name: i32,
-                val: *const core::ffi::c_void,
-                len: u32,
-            ) -> i32;
-        }
-        #[cfg(target_os = "linux")]
-        let (sol_socket, so_linger) = (1i32, 13i32);
-        #[cfg(not(target_os = "linux"))]
-        let (sol_socket, so_linger) = (0xffffi32, 0x0080i32); // macOS / BSD
-        let l = Linger {
-            l_onoff: 1,
-            l_linger: 0,
-        };
-        unsafe {
-            setsockopt(
-                fd,
-                sol_socket,
-                so_linger,
-                &l as *const _ as *const core::ffi::c_void,
-                std::mem::size_of::<Linger>() as u32,
-            );
-        }
-    }
-
-    /// Spawn a bare TCP server that resets the first `reset_count` connections
-    /// before any response (forcing a `ConnectionReset` via `SO_LINGER` 0 — the
-    /// stale keep-alive symptom from #63), then answers `200 OK` with a tiny
-    /// JSON body. Returns the base URL and a counter of accepted connections so
-    /// a test can assert how many attempts reached the wire.
-    #[cfg(unix)]
-    fn reset_then_ok_server(reset_count: usize) -> (String, Arc<AtomicUsize>) {
-        use std::os::unix::io::AsRawFd;
-        let listener = TcpListener::bind("127.0.0.1:0").expect("bind ephemeral port");
-        let addr = listener.local_addr().expect("local addr");
-        let conns = Arc::new(AtomicUsize::new(0));
-        let counter = Arc::clone(&conns);
-        std::thread::spawn(move || {
-            let mut i = 0usize;
-            for stream in listener.incoming() {
-                let Ok(mut s) = stream else { continue };
-                counter.fetch_add(1, Ordering::SeqCst);
-                // Drain the client's request bytes so it finishes writing before
-                // we act (otherwise the RST can race the request send).
-                let mut buf = [0u8; 4096];
-                let _ = s.read(&mut buf);
-                if i < reset_count {
-                    force_rst_on_close(s.as_raw_fd());
-                    drop(s);
-                } else {
-                    let body = br#"{"ok":true}"#;
-                    let head = format!(
-                        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\n\
-                         content-length: {}\r\nconnection: close\r\n\r\n",
-                        body.len()
-                    );
-                    let _ = s.write_all(head.as_bytes());
-                    let _ = s.write_all(body);
-                    let _ = s.flush();
-                }
-                i += 1;
-            }
-        });
-        (format!("http://{addr}"), conns)
-    }
 
     /// A fast, deterministic retry policy: tiny backoffs, no jitter.
     fn fast_retry(max_retries: u32) -> RetryPolicy {
@@ -416,10 +329,11 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn retries_pre_response_reset_then_succeeds() {
+        use std::sync::atomic::Ordering;
         // First connection is reset before any response (stale keep-alive
         // symptom); the retry on a fresh connection gets a 200. A POST must be
         // retried here — the request never reached the server.
-        let (base, conns) = reset_then_ok_server(1);
+        let (base, conns) = reset_then_ok_server(1, r#"{"ok":true}"#.to_owned());
         let client = reqwest::Client::new();
         let req = client
             .post(format!("{base}/thing"))
@@ -437,9 +351,10 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn pre_response_reset_propagates_after_max_retries() {
+        use std::sync::atomic::Ordering;
         // Every connection is reset: retries are exhausted and the transport
         // error propagates (no new error type, mirroring the 429 path).
-        let (base, conns) = reset_then_ok_server(usize::MAX);
+        let (base, conns) = reset_then_ok_server(usize::MAX, r#"{"ok":true}"#.to_owned());
         let client = reqwest::Client::new();
         let req = client
             .post(format!("{base}/thing"))
