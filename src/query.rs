@@ -58,11 +58,11 @@ use reqwest::StatusCode;
 use serde_json::Value;
 
 use crate::apis::configuration::Configuration;
-use crate::http::{backoff_delay, parse_retry_after};
 use crate::apis::query_api::QueryError as GeneratedQueryError;
 use crate::apis::results_api::GetResultError;
 use crate::apis::{query_runs_api, results_api, Error, ResponseContent};
 use crate::client::{SESSION_ID_HEADER, WORKSPACE_ID_HEADER};
+use crate::http::{backoff_delay, is_pre_response_transport_error, parse_retry_after};
 use crate::models::{AsyncQueryResponse, QueryRequest, QueryResponse, ResultsFormatQuery};
 use crate::status::ResultStatus;
 
@@ -499,8 +499,9 @@ pub(crate) async fn execute_query(
     }
 }
 
-/// Submit the query, retrying HTTP 429 per `retry` until success, the retry
-/// count is exhausted, or the deadline budget would be exceeded.
+/// Submit the query, retrying HTTP 429 (and pre-response connection resets) per
+/// `retry` until success, the retry count is exhausted, or the deadline budget
+/// would be exceeded.
 async fn submit_with_retry(
     config: &Configuration,
     request: &QueryRequest,
@@ -511,9 +512,23 @@ async fn submit_with_retry(
     let mut attempt: u32 = 0;
     loop {
         attempt += 1;
-        let raw = send_query(config, request, x_database_id)
-            .await
-            .map_err(QueryError::Submit)?;
+        let raw = match send_query(config, request, x_database_id).await {
+            Ok(raw) => raw,
+            // A pre-response connection error (e.g. a stale keep-alive socket
+            // reset before this POST reached the server) is safe to retry on the
+            // same budget as a 429: the server did no work, so the retry can't
+            // double-execute. Any other submission error propagates unchanged.
+            Err(e) => {
+                if attempt <= retry.max_retries && is_retryable_submit_error(&e) {
+                    let delay = backoff_delay(retry, attempt, None);
+                    if start.elapsed() + delay <= retry.deadline {
+                        tokio::time::sleep(delay).await;
+                        continue;
+                    }
+                }
+                return Err(QueryError::Submit(e));
+            }
+        };
 
         if raw.status != HTTP_TOO_MANY_REQUESTS {
             return interpret_response(raw);
@@ -564,6 +579,15 @@ fn overloaded(attempts: u32, raw: RawResponse) -> QueryError {
             entity,
         })),
     }
+}
+
+/// Is a failed submission a pre-response connection error (stale keep-alive
+/// reset before the request reached the server)? Only transport (`Reqwest`)
+/// errors so classified are retried; a body/decode failure on this path is read
+/// from `resp.text()` after a status arrived and is excluded by
+/// [`is_pre_response_transport_error`].
+fn is_retryable_submit_error(err: &Error<GeneratedQueryError>) -> bool {
+    matches!(err, Error::Reqwest(e) if is_pre_response_transport_error(e))
 }
 
 /// Build and send one `POST /v1/query`, returning the status, parsed
@@ -895,6 +919,8 @@ mod tests {
     use super::*;
     use crate::apis::configuration::ApiKey;
     use crate::client::Client;
+    #[cfg(unix)]
+    use crate::test_support::reset_then_ok_server;
     use serde_json::json;
     use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -983,6 +1009,25 @@ mod tests {
         let resp = client.query(req()).await.expect("query should succeed");
         assert_eq!(resp.query_run_id, "qrun1");
         assert!(!resp.truncated);
+    }
+
+    /// A POST query whose pooled connection is reset before the request reaches
+    /// the server must be retried transparently and then succeed — the server
+    /// did no work, so the retry can't double-execute (#63).
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn query_retries_pre_response_reset_then_succeeds() {
+        use std::sync::atomic::Ordering;
+        let body = preview_json(false, Some("rslt1"), None).to_string();
+        let (base, conns) = reset_then_ok_server(1, body);
+        let client = test_client(&base, fast_config());
+        let resp = client
+            .query(req())
+            .await
+            .expect("pre-response reset on POST /v1/query should be retried, then succeed");
+        assert_eq!(resp.query_run_id, "qrun1");
+        // 1 reset + 1 success = 2 connections reached the wire.
+        assert_eq!(conns.load(Ordering::SeqCst), 2);
     }
 
     #[tokio::test]
@@ -1561,9 +1606,11 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/v1/query"))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(preview_json(true, Some("rslt1"), Some(3))),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(preview_json(
+                true,
+                Some("rslt1"),
+                Some(3),
+            )))
             .mount(&server)
             .await;
         // No results endpoint mounted: query_preview must not touch it.

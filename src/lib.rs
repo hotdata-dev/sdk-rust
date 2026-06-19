@@ -28,6 +28,9 @@ pub mod query;
 pub mod resources;
 pub mod status;
 
+#[cfg(all(test, unix))]
+mod test_support;
+
 pub use apis::configuration::{ApiKey, BasicAuth, Configuration};
 pub use apis::Error;
 #[cfg(feature = "arrow")]
