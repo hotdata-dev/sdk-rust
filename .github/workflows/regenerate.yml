@@ -146,7 +146,8 @@ jobs:
       - name: Format generated code
         run: |
           # Derive the edition from Cargo.toml so it can't drift from the crate
-          # if the edition is ever bumped (same source as the version bump above).
+          # if the edition is ever bumped (same `cargo metadata` source as the
+          # version read above).
           edition=$(cargo metadata --no-deps --format-version 1 \
             | jq -r '.packages[] | select(.name=="hotdata") | .edition')
           find src/apis src/models -name '*.rs' -print0 \
