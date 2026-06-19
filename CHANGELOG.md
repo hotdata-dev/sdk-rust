@@ -7,9 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
 
-- chore: remove datasets API and related job types
+## [0.4.0] - 2026-06-19
+
+### Removed
+
+- **Breaking:** the datasets API and all related types, following their removal
+  from the Hotdata OpenAPI spec. This drops the `datasets_api` module and the
+  `client.datasets()` resource handle; every dataset model
+  (`CreateDatasetRequest`/`CreateDatasetResponse`, `GetDatasetResponse`,
+  `UpdateDatasetRequest`/`UpdateDatasetResponse`, `ListDatasetsResponse`,
+  `ListDatasetVersionsResponse`, `RefreshDatasetResponse`, `DatasetSummary`,
+  `DatasetVersionSummary`, `DatasetSource` and its `*OneOf*` variants,
+  `InlineDatasetSource`, `SavedQueryDatasetSource`, `SqlQueryDatasetSource`,
+  `UploadDatasetSource`, `UrlDatasetSource`, `InlineData`, `ColumnTypeSpec`);
+  and the dataset-related `JobType` variants (`DatasetRefresh`,
+  `CreateDatasetIndex`).
 
 ### Fixed
 
@@ -21,7 +34,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hand-written `Client::query` / `Client::submit_query` paths, governed by the
   same `RetryPolicy` budget as 429. Response-phase transport errors are left
   un-retried so a non-idempotent `POST` can't double-execute (#63).
-
 
 ## [0.3.2] - 2026-06-18
 
