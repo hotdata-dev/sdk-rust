@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 /// CreateDatabaseRequest : Request body for POST /databases
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CreateDatabaseRequest {
-    /// Optional name the database's auto-created default catalog answers to inside its query scope. Must be a valid SQL identifier (`[a-z0-9_]`, not starting with a digit) and may not collide with the system catalogs `hotdata`, `datasets`, or `information_schema`. Defaults to `default` when omitted, so `default.main.<table>` keeps working.
+    /// Optional name the database's auto-created default catalog answers to inside its query scope. Must be a valid SQL identifier (`[a-z0-9_]`, not starting with a digit) and may not collide with the reserved catalog names `hotdata`, `datasets`, or `information_schema`. Defaults to `default` when omitted, so `default.main.<table>` keeps working.
     #[serde(
         rename = "default_catalog",
         default,

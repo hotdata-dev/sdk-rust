@@ -4,7 +4,7 @@
 //! (`hotdata::prelude::*`). It:
 //!
 //!   1. builds a [`Client`] from an API token + workspace id,
-//!   2. lists workspaces and datasets via grouped resource handles,
+//!   2. lists workspaces and connections via grouped resource handles,
 //!   3. submits a SQL query and awaits the persisted result with one call,
 //!   4. fetches that result as Arrow record batches (behind the `arrow` feature),
 //!   5. shows the one-call `query_to_arrow` shortcut.
@@ -81,13 +81,13 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         println!("  - {} ({})", ws.name, ws.public_id);
     }
 
-    let datasets = client.datasets().list(Some(5), None).await?;
+    let connections = client.connections().list().await?;
     println!(
-        "First {} dataset(s) in this workspace:",
-        datasets.datasets.len()
+        "Connections in this workspace ({}):",
+        connections.connections.len()
     );
-    for ds in &datasets.datasets {
-        println!("  - {} ({})", ds.label, ds.id);
+    for conn in &connections.connections {
+        println!("  - {} ({})", conn.name, conn.id);
     }
 
     // --- 3. Submit a query -----------------------------------------------

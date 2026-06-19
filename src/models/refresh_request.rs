@@ -26,13 +26,6 @@ pub struct RefreshRequest {
     pub connection_id: Option<Option<String>>,
     #[serde(rename = "data", skip_serializing_if = "Option::is_none")]
     pub data: Option<bool>,
-    #[serde(
-        rename = "dataset_id",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub dataset_id: Option<Option<String>>,
     /// Controls whether uncached tables are included in connection-wide data refresh.  - `false` (default): Only refresh tables that already have cached data.   This is the common case for keeping existing data up-to-date. - `true`: Also sync tables that haven't been cached yet, essentially performing   an initial sync for any new tables discovered since the connection was created.  This field only applies to connection-wide data refresh (when `data=true` and `table_name` is not specified). It has no effect on single-table refresh or schema refresh operations.
     #[serde(rename = "include_uncached", skip_serializing_if = "Option::is_none")]
     pub include_uncached: Option<bool>,
@@ -59,7 +52,6 @@ impl RefreshRequest {
             r#async: None,
             connection_id: None,
             data: None,
-            dataset_id: None,
             include_uncached: None,
             schema_name: None,
             table_name: None,

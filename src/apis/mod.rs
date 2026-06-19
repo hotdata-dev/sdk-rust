@@ -117,7 +117,6 @@ pub mod connection_types_api;
 pub mod connections_api;
 pub mod database_context_api;
 pub mod databases_api;
-pub mod datasets_api;
 pub mod embedding_providers_api;
 pub mod indexes_api;
 pub mod information_schema_api;
@@ -129,6 +128,7 @@ pub mod results_api;
 pub mod saved_queries_api;
 pub mod secrets_api;
 pub mod uploads_api;
+pub mod usage_api;
 pub mod workspaces_api;
 
 pub mod configuration;

@@ -1,7 +1,7 @@
 //! Ergonomic constructors for nullable, optional request fields.
 //!
 //! Several generated request models (e.g.
-//! [`UpdateDatasetRequest`](crate::models::UpdateDatasetRequest)) represent a
+//! [`UpdateSavedQueryRequest`](crate::models::UpdateSavedQueryRequest)) represent a
 //! field that is *both* optional (may be omitted from the request) *and*
 //! nullable (may be sent as JSON `null`) as a double option
 //! `Option<Option<T>>`, serialized with serde's `double_option`:
@@ -18,12 +18,12 @@
 //!
 //! ```
 //! use hotdata::field;
-//! use hotdata::models::UpdateDatasetRequest;
+//! use hotdata::models::UpdateSavedQueryRequest;
 //!
-//! let mut req = UpdateDatasetRequest::new();
-//! req.label = field::set("renamed");   // set label to "renamed"
-//! req.pinned_version = field::clear();  // unpin (send null)
-//! // req.table_name stays `None` -> omitted -> unchanged
+//! let mut req = UpdateSavedQueryRequest::new();
+//! req.name = field::set("renamed");      // set name to "renamed"
+//! req.description = field::clear();      // clear description (send null)
+//! // req.sql stays `None` -> omitted -> unchanged
 //! ```
 //!
 //! This module is hand-written and regeneration-immune (it never touches the

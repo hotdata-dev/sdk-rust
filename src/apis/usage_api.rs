@@ -13,28 +13,27 @@ use crate::{apis::ResponseContent, models};
 use reqwest;
 use serde::{de::Error as _, Deserialize, Serialize};
 
-/// struct for typed errors of method [`refresh`]
+/// struct for typed errors of method [`get_usage`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum RefreshError {
-    Status400(models::ApiErrorResponse),
-    Status404(models::ApiErrorResponse),
+pub enum GetUsageError {
     UnknownValue(serde_json::Value),
 }
 
-/// Refresh schema metadata or table data. The behavior depends on the request fields:  - **Schema refresh (all)**: omit all fields — re-discovers tables for every connection. - **Schema refresh (single)**: set `connection_id` — re-discovers tables for one connection. - **Data refresh (single table)**: set `connection_id`, `schema_name`, `table_name`, and `data: true`. - **Data refresh (connection)**: set `connection_id` and `data: true` — refreshes all cached tables. Set `include_uncached: true` to also sync tables that haven't been cached yet.  Set `async: true` on data refresh operations to run in the background and return a job ID for polling.
-pub async fn refresh(
+/// Return aggregated bytes scanned and current storage size for a billing period. Pass `since` as the subscription's `current_period_start` so the meter value aligns with the Stripe invoice window rather than the calendar month.
+pub async fn get_usage(
     configuration: &configuration::Configuration,
-    refresh_request: models::RefreshRequest,
-) -> Result<models::RefreshResponse, Error<RefreshError>> {
+    since: Option<&str>,
+) -> Result<models::WorkspaceUsageResponse, Error<GetUsageError>> {
     // add a prefix to parameters to efficiently prevent name collisions
-    let p_body_refresh_request = refresh_request;
+    let p_query_since = since;
 
-    let uri_str = format!("{}/v1/refresh", configuration.base_path);
-    let mut req_builder = configuration
-        .client
-        .request(reqwest::Method::POST, &uri_str);
+    let uri_str = format!("{}/v1/usage", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
+    if let Some(ref param_value) = p_query_since {
+        req_builder = req_builder.query(&[("since", &param_value.to_string())]);
+    }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
@@ -49,7 +48,6 @@ pub async fn refresh(
     if let Some(token) = configuration.resolve_bearer_token().await {
         req_builder = req_builder.bearer_auth(token);
     };
-    req_builder = req_builder.json(&p_body_refresh_request);
 
     let req = req_builder.build()?;
     crate::http_log::log_request(&req);
@@ -73,13 +71,13 @@ pub async fn refresh(
         crate::http_log::log_response_body(&content);
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::RefreshResponse`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::RefreshResponse`")))),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::WorkspaceUsageResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::WorkspaceUsageResponse`")))),
         }
     } else {
         let content = resp.text().await?;
         crate::http_log::log_response_body(&content);
-        let entity: Option<RefreshError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetUsageError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

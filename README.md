@@ -1,6 +1,6 @@
 # hotdata
 
-Official Rust client for the [Hotdata](https://www.hotdata.dev) HTTP API: workspaces, connections, datasets, SQL queries, results, secrets, uploads, indexes, jobs, embedding providers, and workspace context.
+Official Rust client for the [Hotdata](https://www.hotdata.dev) HTTP API: workspaces, connections, databases, SQL queries, results, secrets, uploads, indexes, jobs, embedding providers, and workspace context.
 
 The crate pairs a fully generated, typed API surface (`hotdata::apis`, `hotdata::models`) with a hand-written ergonomic layer: a flat [`Client`](#quickstart) that handles transparent API-token to JWT exchange, plus an optional Apache Arrow result decoder.
 
@@ -88,13 +88,13 @@ ergonomic, workspace-scoped handles so you never pass a `Configuration` around:
 
 ```rust
 // Grouped handles: client.<resource>().<operation>(..)
-let datasets = client.datasets().list(Some(20), None).await?;
-let dataset  = client.datasets().get(&datasets.datasets[0].id).await?;
+let connections = client.connections().list().await?;
+let connection  = client.connections().get(&connections.connections[0].id).await?;
 let secrets  = client.secrets().list().await?;
 let runs     = client.query_runs().list(Some(50), None, None, None).await?;
 ```
 
-Handles exist for every resource — `datasets`, `connections`, `connection_types`,
+Handles exist for every resource — `connections`, `connection_types`,
 `databases`, `database_context`, `embedding_providers`, `indexes`,
 `information_schema`, `jobs`, `queries`, `query_runs`, `results`, `refresh`,
 `saved_queries`, `secrets`, `uploads`, `workspaces`. The hottest
@@ -142,11 +142,11 @@ intents so call sites read clearly:
 ```rust
 use hotdata::field;
 
-let mut req = UpdateDatasetRequest::new();
-req.label = field::set("renamed");    // set
-req.pinned_version = field::clear();  // send null (unpin)
-// req.table_name left as None -> omitted -> unchanged
-client.datasets().update(&dataset.id, req).await?;
+let mut req = UpdateSavedQueryRequest::new();
+req.name = field::set("renamed");       // set
+req.description = field::clear();        // send null (clear)
+// req.sql left as None -> omitted -> unchanged
+client.saved_queries().update(&saved_query_id, req).await?;
 ```
 
 Every resource lives under `hotdata::apis::<resource>_api`, and request/response

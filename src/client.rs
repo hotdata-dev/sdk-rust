@@ -311,7 +311,7 @@ impl Client {
 
     /// Borrow the underlying [`Configuration`] so any generated API free
     /// function can be called directly, e.g.
-    /// `hotdata::apis::datasets_api::list_datasets(client.configuration(), ..)`.
+    /// `hotdata::apis::connections_api::list_connections(client.configuration(), ..)`.
     pub fn configuration(&self) -> &Configuration {
         &self.configuration
     }
@@ -718,14 +718,9 @@ impl Client {
     // --- Resource handles -----------------------------------------------------
     //
     // Grouped, ergonomic accessors over the generated `apis::*_api` free
-    // functions so callers write `client.datasets().create(req)` instead of
-    // `datasets_api::create_dataset(client.configuration(), req, ..)`. Each
+    // functions so callers write `client.connections().list()` instead of
+    // `connections_api::list_connections(client.configuration())`. Each
     // handle borrows the `Configuration`; see `crate::resources`.
-
-    /// Datasets resource handle.
-    pub fn datasets(&self) -> crate::resources::DatasetsApi<'_> {
-        crate::resources::DatasetsApi::new(&self.configuration)
-    }
 
     /// Connections resource handle.
     pub fn connections(&self) -> crate::resources::ConnectionsApi<'_> {
@@ -783,7 +778,7 @@ impl Client {
         crate::resources::ResultsApi::new(&self.configuration)
     }
 
-    /// Dataset-refresh resource handle.
+    /// Refresh resource handle.
     pub fn refresh(&self) -> crate::resources::RefreshApi<'_> {
         crate::resources::RefreshApi::new(&self.configuration)
     }

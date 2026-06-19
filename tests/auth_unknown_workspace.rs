@@ -6,7 +6,7 @@
 
 mod common;
 
-use hotdata::apis::datasets_api;
+use hotdata::apis::connections_api;
 use hotdata::Client;
 
 #[tokio::test]
@@ -31,7 +31,7 @@ async fn auth_unknown_workspace() {
         .build()
         .expect("Client::build should succeed");
 
-    let result = datasets_api::list_datasets(client.configuration(), None, None).await;
+    let result = connections_api::list_connections(client.configuration()).await;
     match result {
         Err(err) => {
             let status = common::status_of(&err);
@@ -41,7 +41,7 @@ async fn auth_unknown_workspace() {
             );
         }
         Ok(_) => panic!(
-            "list_datasets with fabricated workspace {fake_workspace} must not succeed \
+            "list_connections with fabricated workspace {fake_workspace} must not succeed \
              (potential cross-workspace leak)"
         ),
     }
