@@ -7,9 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
+### Removed
 
-- chore: remove datasets API and related job types
+- **Breaking:** the datasets API and all related types, following their removal
+  from the Hotdata OpenAPI spec. This drops the `datasets_api` module and the
+  `client.datasets()` resource handle; every dataset model
+  (`CreateDatasetRequest`/`CreateDatasetResponse`, `GetDatasetResponse`,
+  `UpdateDatasetRequest`/`UpdateDatasetResponse`, `ListDatasetsResponse`,
+  `ListDatasetVersionsResponse`, `RefreshDatasetResponse`, `DatasetSummary`,
+  `DatasetVersionSummary`, `DatasetSource` and its `*OneOf*` variants,
+  `InlineDatasetSource`, `SavedQueryDatasetSource`, `SqlQueryDatasetSource`,
+  `UploadDatasetSource`, `UrlDatasetSource`, `InlineData`, `ColumnTypeSpec`);
+  and the dataset-related `JobType` variants (`DatasetRefresh`,
+  `CreateDatasetIndex`).
 
 ### Fixed
 
