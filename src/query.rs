@@ -58,11 +58,11 @@ use reqwest::StatusCode;
 use serde_json::Value;
 
 use crate::apis::configuration::Configuration;
-use crate::http::{backoff_delay, parse_retry_after};
 use crate::apis::query_api::QueryError as GeneratedQueryError;
 use crate::apis::results_api::GetResultError;
 use crate::apis::{query_runs_api, results_api, Error, ResponseContent};
 use crate::client::{SESSION_ID_HEADER, WORKSPACE_ID_HEADER};
+use crate::http::{backoff_delay, is_pre_response_transport_error, parse_retry_after};
 use crate::models::{AsyncQueryResponse, QueryRequest, QueryResponse, ResultsFormatQuery};
 use crate::status::ResultStatus;
 
@@ -499,8 +499,9 @@ pub(crate) async fn execute_query(
     }
 }
 
-/// Submit the query, retrying HTTP 429 per `retry` until success, the retry
-/// count is exhausted, or the deadline budget would be exceeded.
+/// Submit the query, retrying HTTP 429 (and pre-response connection resets) per
+/// `retry` until success, the retry count is exhausted, or the deadline budget
+/// would be exceeded.
 async fn submit_with_retry(
     config: &Configuration,
     request: &QueryRequest,
@@ -511,9 +512,23 @@ async fn submit_with_retry(
     let mut attempt: u32 = 0;
     loop {
         attempt += 1;
-        let raw = send_query(config, request, x_database_id)
-            .await
-            .map_err(QueryError::Submit)?;
+        let raw = match send_query(config, request, x_database_id).await {
+            Ok(raw) => raw,
+            // A pre-response connection error (e.g. a stale keep-alive socket
+            // reset before this POST reached the server) is safe to retry on the
+            // same budget as a 429: the server did no work, so the retry can't
+            // double-execute. Any other submission error propagates unchanged.
+            Err(e) => {
+                if attempt <= retry.max_retries && is_retryable_submit_error(&e) {
+                    let delay = backoff_delay(retry, attempt, None);
+                    if start.elapsed() + delay <= retry.deadline {
+                        tokio::time::sleep(delay).await;
+                        continue;
+                    }
+                }
+                return Err(QueryError::Submit(e));
+            }
+        };
 
         if raw.status != HTTP_TOO_MANY_REQUESTS {
             return interpret_response(raw);
@@ -564,6 +579,15 @@ fn overloaded(attempts: u32, raw: RawResponse) -> QueryError {
             entity,
         })),
     }
+}
+
+/// Is a failed submission a pre-response connection error (stale keep-alive
+/// reset before the request reached the server)? Only transport (`Reqwest`)
+/// errors so classified are retried; a body/decode failure on this path is read
+/// from `resp.text()` after a status arrived and is excluded by
+/// [`is_pre_response_transport_error`].
+fn is_retryable_submit_error(err: &Error<GeneratedQueryError>) -> bool {
+    matches!(err, Error::Reqwest(e) if is_pre_response_transport_error(e))
 }
 
 /// Build and send one `POST /v1/query`, returning the status, parsed
@@ -983,6 +1007,105 @@ mod tests {
         let resp = client.query(req()).await.expect("query should succeed");
         assert_eq!(resp.query_run_id, "qrun1");
         assert!(!resp.truncated);
+    }
+
+    /// Spawn a bare TCP server that resets the first `reset_count` connections
+    /// with a TCP RST before any response (the stale keep-alive symptom from
+    /// #63), then replies `200 OK` with `body`. Returns the base URL and a
+    /// counter of accepted connections. `unix`-only (forces RST via `SO_LINGER`
+    /// 0 through `setsockopt`, as `std::net::TcpStream::set_linger` is unstable).
+    #[cfg(unix)]
+    fn reset_then_ok_server(
+        reset_count: usize,
+        body: String,
+    ) -> (String, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+        use std::io::{Read, Write};
+        use std::net::TcpListener;
+        use std::os::unix::io::AsRawFd;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+
+        #[repr(C)]
+        struct Linger {
+            l_onoff: i32,
+            l_linger: i32,
+        }
+        extern "C" {
+            fn setsockopt(
+                s: i32,
+                level: i32,
+                name: i32,
+                val: *const core::ffi::c_void,
+                len: u32,
+            ) -> i32;
+        }
+        fn force_rst(fd: i32) {
+            #[cfg(target_os = "linux")]
+            let (sol_socket, so_linger) = (1i32, 13i32);
+            #[cfg(not(target_os = "linux"))]
+            let (sol_socket, so_linger) = (0xffffi32, 0x0080i32); // macOS / BSD
+            let l = Linger {
+                l_onoff: 1,
+                l_linger: 0,
+            };
+            unsafe {
+                setsockopt(
+                    fd,
+                    sol_socket,
+                    so_linger,
+                    &l as *const _ as *const core::ffi::c_void,
+                    std::mem::size_of::<Linger>() as u32,
+                );
+            }
+        }
+
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind ephemeral port");
+        let addr = listener.local_addr().expect("local addr");
+        let conns = Arc::new(AtomicUsize::new(0));
+        let counter = Arc::clone(&conns);
+        std::thread::spawn(move || {
+            let mut i = 0usize;
+            for stream in listener.incoming() {
+                let Ok(mut s) = stream else { continue };
+                counter.fetch_add(1, Ordering::SeqCst);
+                let mut buf = [0u8; 8192];
+                let _ = s.read(&mut buf);
+                if i < reset_count {
+                    force_rst(s.as_raw_fd());
+                    drop(s);
+                } else {
+                    let head = format!(
+                        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\n\
+                         content-length: {}\r\nconnection: close\r\n\r\n",
+                        body.len()
+                    );
+                    let _ = s.write_all(head.as_bytes());
+                    let _ = s.write_all(body.as_bytes());
+                    let _ = s.flush();
+                }
+                i += 1;
+            }
+        });
+        (format!("http://{addr}"), conns)
+    }
+
+    /// A POST query whose pooled connection is reset before the request reaches
+    /// the server must be retried transparently and then succeed — the server
+    /// did no work, so the retry can't double-execute (#63).
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn query_retries_pre_response_reset_then_succeeds() {
+        use std::sync::atomic::Ordering;
+        let body = preview_json(false, Some("rslt1"), None).to_string();
+        let (base, conns) = reset_then_ok_server(1, body);
+        let client = test_client(&base, fast_config());
+        let resp = client
+            .query(req())
+            .await
+            .expect("pre-response reset on POST /v1/query should be retried, then succeed");
+        assert_eq!(resp.query_run_id, "qrun1");
+        // 1 reset + 1 success = 2 connections reached the wire.
+        assert_eq!(conns.load(Ordering::SeqCst), 2);
     }
 
     #[tokio::test]
@@ -1561,9 +1684,11 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/v1/query"))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(preview_json(true, Some("rslt1"), Some(3))),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(preview_json(
+                true,
+                Some("rslt1"),
+                Some(3),
+            )))
             .mount(&server)
             .await;
         // No results endpoint mounted: query_preview must not touch it.

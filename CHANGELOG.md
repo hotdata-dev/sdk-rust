@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Pre-response connection errors are now retried transparently on **any** method,
+  including `POST`. A pooled keep-alive socket that an intermediary closed on its
+  idle timeout surfaces, on the next reuse, as a connection reset before the
+  request reaches the server; since the server did no work, the retry can't
+  double-execute. This covers every generated op (via `execute_retrying`) and the
+  hand-written `Client::query` / `Client::submit_query` paths, governed by the
+  same `RetryPolicy` budget as 429. Response-phase transport errors are left
+  un-retried so a non-idempotent `POST` can't double-execute (#63).
+
 
 ## [0.3.2] - 2026-06-18
 
