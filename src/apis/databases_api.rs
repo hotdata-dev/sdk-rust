@@ -84,6 +84,16 @@ pub enum ListDatabasesError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`load_database_table`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum LoadDatabaseTableError {
+    Status400(models::ApiErrorResponse),
+    Status404(models::ApiErrorResponse),
+    Status409(models::ApiErrorResponse),
+    UnknownValue(serde_json::Value),
+}
+
 /// Declare a new schema (and optionally its tables) on the database's auto-created default catalog after creation. The schema becomes reachable inside the database scope (e.g. `default.<schema>.<table>` and `information_schema.schemata`) without the caller addressing the internal default connection directly. Identifiers are normalized to lowercase.
 pub async fn add_database_schema(
     configuration: &configuration::Configuration,
@@ -590,6 +600,84 @@ pub async fn list_databases(
         let content = resp.text().await?;
         crate::http_log::log_response_body(&content);
         let entity: Option<ListDatabasesError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Publish a previously-uploaded file as the new contents of a table on the database's default catalog. The database-scoped equivalent of the connection-scoped managed-table load — addressed by `database_id`, so no `default_connection_id` is needed. CSV, JSON, and Parquet uploads are supported; the format is auto-detected or set via `format`. Only `mode = \"replace\"` is supported. Concurrent loads against the same upload return 409.
+pub async fn load_database_table(
+    configuration: &configuration::Configuration,
+    database_id: &str,
+    schema: &str,
+    table: &str,
+    load_managed_table_request: models::LoadManagedTableRequest,
+) -> Result<models::LoadManagedTableResponse, Error<LoadDatabaseTableError>> {
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_path_database_id = database_id;
+    let p_path_schema = schema;
+    let p_path_table = table;
+    let p_body_load_managed_table_request = load_managed_table_request;
+
+    let uri_str = format!(
+        "{}/v1/databases/{database_id}/schemas/{schema}/tables/{table}/loads",
+        configuration.base_path,
+        database_id = crate::apis::urlencode(p_path_database_id),
+        schema = crate::apis::urlencode(p_path_schema),
+        table = crate::apis::urlencode(p_path_table)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
+        let key = apikey.key.clone();
+        let value = match apikey.prefix {
+            Some(ref prefix) => format!("{} {}", prefix, key),
+            None => key,
+        };
+        req_builder = req_builder.header("X-Workspace-Id", value);
+    };
+    if let Some(token) = configuration.resolve_bearer_token().await {
+        req_builder = req_builder.bearer_auth(token);
+    };
+    req_builder = req_builder.json(&p_body_load_managed_table_request);
+
+    let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
+    // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
+    // shedding) is retried per `configuration.retry` on every generated op, not
+    // just the hand-written query path. See crate::http::execute_retrying.
+    let resp =
+        crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
+
+    let status = resp.status();
+    crate::http_log::log_response_status(status);
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::LoadManagedTableResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::LoadManagedTableResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        let entity: Option<LoadDatabaseTableError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

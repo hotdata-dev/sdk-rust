@@ -11,20 +11,32 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// LoadManagedTableRequest : Request body for `POST /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads`.  Publishes a previously-uploaded parquet file as the new contents of the named managed table. `mode` is fixed to `\"replace\"` today; the field is kept in the request body so future modes (e.g. append) are an additive change.
+/// LoadManagedTableRequest : Request body for `POST /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads`.  Publishes a previously-uploaded file as the new contents of the named managed table. CSV and JSON uploads are converted to columnar storage on load; Parquet uploads are published directly. `mode` is fixed to `\"replace\"` today; the field is kept in the request body so future modes (e.g. append) are an additive change.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LoadManagedTableRequest {
+    /// File format of the upload: `\"csv\"`, `\"json\"`, or `\"parquet\"`. Optional — when omitted, the format is auto-detected from the upload's `Content-Type` and, failing that, from the file contents. Provide it explicitly to override detection or when the contents are ambiguous. `\"json\"` expects newline-delimited JSON (one object per line), not a JSON array.
+    #[serde(
+        rename = "format",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub format: Option<Option<String>>,
     /// Load mode. Only `\"replace\"` is supported in this release.
     #[serde(rename = "mode")]
     pub mode: String,
-    /// ID of a previously-staged upload (see `POST /v1/files`). The upload must reference a parquet file. The upload is claimed atomically; concurrent loads against the same `upload_id` return 409.
+    /// ID of a previously-staged upload (see `POST /v1/files`). The upload is claimed atomically; concurrent loads against the same `upload_id` return 409.
     #[serde(rename = "upload_id")]
     pub upload_id: String,
 }
 
 impl LoadManagedTableRequest {
-    /// Request body for `POST /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads`.  Publishes a previously-uploaded parquet file as the new contents of the named managed table. `mode` is fixed to `\"replace\"` today; the field is kept in the request body so future modes (e.g. append) are an additive change.
+    /// Request body for `POST /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads`.  Publishes a previously-uploaded file as the new contents of the named managed table. CSV and JSON uploads are converted to columnar storage on load; Parquet uploads are published directly. `mode` is fixed to `\"replace\"` today; the field is kept in the request body so future modes (e.g. append) are an additive change.
     pub fn new(mode: String, upload_id: String) -> LoadManagedTableRequest {
-        LoadManagedTableRequest { mode, upload_id }
+        LoadManagedTableRequest {
+            format: None,
+            mode,
+            upload_id,
+        }
     }
 }
