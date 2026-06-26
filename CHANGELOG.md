@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Ergonomic presigned (direct-to-storage) file uploads: `Client::upload_file`
+  (and `client.uploads().upload_file`) open an upload session, `PUT` the bytes
+  straight to object storage — a single `PUT` for small files, bounded-
+  concurrency multipart `PUT`s sliced by the server's `part_size` for large
+  ones — then finalize, returning the `FinalizeUploadResponse`. Configurable via
+  `UploadOptions` (content type/encoding, filename, part-size hint, and an
+  `UploadProgress` callback). Never falls back to the legacy `POST /v1/files`
+  proxy; storage `PUT`s carry no SDK auth/scope headers. Multipart concurrency
+  is tunable via `UploadOptions::max_concurrency` (default 10), bounded by a
+  256 MiB peak-memory budget derived from the server's actual part size; when no
+  `part_size` is given, the SDK auto-scales the hint (8 MiB for normal files,
+  larger only past ~72 GiB to keep the part count under S3's 10,000-part limit).
+  Finalize is exactly-once (sent with retries disabled so an ambiguous failure
+  can't be retried into a spurious "already finalized" error); part `PUT`s stay
+  retryable. Storage `PUT`s use a dedicated header-bare reqwest client, so a host
+  app's default headers on the SDK's main client never leak to object storage.
+  The multipart session shape is validated (`part_urls` count must match the
+  file's part count) and pathological sizes (`> i64::MAX`) are rejected rather
+  than silently wrapped.
+
 ### Changed
 
 - feat(uploads): add file upload endpoints

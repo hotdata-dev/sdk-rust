@@ -703,7 +703,20 @@ impl<'a> UploadsApi<'a> {
         Self { config }
     }
 
-    /// Upload a file from a local path.
+    /// Upload a local file directly to object storage (presigned) and finalize
+    /// it. The primary upload path; returns the finalized upload (read
+    /// `upload_id` from it). See [`Client::upload_file`](crate::Client::upload_file)
+    /// for the full contract and [`UploadOptions`](crate::uploads::UploadOptions).
+    pub async fn upload_file(
+        &self,
+        path: impl AsRef<std::path::Path>,
+        opts: crate::uploads::UploadOptions,
+    ) -> Result<models::FinalizeUploadResponse, crate::uploads::UploadError> {
+        crate::uploads::upload_file(self.config, path.as_ref(), opts).await
+    }
+
+    /// Stream a file to the legacy raw-body `POST /v1/files` proxy. Prefer
+    /// [`upload_file`](Self::upload_file), the presigned direct-to-storage path.
     pub async fn upload(
         &self,
         body: std::path::PathBuf,
