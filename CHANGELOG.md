@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [0.5.0] - 2026-06-26
+
 ### Added
 
 - Ergonomic presigned (direct-to-storage) file uploads: `Client::upload_file`
@@ -28,10 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The multipart session shape is validated (`part_urls` count must match the
   file's part count) and pathological sizes (`> i64::MAX`) are rejected rather
   than silently wrapped.
-
-### Changed
-
-- feat(uploads): add file upload endpoints
+- Low-level file upload endpoints generated from the OpenAPI spec, including the
+  presigned upload-session and finalize operations that `upload_file` builds on.
 
 ## [0.4.0] - 2026-06-19
 
