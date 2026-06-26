@@ -1,10 +1,12 @@
 //! Presigned direct-to-storage upload tests.
 //!
-//! These stand up a single wiremock server that plays BOTH roles: the hotdata
-//! API (`POST /v1/uploads`, `POST /v1/uploads/{id}/finalize`) and the "object
-//! storage" endpoint the SDK `PUT`s bytes to (`/storage/...`). They are fully
-//! local and deterministic — no real backend, no credentials — so they run in
-//! CI without secrets.
+//! Most tests stand up a single wiremock server that plays BOTH roles: the
+//! hotdata API (`POST /v1/uploads`, `POST /v1/uploads/{id}/finalize`) and the
+//! "object storage" endpoint the SDK `PUT`s bytes to (`/storage/...`). The
+//! concurrency tests instead point `part_urls` at a bare raw-TCP storage server
+//! ([`concurrency_storage_server`]) that genuinely holds in-flight PUTs to
+//! measure real overlap. All are fully local and deterministic — no real
+//! backend, no credentials — so they run in CI without secrets.
 //!
 //! Coverage:
 //! * single-`PUT` happy path (bytes, header isolation, finalize token + empty
@@ -26,7 +28,7 @@ use std::time::Duration;
 use hotdata::apis::configuration::{ApiKey, Configuration};
 use hotdata::{Client, RetryPolicy, UploadError, UploadOptions};
 use wiremock::matchers::{method, path, path_regex};
-use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
+use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
 const WORKSPACE_HEADER: &str = "X-Workspace-Id";
 const SESSION_HEADER: &str = "X-Session-Id";
@@ -1166,43 +1168,105 @@ async fn server_content_type_is_replayed_on_storage_put() {
     );
 }
 
-/// A Respond impl that records the peak number of concurrent in-flight storage
-/// PUTs (requests that have entered the responder but, with the injected delay,
-/// not yet released). Because each part task only issues its PUT once the
-/// JoinSet admits it, entry-concurrency can never exceed the effective in-flight
-/// cap — so the recorded peak is an upper bound we can assert against.
-struct ConcurrencyTracker {
-    active: AtomicUsize,
-    peak: AtomicUsize,
-    delay: Duration,
+/// A bare blocking TCP server that plays "object storage" for part PUTs and
+/// GENUINELY measures concurrency: each connection is handled on its own thread,
+/// which reads the full request (headers + Content-Length body), bumps an active
+/// counter, HOLDS it for `hold` (so overlapping PUTs actually coexist), records
+/// the peak, then decrements and replies `200 OK` with an `ETag`. Because the
+/// in-flight count is held across the sleep — unlike wiremock's synchronous
+/// `Respond`, which can't span its own response delay — `peak` reflects true
+/// overlap and can be asserted to reach (not just stay under) the cap.
+///
+/// Returns `(base_url, peak, served)`. Mirrors the raw-TCP pattern in
+/// `src/test_support.rs`.
+fn concurrency_storage_server(hold: Duration) -> (String, Arc<AtomicUsize>, Arc<AtomicUsize>) {
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind ephemeral port");
+    let addr = listener.local_addr().expect("local addr");
+    let active = Arc::new(AtomicUsize::new(0));
+    let peak = Arc::new(AtomicUsize::new(0));
+    let served = Arc::new(AtomicUsize::new(0));
+    let (a, p, s) = (Arc::clone(&active), Arc::clone(&peak), Arc::clone(&served));
+
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(mut sock) = stream else { continue };
+            let (a, p, s, hold) = (Arc::clone(&a), Arc::clone(&p), Arc::clone(&s), hold);
+            std::thread::spawn(move || {
+                // Read until we have the full headers, then drain the body by its
+                // declared Content-Length so the client finishes writing before
+                // we respond.
+                let mut buf = Vec::new();
+                let mut tmp = [0u8; 4096];
+                let header_end = loop {
+                    match sock.read(&mut tmp) {
+                        Ok(0) => break None,
+                        Ok(n) => {
+                            buf.extend_from_slice(&tmp[..n]);
+                            if let Some(pos) = find_subslice(&buf, b"\r\n\r\n") {
+                                break Some(pos + 4);
+                            }
+                        }
+                        Err(_) => break None,
+                    }
+                };
+                if let Some(body_start) = header_end {
+                    let headers = String::from_utf8_lossy(&buf[..body_start]).to_lowercase();
+                    let content_len = headers
+                        .lines()
+                        .find_map(|l| l.strip_prefix("content-length:"))
+                        .and_then(|v| v.trim().parse::<usize>().ok())
+                        .unwrap_or(0);
+                    let mut have = buf.len() - body_start;
+                    while have < content_len {
+                        match sock.read(&mut tmp) {
+                            Ok(0) => break,
+                            Ok(n) => have += n,
+                            Err(_) => break,
+                        }
+                    }
+                }
+
+                // Now genuinely occupy an in-flight slot for the hold duration.
+                let now = a.fetch_add(1, Ordering::SeqCst) + 1;
+                p.fetch_max(now, Ordering::SeqCst);
+                std::thread::sleep(hold);
+                a.fetch_sub(1, Ordering::SeqCst);
+                s.fetch_add(1, Ordering::SeqCst);
+
+                let resp = "HTTP/1.1 200 OK\r\nETag: \"c\"\r\ncontent-length: 0\r\n\
+                            connection: close\r\n\r\n";
+                let _ = sock.write_all(resp.as_bytes());
+                let _ = sock.flush();
+            });
+        }
+    });
+
+    (format!("http://{addr}"), peak, served)
 }
 
-impl Respond for ConcurrencyTracker {
-    fn respond(&self, _req: &Request) -> ResponseTemplate {
-        let now = self.active.fetch_add(1, Ordering::SeqCst) + 1;
-        self.peak.fetch_max(now, Ordering::SeqCst);
-        // We cannot decrement after the delay from here, so model "in-flight"
-        // as entries during the delay window: the delay keeps responses pending
-        // long enough that all admitted tasks overlap, and admission is bounded
-        // by the cap. Decrement immediately is fine because peak is a max.
-        self.active.fetch_sub(1, Ordering::SeqCst);
-        ResponseTemplate::new(200)
-            .insert_header("ETag", "\"c\"")
-            .set_delay(self.delay)
-    }
+/// Find the first index of `needle` in `haystack`.
+fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack.windows(needle.len()).position(|w| w == needle)
 }
 
-/// #(bounded in-flight): with many parts and max_concurrency=2, the number of
-/// concurrently-admitted storage PUTs never exceeds the effective cap. The
-/// delayed responses force overlap so the JoinSet bound is exercised.
+/// Bounded in-flight concurrency, measured faithfully. With 6 parts and
+/// `max_concurrency = 2` (and 8 MiB-equivalent small parts so the memory budget
+/// doesn't reduce the cap), exactly 2 PUTs overlap at the peak — never more, and
+/// it actually reaches 2. The storage server holds each PUT for 100ms so the
+/// JoinSet bound is genuinely exercised.
 #[tokio::test]
-async fn in_flight_concurrency_is_bounded() {
+async fn in_flight_concurrency_is_bounded_and_reached() {
+    let (storage_base, peak, served) = concurrency_storage_server(Duration::from_millis(100));
+
     let server = MockServer::start().await;
     let part_size = 5usize;
-    // 6 parts of 5 bytes (last exactly 5): 30 bytes total.
+    // 6 parts of 5 bytes: 30 bytes total.
     let contents: Vec<u8> = (0u8..30).collect();
     let part_urls: Vec<String> = (1..=6)
-        .map(|i| format!("{}/storage/cpart/{i}", server.uri()))
+        .map(|i| format!("{storage_base}/cpart/{i}"))
         .collect();
 
     Mock::given(method("POST"))
@@ -1215,20 +1279,6 @@ async fn in_flight_concurrency_is_bounded() {
             "part_urls": part_urls,
             "upload_id": "upl_c",
         })))
-        .mount(&server)
-        .await;
-
-    let tracker = Arc::new(ConcurrencyTracker {
-        active: AtomicUsize::new(0),
-        peak: AtomicUsize::new(0),
-        delay: Duration::from_millis(50),
-    });
-    // wiremock's Respond is implemented for Arc<T: Respond> via &T; mount a
-    // closure delegating to the shared tracker so we can read `peak` after.
-    let tracker_for_mock = Arc::clone(&tracker);
-    Mock::given(method("PUT"))
-        .and(path_regex(r"^/storage/cpart/\d+$"))
-        .respond_with(move |req: &Request| tracker_for_mock.respond(req))
         .mount(&server)
         .await;
     Mock::given(method("POST"))
@@ -1249,19 +1299,62 @@ async fn in_flight_concurrency_is_bounded() {
     let _ = std::fs::remove_file(&path);
     result.expect("upload should complete");
 
-    let peak = tracker.peak.load(Ordering::SeqCst);
-    assert!(peak >= 1, "at least one PUT should have been observed");
-    assert!(
-        peak <= 2,
-        "in-flight concurrency must not exceed max_concurrency=2, peak was {peak}"
+    // All 6 parts were served by the storage server.
+    assert_eq!(served.load(Ordering::SeqCst), 6, "all 6 parts must be PUT");
+    // Genuine overlap: peak reaches the cap and never exceeds it.
+    let observed = peak.load(Ordering::SeqCst);
+    assert_eq!(
+        observed, 2,
+        "in-flight concurrency must reach exactly max_concurrency=2, observed {observed}"
     );
-    // All 6 parts were uploaded.
-    let put_count = server
-        .received_requests()
-        .await
-        .unwrap()
-        .iter()
-        .filter(|r| r.url.path().starts_with("/storage/cpart/"))
-        .count();
-    assert_eq!(put_count, 6, "all 6 parts must be PUT");
+}
+
+/// Serial when `max_concurrency = 1`: no two PUTs ever overlap.
+#[tokio::test]
+async fn serial_when_max_concurrency_is_one() {
+    let (storage_base, peak, served) = concurrency_storage_server(Duration::from_millis(40));
+
+    let server = MockServer::start().await;
+    let part_size = 5usize;
+    let contents: Vec<u8> = (0u8..20).collect(); // 4 parts
+    let part_urls: Vec<String> = (1..=4)
+        .map(|i| format!("{storage_base}/spart/{i}"))
+        .collect();
+
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "finalize_token": "ftok_s",
+            "headers": {},
+            "mode": "multipart",
+            "part_size": part_size,
+            "part_urls": part_urls,
+            "upload_id": "upl_s",
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads/upl_s/finalize"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(mock_finalize_ok("upl_s", contents.len())),
+        )
+        .mount(&server)
+        .await;
+
+    let opts = UploadOptions {
+        max_concurrency: Some(1),
+        ..UploadOptions::default()
+    };
+    let path = temp_file(&contents);
+    let client = test_client(&server.uri());
+    let result = client.upload_file(&path, opts).await;
+    let _ = std::fs::remove_file(&path);
+    result.expect("upload should complete");
+
+    assert_eq!(served.load(Ordering::SeqCst), 4, "all 4 parts must be PUT");
+    assert_eq!(
+        peak.load(Ordering::SeqCst),
+        1,
+        "max_concurrency=1 must keep PUTs strictly serial (no overlap)"
+    );
 }

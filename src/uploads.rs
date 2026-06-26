@@ -310,10 +310,10 @@ pub(crate) async fn upload_file(
             value: part_size_hint,
         })?;
 
-    // Open the session. `declared_size_bytes` is the exact byte count finalize
-    // validates against, so it must match the bytes we actually upload.
+    // Open the session. `declared_size_bytes` (the exact byte count finalize
+    // validates against) comes from `new(..)`, the single source; the
+    // struct-update base also fills the optional checksum fields with None.
     let create = models::CreateUploadRequest {
-        declared_size_bytes,
         content_type: opts.content_type.clone().map(Some),
         content_encoding: opts.content_encoding.clone().map(Some),
         filename: filename.map(Some),
