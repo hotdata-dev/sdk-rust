@@ -1,7 +1,7 @@
 /*
  * Hotdata API
  *
- * Powerful data platform API for datasets, queries, and analytics.
+ * Powerful data platform API for managed databases, queries, and analytics.
  *
  * The version of the OpenAPI document: 1.0.0
  * Contact: developers@hotdata.dev
@@ -25,6 +25,16 @@ pub enum JobType {
     CreateIndex,
     #[serde(rename = "managed_load")]
     ManagedLoad,
+    #[serde(rename = "ducklake_vacuum")]
+    DucklakeVacuum,
+    #[serde(rename = "ducklake_orphan_cleanup")]
+    DucklakeOrphanCleanup,
+    #[serde(rename = "result_deletion")]
+    ResultDeletion,
+    #[serde(rename = "stale_result_cleanup")]
+    StaleResultCleanup,
+    #[serde(rename = "result_retention")]
+    ResultRetention,
 }
 
 impl std::fmt::Display for JobType {
@@ -35,6 +45,11 @@ impl std::fmt::Display for JobType {
             Self::DataRefreshConnection => write!(f, "data_refresh_connection"),
             Self::CreateIndex => write!(f, "create_index"),
             Self::ManagedLoad => write!(f, "managed_load"),
+            Self::DucklakeVacuum => write!(f, "ducklake_vacuum"),
+            Self::DucklakeOrphanCleanup => write!(f, "ducklake_orphan_cleanup"),
+            Self::ResultDeletion => write!(f, "result_deletion"),
+            Self::StaleResultCleanup => write!(f, "stale_result_cleanup"),
+            Self::ResultRetention => write!(f, "result_retention"),
         }
     }
 }
