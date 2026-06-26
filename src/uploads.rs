@@ -246,8 +246,15 @@ pub(crate) async fn upload_file(
     .map_err(UploadError::Finalize)
 }
 
-/// Single-`PUT` path: stream the whole file to `session.url`, counting bytes for
-/// progress as they flow.
+/// Single-`PUT` path: stream the whole file to `session.url`, invoking the
+/// progress callback incrementally as chunks are sent to storage.
+///
+/// The body is a [`progress_stream`] wrapping the file reader, so progress is
+/// byte-granular (a multi-GB upload reports smooth `done/total` ticks rather
+/// than jumping 0% -> 100%). A streaming body is not clonable, so this single
+/// `PUT` is sent once with no 429/reset retry — an intentional trade for smooth
+/// progress on the large, common single-`PUT` path; a presigned storage `PUT`
+/// is not expected to be admission-shed.
 async fn upload_single(
     configuration: &Configuration,
     session: &models::UploadSessionResponse,
@@ -260,25 +267,76 @@ async fn upload_single(
             UploadError::MalformedSession("single upload missing `url`".to_owned())
         })?;
 
-    let bytes = tokio::fs::read(path).await?;
-    debug_assert_eq!(bytes.len() as u64, total);
+    let file = tokio::fs::File::open(path).await?;
+    let body = progress_stream(file, total, progress.cloned());
 
-    put_to_storage(
-        configuration,
-        &url,
-        &session.headers,
-        bytes::Bytes::from(bytes),
-        total,
-        None,
-    )
-    .await?;
+    put_stream_to_storage(configuration, &url, &session.headers, body, total).await?;
 
-    // The single PUT is atomic from the caller's perspective: report completion
-    // once it lands.
+    // Guarantee a terminal tick at exactly `total`, even if the stream's last
+    // chunk boundary or an empty file left the counter short. Monotonic: the
+    // streamed ticks never exceed `total`.
     if let Some(progress) = progress {
         progress(total, total);
     }
     Ok(())
+}
+
+/// Wrap a file reader in a byte-counting stream of `Bytes` chunks. Each chunk
+/// advances a running total and invokes `progress(done, total)` as it is yielded
+/// to the request body, so progress reflects bytes actually handed to the
+/// transport. Monotonic non-decreasing; the running total never exceeds `total`.
+fn progress_stream(
+    file: tokio::fs::File,
+    total: u64,
+    progress: Option<UploadProgress>,
+) -> ProgressStream {
+    use tokio_util::codec::{BytesCodec, FramedRead};
+
+    ProgressStream {
+        inner: FramedRead::new(file, BytesCodec::new()),
+        done: 0,
+        total,
+        progress,
+    }
+}
+
+/// A [`Stream`](futures_core::Stream) of `Bytes` chunks read from a file that
+/// reports cumulative byte progress as each chunk is yielded. Hand-rolled over
+/// `futures_core` (the crate's only direct futures dep) rather than pulling in
+/// `futures_util`, mirroring how [`Client::upload_stream`](crate::Client::upload_stream)
+/// stays on `futures_core::Stream`.
+struct ProgressStream {
+    inner: tokio_util::codec::FramedRead<tokio::fs::File, tokio_util::codec::BytesCodec>,
+    done: u64,
+    total: u64,
+    progress: Option<UploadProgress>,
+}
+
+impl futures_core::Stream for ProgressStream {
+    type Item = std::io::Result<bytes::Bytes>;
+
+    fn poll_next(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        use std::task::Poll;
+        // `inner` (FramedRead) is Unpin, and our other fields are too, so a
+        // mutable projection through `get_mut` is sound without pin-project.
+        let this = self.get_mut();
+        match std::pin::Pin::new(&mut this.inner).poll_next(cx) {
+            Poll::Ready(Some(Ok(chunk))) => {
+                let chunk = chunk.freeze();
+                this.done = (this.done + chunk.len() as u64).min(this.total);
+                if let Some(ref progress) = this.progress {
+                    progress(this.done, this.total);
+                }
+                Poll::Ready(Some(Ok(chunk)))
+            }
+            Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
+            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Pending => Poll::Pending,
+        }
+    }
 }
 
 /// Multipart path: slice the file into `part_size`-byte chunks (the last is the
@@ -457,6 +515,57 @@ async fn put_to_storage(
         return Err(UploadError::StorageStatus {
             status,
             part_number,
+            body,
+        });
+    }
+    Ok(resp)
+}
+
+/// `PUT` a streaming body to a presigned storage URL with the same strict
+/// header isolation as [`put_to_storage`] (no SDK auth/scope headers; explicit
+/// `Content-Length`; `Content-Type` only from the server `headers` map).
+///
+/// Used by the single-`PUT` path so progress is byte-granular. A streamed body
+/// is not clonable, so this is a SINGLE attempt with no 429/reset retry — unlike
+/// the buffered, retryable [`put_to_storage`] used per multipart part.
+async fn put_stream_to_storage<S>(
+    configuration: &Configuration,
+    url: &str,
+    headers: &HashMap<String, String>,
+    body: S,
+    content_length: u64,
+) -> Result<reqwest::Response, UploadError>
+where
+    S: futures_core::Stream<Item = std::io::Result<bytes::Bytes>> + Send + 'static,
+{
+    let client = storage_client(configuration);
+
+    let mut req_builder = client
+        .request(reqwest::Method::PUT, url)
+        // Explicit Content-Length so the body is sized (not chunked) — storage
+        // can reject an oversized upload up front, and reqwest honors it as the
+        // framing for a wrapped stream.
+        .header(reqwest::header::CONTENT_LENGTH, content_length);
+
+    for (name, value) in headers {
+        req_builder = req_builder.header(name.as_str(), value.as_str());
+    }
+
+    req_builder = req_builder.body(reqwest::Body::wrap_stream(body));
+
+    let req = req_builder.build().map_err(UploadError::Storage)?;
+    crate::http_log::log_request(&req);
+    // A streamed body can't be cloned, so send once (no retry helper).
+    let resp = client.execute(req).await.map_err(UploadError::Storage)?;
+
+    let status = resp.status();
+    crate::http_log::log_response_status(status);
+    if status.is_client_error() || status.is_server_error() {
+        let body = resp.text().await.unwrap_or_default();
+        crate::http_log::log_response_body(&body);
+        return Err(UploadError::StorageStatus {
+            status,
+            part_number: None,
             body,
         });
     }

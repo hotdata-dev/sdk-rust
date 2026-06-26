@@ -171,6 +171,89 @@ async fn single_put_happy_path() {
 }
 
 #[tokio::test]
+async fn single_put_progress_is_byte_granular() {
+    // A single-PUT body larger than one read chunk must produce MULTIPLE
+    // intermediate progress ticks (not just 0 and total), so the CLI renders a
+    // smooth bar instead of a 0% -> 100% jump. FramedRead's BytesCodec yields
+    // chunks of at most a few KiB, so a 256 KiB body spans many chunks.
+    let server = MockServer::start().await;
+    let storage_url = format!("{}/storage/big", server.uri());
+    let contents: Vec<u8> = (0..256 * 1024).map(|i| (i % 251) as u8).collect();
+    let total = contents.len() as u64;
+
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "finalize_token": "ftok_big",
+            "headers": {},
+            "mode": "single",
+            "upload_id": "upl_big",
+            "url": storage_url,
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path("/storage/big"))
+        .respond_with(ResponseTemplate::new(200).insert_header("ETag", "\"big\""))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads/upl_big/finalize"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "created_at": "2026-06-25T00:00:00Z",
+            "size_bytes": contents.len(),
+            "status": "ready",
+            "upload_id": "upl_big",
+        })))
+        .mount(&server)
+        .await;
+
+    // Record every tick. The callback runs on the body-stream task; collect into
+    // a shared Vec.
+    let ticks: Arc<Mutex<Vec<(u64, u64)>>> = Arc::new(Mutex::new(Vec::new()));
+    let ticks_cb = Arc::clone(&ticks);
+    let progress: hotdata::UploadProgress = Arc::new(move |done, total| {
+        ticks_cb.lock().unwrap().push((done, total));
+    });
+    let opts = UploadOptions {
+        progress: Some(progress),
+        ..UploadOptions::default()
+    };
+
+    let path = temp_file(&contents);
+    let client = test_client(&server.uri());
+    let result = client.upload_file(&path, opts).await;
+    let _ = std::fs::remove_file(&path);
+    result.expect("single upload should succeed");
+
+    let ticks = ticks.lock().unwrap();
+    // Many intermediate updates, not just the terminal one.
+    let intermediate = ticks.iter().filter(|(d, _)| *d > 0 && *d < total).count();
+    assert!(
+        intermediate >= 2,
+        "single-PUT progress must fire multiple intermediate ticks for a \
+         multi-chunk body; saw ticks: {ticks:?}"
+    );
+    // Total is always the file size; the sequence is monotonic non-decreasing.
+    let mut prev = 0u64;
+    for (d, t) in ticks.iter() {
+        assert_eq!(*t, total, "total must be the file size");
+        assert!(
+            *d >= prev,
+            "progress must be non-decreasing: {d} after {prev}"
+        );
+        assert!(*d <= total, "progress must never exceed total");
+        prev = *d;
+    }
+    // The final observed value is exactly the file size.
+    assert_eq!(
+        ticks.last().map(|(d, _)| *d),
+        Some(total),
+        "single-PUT progress must reach exactly the file size"
+    );
+}
+
+#[tokio::test]
 async fn multipart_happy_path() {
     let server = MockServer::start().await;
     let part_size = 5usize;
