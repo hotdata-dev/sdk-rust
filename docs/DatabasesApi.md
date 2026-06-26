@@ -12,6 +12,7 @@ Method | HTTP request | Description
 [**detach_database_catalog**](DatabasesApi.md#detach_database_catalog) | **DELETE** /v1/databases/{database_id}/catalogs/{connection_id} | Detach catalog from database
 [**get_database**](DatabasesApi.md#get_database) | **GET** /v1/databases/{database_id} | Get database
 [**list_databases**](DatabasesApi.md#list_databases) | **GET** /v1/databases | List databases
+[**load_database_table**](DatabasesApi.md#load_database_table) | **POST** /v1/databases/{database_id}/schemas/{schema}/tables/{table}/loads | Load database table from upload
 
 
 
@@ -248,6 +249,39 @@ This endpoint does not need any parameter.
 ### HTTP request headers
 
 - **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## load_database_table
+
+> models::LoadManagedTableResponse load_database_table(database_id, schema, table, load_managed_table_request)
+Load database table from upload
+
+Publish a previously-uploaded file as the new contents of a table on the database's default catalog. The database-scoped equivalent of the connection-scoped managed-table load — addressed by `database_id`, so no `default_connection_id` is needed. CSV, JSON, and Parquet uploads are supported; the format is auto-detected or set via `format`. Only `mode = \"replace\"` is supported. Concurrent loads against the same upload return 409.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**database_id** | **String** | Database ID | [required] |
+**schema** | **String** | Schema name | [required] |
+**table** | **String** | Table name | [required] |
+**load_managed_table_request** | [**LoadManagedTableRequest**](LoadManagedTableRequest.md) |  | [required] |
+
+### Return type
+
+[**models::LoadManagedTableResponse**](LoadManagedTableResponse.md)
+
+### Authorization
+
+[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
