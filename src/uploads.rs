@@ -67,9 +67,16 @@ pub const MIN_PART_SIZE: u64 = 5 * MIB;
 /// this.
 pub const MAX_PART_SIZE: u64 = 5 * 1024 * MIB;
 
-/// Peak-memory budget for in-flight part buffers (256 MiB). Each in-flight part
-/// buffers up to `part_size` bytes, so the effective in-flight count is bounded
-/// by `budget / part_size`. See [`effective_in_flight`].
+/// Target peak-memory budget for in-flight part buffers (256 MiB). Each
+/// in-flight part buffers up to `part_size` bytes, so [`effective_in_flight`]
+/// derives the in-flight count as `budget / part_size`.
+///
+/// This is a TARGET, not a hard ceiling: it holds while `part_size` is small
+/// relative to the budget (the normal case — 8 MiB parts stay well under it). It
+/// cannot bound memory below one in-flight part, so when the server returns a
+/// very large `part_size` (e.g. a 5 GiB part on a huge file), a single in-flight
+/// part already exceeds this budget and peak memory is `1 * part_size`. In other
+/// words the budget caps *concurrency*, not the size of one part.
 pub const UPLOAD_MEMORY_BUDGET: u64 = 256 * MIB;
 
 /// Compute the part-size HINT to send to the server in
@@ -97,15 +104,21 @@ pub fn auto_part_size_hint(declared_size: u64) -> u64 {
 /// SERVER's actual returned `part_size`.
 ///
 /// Peak buffered memory is `in_flight * part_size`, so we cap in-flight at
-/// `UPLOAD_MEMORY_BUDGET / part_size` and then at `max_concurrency`, with a floor
-/// of 2 so progress is always made even for very large parts. Normal 8 MiB parts
-/// give `256/8 = 32`, capped to `max_concurrency`; a 64 MiB part gives `4`.
+/// `UPLOAD_MEMORY_BUDGET / part_size`, then at `max_concurrency`. Normal 8 MiB
+/// parts give `256/8 = 32`, capped to `max_concurrency`; a 64 MiB part gives `4`.
 ///
-/// Pure and total: a zero `part_size` is treated as 1 to avoid division by zero
-/// (it still floors to 2).
+/// `max_concurrency` is honored as an explicit floor: a caller asking for `1`
+/// (or `0`) gets serial uploads (`1`), so the budget never *raises* concurrency
+/// above what was requested. The budget-derived count itself has a floor of 1
+/// (you must keep at least one part in flight to make progress), so the overall
+/// result is always `>= 1`.
+///
+/// Pure and total: a zero `part_size` is treated as 1 to avoid division by zero.
 pub fn effective_in_flight(max_concurrency: usize, part_size: u64) -> usize {
-    let by_budget = (UPLOAD_MEMORY_BUDGET / part_size.max(1)) as usize;
-    by_budget.min(max_concurrency).max(2)
+    // Honor an explicit low request down to serial (1); never below 1.
+    let cap = max_concurrency.max(1);
+    let by_budget = (UPLOAD_MEMORY_BUDGET / part_size.max(1)).max(1) as usize;
+    by_budget.min(cap)
 }
 
 /// Progress callback: invoked as bytes flow with `(bytes_done_total, total)`,
@@ -195,6 +208,15 @@ pub enum UploadError {
     /// `mode` (e.g. `single` without a `url`, or `multipart` without
     /// `part_urls` / `part_size`).
     MalformedSession(String),
+    /// A size (the file's declared size, or the part-size hint) did not fit the
+    /// wire's signed 64-bit field. Only reachable for pathological sizes beyond
+    /// `i64::MAX` bytes (~8 EiB).
+    SizeOverflow {
+        /// What overflowed (e.g. `"declared_size_bytes"`).
+        what: &'static str,
+        /// The offending value.
+        value: u64,
+    },
     /// Finalizing the upload (`POST /v1/uploads/{id}/finalize`) failed.
     Finalize(Error<apis::uploads_api::FinalizeUploadHandlerError>),
 }
@@ -220,6 +242,12 @@ impl std::fmt::Display for UploadError {
                 f,
                 "storage returned no ETag for part {part_number}; cannot finalize"
             ),
+            UploadError::SizeOverflow { what, value } => {
+                write!(
+                    f,
+                    "{what} ({value} bytes) exceeds the maximum supported size"
+                )
+            }
             UploadError::MalformedSession(msg) => {
                 write!(f, "malformed upload session response: {msg}")
             }
@@ -270,15 +298,27 @@ pub(crate) async fn upload_file(
     // grow the hint (bounding the part count). The server clamps it regardless.
     let part_size_hint = opts.part_size.unwrap_or_else(|| auto_part_size_hint(total));
 
+    // The wire models size as a signed i64; reject (rather than silently wrap)
+    // a pathological size beyond i64::MAX.
+    let declared_size_bytes = i64::try_from(total).map_err(|_| UploadError::SizeOverflow {
+        what: "declared_size_bytes",
+        value: total,
+    })?;
+    let part_size_hint_i64 =
+        i64::try_from(part_size_hint).map_err(|_| UploadError::SizeOverflow {
+            what: "part_size",
+            value: part_size_hint,
+        })?;
+
     // Open the session. `declared_size_bytes` is the exact byte count finalize
     // validates against, so it must match the bytes we actually upload.
     let create = models::CreateUploadRequest {
-        declared_size_bytes: total as i64,
+        declared_size_bytes,
         content_type: opts.content_type.clone().map(Some),
         content_encoding: opts.content_encoding.clone().map(Some),
         filename: filename.map(Some),
-        part_size: Some(Some(part_size_hint as i64)),
-        ..models::CreateUploadRequest::new(total as i64)
+        part_size: Some(Some(part_size_hint_i64)),
+        ..models::CreateUploadRequest::new(declared_size_bytes)
     };
     let session = apis::uploads_api::create_upload_session_handler(configuration, create)
         .await
@@ -292,7 +332,7 @@ pub(crate) async fn upload_file(
 
     let parts = match session.mode.as_str() {
         "single" => {
-            upload_single(configuration, &session, path, total, opts.progress.as_ref()).await?;
+            upload_single(&session, path, total, opts.progress.as_ref()).await?;
             None
         }
         "multipart" => {
@@ -334,8 +374,18 @@ pub(crate) async fn upload_file(
             .unwrap_or_default(),
     );
 
+    // Finalize is exactly-once on the server: a second finalize of the same
+    // upload is rejected. The generated op routes through `execute_retrying`,
+    // which would retry an ambiguous failure (a lost response, or a 429 the
+    // server actually processed) — turning a finalize that SUCCEEDED into a
+    // spurious "already finalized" error on the retry. So we call it with retries
+    // disabled (a single attempt). Part PUTs stay retryable (idempotent: storage
+    // overwrites a part by number); only finalize is single-shot.
+    let mut finalize_config = configuration.clone();
+    finalize_config.retry.max_retries = 0;
+
     apis::uploads_api::finalize_upload_handler(
-        configuration,
+        &finalize_config,
         &session.upload_id,
         &session.finalize_token,
         finalize_body,
@@ -354,7 +404,6 @@ pub(crate) async fn upload_file(
 /// progress on the large, common single-`PUT` path; a presigned storage `PUT`
 /// is not expected to be admission-shed.
 async fn upload_single(
-    configuration: &Configuration,
     session: &models::UploadSessionResponse,
     path: &Path,
     total: u64,
@@ -368,7 +417,7 @@ async fn upload_single(
     let file = tokio::fs::File::open(path).await?;
     let body = progress_stream(file, total, progress.cloned());
 
-    put_stream_to_storage(configuration, &url, &session.headers, body, total).await?;
+    put_stream_to_storage(&url, &session.headers, body, total).await?;
 
     // Guarantee a terminal tick at exactly `total`, even if the stream's last
     // chunk boundary or an empty file left the counter short. Monotonic: the
@@ -467,6 +516,25 @@ async fn upload_multipart(
     }
     let part_size = part_size as u64;
 
+    if part_urls.is_empty() {
+        return Err(UploadError::MalformedSession(
+            "multipart upload has empty `part_urls`".to_owned(),
+        ));
+    }
+
+    // The URL count must match the number of `part_size`-byte chunks the file
+    // splits into (last is the remainder). Too many URLs and we'd PUT a
+    // zero-length trailing part; too few and we'd finalize an incomplete list.
+    // Both mean a session inconsistent with our declared size, so fail loudly.
+    let expected_parts = total.div_ceil(part_size).max(1);
+    if part_urls.len() as u64 != expected_parts {
+        return Err(UploadError::MalformedSession(format!(
+            "multipart upload returned {} part URLs but the file ({total} bytes) \
+             splits into {expected_parts} parts of {part_size} bytes",
+            part_urls.len()
+        )));
+    }
+
     // Peak buffered memory is in_flight * part_size; bound in-flight by both the
     // caller's max_concurrency and the memory budget, using the SERVER's actual
     // part size (the same value we slice by below).
@@ -494,27 +562,26 @@ async fn upload_multipart(
             let part_number = (index + 1) as i32;
             let url = part_urls[index].clone();
             let offset = index as u64 * part_size;
+            // The part-count check above guarantees every part has bytes, but
+            // guard defensively: a part starting at/after EOF has no bytes to
+            // send, so skip it rather than PUT a zero-length object.
+            if offset >= total && total > 0 {
+                continue;
+            }
             // The last part carries the remainder; earlier parts are exactly
-            // `part_size`. Guard against `offset > total` (more URLs than the
-            // file needs) by clamping the length to zero.
+            // `part_size`.
             let len = part_size.min(total.saturating_sub(offset));
             let headers = session.headers.clone();
             let done = Arc::clone(&done);
             let progress = progress.cloned();
-            let configuration = configuration.clone();
+            // RetryPolicy is Copy.
+            let retry = configuration.retry;
             let path = path.to_path_buf();
 
             join_set.spawn(async move {
                 let chunk = read_range(&path, offset, len).await?;
-                let resp = put_to_storage(
-                    &configuration,
-                    &url,
-                    &headers,
-                    chunk,
-                    len,
-                    Some(part_number),
-                )
-                .await?;
+                let resp =
+                    put_to_storage(&retry, &url, &headers, chunk, len, Some(part_number)).await?;
                 let e_tag = resp
                     .headers()
                     .get(reqwest::header::ETAG)
@@ -581,18 +648,21 @@ async fn read_range(path: &Path, offset: u64, len: u64) -> Result<bytes::Bytes, 
 /// currently always empty) are sent. A `Content-Type` is set ONLY when the
 /// `headers` map includes one, so reqwest never auto-appends a charset.
 ///
-/// Uses a dedicated reqwest client with **no request timeout** (a large upload
-/// legitimately takes minutes), mirroring the CLI's rationale; the body buffers
-/// in memory so it clones cleanly across retries via [`crate::http::execute_retrying`].
+/// Sent on the dedicated, header-bare [`storage_client`] with **no request
+/// timeout** (a large upload legitimately takes minutes); the body buffers in
+/// memory so it clones cleanly across retries via [`crate::http::execute_retrying`].
+/// Part `PUT`s are retryable: storage overwrites a part by number, so a retried
+/// part is idempotent. `retry` is the SDK's retry policy (carried on
+/// `Configuration`), used only for the retry timing here.
 async fn put_to_storage(
-    configuration: &Configuration,
+    retry: &crate::query::RetryPolicy,
     url: &str,
     headers: &HashMap<String, String>,
     body: bytes::Bytes,
     content_length: u64,
     part_number: Option<i32>,
 ) -> Result<reqwest::Response, UploadError> {
-    let client = storage_client(configuration);
+    let client = storage_client();
 
     let mut req_builder = client
         .request(reqwest::Method::PUT, url)
@@ -611,7 +681,7 @@ async fn put_to_storage(
 
     let req = req_builder.build().map_err(UploadError::Storage)?;
     crate::http_log::log_request(&req);
-    let resp = crate::http::execute_retrying(&client, req, &configuration.retry)
+    let resp = crate::http::execute_retrying(&client, req, retry)
         .await
         .map_err(UploadError::Storage)?;
 
@@ -637,7 +707,6 @@ async fn put_to_storage(
 /// is not clonable, so this is a SINGLE attempt with no 429/reset retry — unlike
 /// the buffered, retryable [`put_to_storage`] used per multipart part.
 async fn put_stream_to_storage<S>(
-    configuration: &Configuration,
     url: &str,
     headers: &HashMap<String, String>,
     body: S,
@@ -646,7 +715,7 @@ async fn put_stream_to_storage<S>(
 where
     S: futures_core::Stream<Item = std::io::Result<bytes::Bytes>> + Send + 'static,
 {
-    let client = storage_client(configuration);
+    let client = storage_client();
 
     let mut req_builder = client
         .request(reqwest::Method::PUT, url)
@@ -680,15 +749,33 @@ where
     Ok(resp)
 }
 
-/// The reqwest client used for storage `PUT`s.
+/// The dedicated, process-wide reqwest client used for storage `PUT`s.
 ///
-/// Reuses the configured client (so a caller-supplied transport — custom TLS,
-/// proxy, connection pool — applies) but the caller is expected to supply one
-/// with no request timeout for large uploads. We do not mutate the configured
-/// client's timeout here; the SDK's `Configuration::client` is shared by
-/// reference and reqwest clients are cheap to clone (an `Arc` internally).
-fn storage_client(configuration: &Configuration) -> reqwest::Client {
-    configuration.client.clone()
+/// Deliberately NOT `configuration.client`: a host app may have installed
+/// default headers (auth / workspace / `User-Agent` / `Content-Type`) on the
+/// SDK's main client, which reqwest would then apply to the storage `PUT` —
+/// making S3-compatible storage return `403 SignatureDoesNotMatch`. This client
+/// is built bare: no default headers, and no request timeout (a large upload
+/// legitimately takes minutes). It is built once and reused.
+///
+/// Trade-off: TLS / proxy / connection-pool settings on the SDK's main client
+/// do NOT apply to storage `PUT`s — they go through this independent client.
+/// That is intentional; storage transfers must be header-isolated, and a
+/// host-configured proxy for the API host is not assumed to front object
+/// storage.
+fn storage_client() -> reqwest::Client {
+    static STORAGE_CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    STORAGE_CLIENT
+        .get_or_init(|| {
+            reqwest::Client::builder()
+                // No `default_headers`, no `timeout`. A connect timeout is fine
+                // (it bounds only connection establishment, not the transfer).
+                .build()
+                // Falls back to a plain default client if the builder somehow
+                // fails (e.g. no TLS backend); still header-bare.
+                .unwrap_or_default()
+        })
+        .clone()
 }
 
 #[cfg(test)]
@@ -760,11 +847,21 @@ mod tests {
     }
 
     #[test]
-    fn effective_in_flight_floors_at_2_and_handles_zero() {
-        // A part larger than the whole budget still keeps at least 2 in flight.
-        assert_eq!(effective_in_flight(12, UPLOAD_MEMORY_BUDGET * 4), 2);
-        // max_concurrency below the floor is raised to 2.
-        assert_eq!(effective_in_flight(1, 8 * MIB), 2);
+    fn effective_in_flight_honors_explicit_low_concurrency() {
+        // An explicit max_concurrency of 1 means serial uploads — NOT raised to a
+        // floor of 2. (Regression guard for the Codex finding.)
+        assert_eq!(effective_in_flight(1, 8 * MIB), 1);
+        // 0 is normalized to 1 (you can't run zero in flight), not to 2.
+        assert_eq!(effective_in_flight(0, 8 * MIB), 1);
+        // 2 stays 2.
+        assert_eq!(effective_in_flight(2, 8 * MIB), 2);
+    }
+
+    #[test]
+    fn effective_in_flight_floors_at_1_for_huge_parts_and_handles_zero() {
+        // A part larger than the whole budget still keeps at least 1 in flight
+        // (the budget can't bound below a single part).
+        assert_eq!(effective_in_flight(12, UPLOAD_MEMORY_BUDGET * 4), 1);
         // Zero part size doesn't divide-by-zero (treated as 1 byte): the budget
         // then allows a huge count, so max_concurrency wins.
         assert_eq!(effective_in_flight(12, 0), 12);

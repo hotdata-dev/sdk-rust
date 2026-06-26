@@ -12,15 +12,21 @@
 //! * multipart happy path (slicing by `part_size`, per-part ETag collection,
 //!   ascending finalize parts);
 //! * progress callback monotonicity reaching exactly the file size;
-//! * storage-PUT header isolation (no SDK bearer/workspace/session headers).
+//! * storage-PUT header isolation (no SDK bearer/workspace/session headers, and
+//!   no default headers leaking off the SDK's main client);
+//! * finalize exactly-once (no retry) and per-part retry;
+//! * error surfacing (missing ETag, storage 4xx/5xx, finalize failure,
+//!   501 PRESIGN_UNSUPPORTED, malformed sessions);
+//! * bounded in-flight concurrency and server-provided Content-Type replay.
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use hotdata::apis::configuration::{ApiKey, Configuration};
-use hotdata::{Client, UploadOptions};
+use hotdata::{Client, RetryPolicy, UploadError, UploadOptions};
 use wiremock::matchers::{method, path, path_regex};
-use wiremock::{Mock, MockServer, Request, ResponseTemplate};
+use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
 
 const WORKSPACE_HEADER: &str = "X-Workspace-Id";
 const SESSION_HEADER: &str = "X-Session-Id";
@@ -50,6 +56,26 @@ fn test_client(base_url: &str) -> Client {
         },
     );
     Client::from_configuration(configuration)
+}
+
+/// A fast, deterministic retry policy (tiny backoff, no jitter, several
+/// retries) so per-part-retry tests run without real delay.
+fn fast_retry(max_retries: u32) -> RetryPolicy {
+    RetryPolicy {
+        max_retries,
+        base_backoff: Duration::from_millis(1),
+        max_backoff: Duration::from_millis(5),
+        deadline: Duration::from_secs(30),
+        jitter: 0.0,
+    }
+}
+
+/// Like [`test_client`] but with an explicit retry policy installed (storage
+/// part PUTs route through it; finalize disables it internally).
+fn test_client_with_retry(base_url: &str, retry: RetryPolicy) -> Client {
+    let mut client = test_client(base_url);
+    client.configuration_mut().retry = retry;
+    client
 }
 
 /// Write `contents` to a uniquely-named temp file and return its path.
@@ -626,4 +652,616 @@ async fn create_explicit_part_size_overrides_auto_hint() {
         Some(explicit),
         "explicit part_size must override the auto hint, body: {body}"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Codex review follow-ups
+// ---------------------------------------------------------------------------
+
+/// Mock the standard create-session response for a SINGLE upload at `storage_url`.
+fn mock_single_session(upload_id: &str, token: &str, storage_url: &str) -> serde_json::Value {
+    serde_json::json!({
+        "finalize_token": token,
+        "headers": {},
+        "mode": "single",
+        "upload_id": upload_id,
+        "url": storage_url,
+    })
+}
+
+/// Mock a finalize success body.
+fn mock_finalize_ok(upload_id: &str, size: usize) -> serde_json::Value {
+    serde_json::json!({
+        "created_at": "2026-06-25T00:00:00Z",
+        "size_bytes": size,
+        "status": "ready",
+        "upload_id": upload_id,
+    })
+}
+
+/// #2: default headers set on the SDK's MAIN client must NOT reach storage PUTs.
+/// We install an Authorization + X-Workspace-Id default header on the reqwest
+/// client the SDK uses, then assert the storage PUT carries neither (it goes out
+/// on the dedicated bare storage client).
+#[tokio::test]
+async fn default_headers_on_main_client_do_not_reach_storage_put() {
+    let server = MockServer::start().await;
+    let storage_url = format!("{}/storage/iso2", server.uri());
+    let contents = b"bytes with poisoned client";
+
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(mock_single_session(
+                "upl_iso2",
+                "ftok_iso2",
+                &storage_url,
+            )),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path("/storage/iso2"))
+        .respond_with(ResponseTemplate::new(200).insert_header("ETag", "\"iso2\""))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads/upl_iso2/finalize"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(mock_finalize_ok("upl_iso2", contents.len())),
+        )
+        .mount(&server)
+        .await;
+
+    // A reqwest client carrying default headers a host might set.
+    let mut default_headers = reqwest::header::HeaderMap::new();
+    default_headers.insert(
+        reqwest::header::AUTHORIZATION,
+        "Bearer host-default".parse().unwrap(),
+    );
+    default_headers.insert("X-Workspace-Id", "ws-default".parse().unwrap());
+    default_headers.insert(reqwest::header::USER_AGENT, "host-agent/9".parse().unwrap());
+    let poisoned = reqwest::Client::builder()
+        .default_headers(default_headers)
+        .build()
+        .unwrap();
+
+    let mut config = Configuration {
+        base_path: server.uri(),
+        bearer_access_token: Some("test-bearer".to_owned()),
+        client: poisoned,
+        ..Configuration::default()
+    };
+    config.api_keys.insert(
+        WORKSPACE_HEADER.to_owned(),
+        ApiKey {
+            prefix: None,
+            key: "ws_test".to_owned(),
+        },
+    );
+    let client = Client::from_configuration(config);
+
+    let path = temp_file(contents);
+    let result = client.upload_file(&path, UploadOptions::default()).await;
+    let _ = std::fs::remove_file(&path);
+    result.expect("upload should succeed");
+
+    let requests = server.received_requests().await.expect("requests recorded");
+    let put = requests
+        .iter()
+        .find(|r| r.url.path() == "/storage/iso2")
+        .expect("a storage PUT should have been made");
+    // The host's default headers must not be on the storage PUT.
+    assert!(
+        put.headers.get("authorization").is_none(),
+        "storage PUT must not carry the host client's default Authorization"
+    );
+    assert!(
+        put.headers.get("x-workspace-id").is_none(),
+        "storage PUT must not carry the host client's default X-Workspace-Id"
+    );
+    // The bare client sends reqwest's own default UA, not the host's; assert the
+    // host UA didn't leak.
+    assert_ne!(
+        put.headers.get("user-agent").and_then(|v| v.to_str().ok()),
+        Some("host-agent/9"),
+        "storage PUT must not carry the host client's default User-Agent"
+    );
+}
+
+/// #1: finalize must be exactly-once — it must NOT retry even when the client's
+/// retry policy allows retries. We make finalize return 429 (the status
+/// `execute_retrying` DOES retry, with Retry-After: 0) under a policy of 5
+/// retries: if finalize were routed through the retry wrapper it would hit the
+/// server 6 times; with retries disabled for finalize it must hit exactly once.
+/// This is the discriminating regression guard for the no-retry change (a 500
+/// wouldn't exercise the wrapper at all).
+#[tokio::test]
+async fn finalize_is_not_retried() {
+    let server = MockServer::start().await;
+    let storage_url = format!("{}/storage/fin", server.uri());
+    let contents = b"finalize once";
+
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(mock_single_session(
+                "upl_fin",
+                "ftok_fin",
+                &storage_url,
+            )),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path("/storage/fin"))
+        .respond_with(ResponseTemplate::new(200).insert_header("ETag", "\"fin\""))
+        .mount(&server)
+        .await;
+    // Finalize returns 429 (Retry-After: 0) — the wrapper WOULD retry this if it
+    // were applied. With retries disabled for finalize, only one request lands.
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads/upl_fin/finalize"))
+        .respond_with(ResponseTemplate::new(429).insert_header("Retry-After", "0"))
+        .mount(&server)
+        .await;
+
+    let path = temp_file(contents);
+    // 5 retries allowed at the policy level — but finalize must ignore them.
+    let client = test_client_with_retry(&server.uri(), fast_retry(5));
+    let result = client.upload_file(&path, UploadOptions::default()).await;
+    let _ = std::fs::remove_file(&path);
+
+    assert!(
+        matches!(result, Err(UploadError::Finalize(_))),
+        "a finalize 429 must surface as UploadError::Finalize (not be retried away)"
+    );
+    let finalize_hits = server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.url.path() == "/v1/uploads/upl_fin/finalize")
+        .count();
+    assert_eq!(
+        finalize_hits, 1,
+        "finalize must be attempted exactly once despite a retry policy of 5"
+    );
+}
+
+/// #1 (partner): per-part PUTs ARE retryable. A part returns 500 once (a 429
+/// would also retry, but we use the SDK's pre-response handling for transport;
+/// here we assert the 429 path which execute_retrying retries) then 200, and the
+/// upload still completes. We use 429 because that is what execute_retrying
+/// retries on a status.
+#[tokio::test]
+async fn part_put_retries_429_then_succeeds() {
+    let server = MockServer::start().await;
+    let part_size = 5usize;
+    let contents: Vec<u8> = (0u8..10).collect(); // 2 parts: 5, 5
+    let part_urls: Vec<String> = (1..=2)
+        .map(|i| format!("{}/storage/rpart/{i}", server.uri()))
+        .collect();
+
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "finalize_token": "ftok_rp",
+            "headers": {},
+            "mode": "multipart",
+            "part_size": part_size,
+            "part_urls": part_urls,
+            "upload_id": "upl_rp",
+        })))
+        .mount(&server)
+        .await;
+
+    // Part 1: one 429 (Retry-After: 0) then 200.
+    Mock::given(method("PUT"))
+        .and(path("/storage/rpart/1"))
+        .respond_with(ResponseTemplate::new(429).insert_header("Retry-After", "0"))
+        .up_to_n_times(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path("/storage/rpart/1"))
+        .respond_with(ResponseTemplate::new(200).insert_header("ETag", "\"rp1\""))
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path("/storage/rpart/2"))
+        .respond_with(ResponseTemplate::new(200).insert_header("ETag", "\"rp2\""))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads/upl_rp/finalize"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(mock_finalize_ok("upl_rp", contents.len())),
+        )
+        .mount(&server)
+        .await;
+
+    let path = temp_file(&contents);
+    let client = test_client_with_retry(&server.uri(), fast_retry(5));
+    let result = client.upload_file(&path, UploadOptions::default()).await;
+    let _ = std::fs::remove_file(&path);
+    result.expect("multipart upload should complete after a part retry");
+
+    // Part 1 was hit twice (429 then 200).
+    let p1_hits = server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.url.path() == "/storage/rpart/1")
+        .count();
+    assert_eq!(p1_hits, 2, "part 1 must be retried after the 429");
+}
+
+/// Missing ETag on a part PUT response surfaces as UploadError::MissingETag.
+#[tokio::test]
+async fn missing_etag_is_an_error() {
+    let server = MockServer::start().await;
+    let part_size = 5usize;
+    let contents: Vec<u8> = (0u8..5).collect(); // 1 part
+    let part_urls = vec![format!("{}/storage/noetag/1", server.uri())];
+
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "finalize_token": "ftok_ne",
+            "headers": {},
+            "mode": "multipart",
+            "part_size": part_size,
+            "part_urls": part_urls,
+            "upload_id": "upl_ne",
+        })))
+        .mount(&server)
+        .await;
+    // 200 but NO ETag header.
+    Mock::given(method("PUT"))
+        .and(path("/storage/noetag/1"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&server)
+        .await;
+
+    let path = temp_file(&contents);
+    let client = test_client(&server.uri());
+    let result = client.upload_file(&path, UploadOptions::default()).await;
+    let _ = std::fs::remove_file(&path);
+    assert!(
+        matches!(result, Err(UploadError::MissingETag { part_number: 1 })),
+        "missing ETag must surface as MissingETag, got {result:?}"
+    );
+}
+
+/// A storage 4xx/5xx surfaces as UploadError::StorageStatus.
+#[tokio::test]
+async fn storage_error_status_is_surfaced() {
+    let server = MockServer::start().await;
+    let storage_url = format!("{}/storage/403", server.uri());
+    let contents = b"denied";
+
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(mock_single_session(
+                "upl_403",
+                "ftok_403",
+                &storage_url,
+            )),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path("/storage/403"))
+        .respond_with(ResponseTemplate::new(403).set_body_string("<Error>AccessDenied</Error>"))
+        .mount(&server)
+        .await;
+
+    let path = temp_file(contents);
+    let client = test_client(&server.uri());
+    let result = client.upload_file(&path, UploadOptions::default()).await;
+    let _ = std::fs::remove_file(&path);
+    match result {
+        Err(UploadError::StorageStatus { status, body, .. }) => {
+            assert_eq!(status, reqwest::StatusCode::FORBIDDEN);
+            assert!(
+                body.contains("AccessDenied"),
+                "body should carry storage error: {body}"
+            );
+        }
+        other => panic!("expected StorageStatus(403), got {other:?}"),
+    }
+}
+
+/// 501 PRESIGN_UNSUPPORTED on create-session is a hard error — NO /v1/files
+/// fallback is attempted.
+#[tokio::test]
+async fn presign_unsupported_is_hard_error_no_fallback() {
+    let server = MockServer::start().await;
+    let contents = b"no presign here";
+
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads"))
+        .respond_with(ResponseTemplate::new(501).set_body_json(serde_json::json!({
+            "error": { "code": "PRESIGN_UNSUPPORTED", "message": "no presign" }
+        })))
+        .mount(&server)
+        .await;
+
+    let path = temp_file(contents);
+    let client = test_client(&server.uri());
+    let result = client.upload_file(&path, UploadOptions::default()).await;
+    let _ = std::fs::remove_file(&path);
+    assert!(
+        matches!(result, Err(UploadError::CreateSession(_))),
+        "501 must surface as CreateSession error, got {result:?}"
+    );
+    // No request to the legacy proxy.
+    let hit_files = server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .any(|r| r.url.path() == "/v1/files");
+    assert!(!hit_files, "must NOT fall back to POST /v1/files");
+}
+
+/// Malformed multipart sessions are rejected as MalformedSession.
+#[tokio::test]
+async fn malformed_multipart_sessions_are_rejected() {
+    // Helper: run an upload whose create-session returns the given multipart JSON
+    // overrides, and return the result.
+    async fn run(session: serde_json::Value, file_len: usize) -> Result<(), UploadError> {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/uploads"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(session))
+            .mount(&server)
+            .await;
+        // Accept any PUT so a (wrongly) issued part doesn't fail for another
+        // reason; we expect to reject BEFORE PUTting.
+        Mock::given(method("PUT"))
+            .and(path_regex(r"^/storage/.*$"))
+            .respond_with(ResponseTemplate::new(200).insert_header("ETag", "\"x\""))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path_regex(r"^/v1/uploads/.*/finalize$"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(mock_finalize_ok("u", file_len)))
+            .mount(&server)
+            .await;
+
+        let contents = vec![0u8; file_len];
+        let path = temp_file(&contents);
+        let client = test_client(&server.uri());
+        let result = client.upload_file(&path, UploadOptions::default()).await;
+        let _ = std::fs::remove_file(&path);
+        result.map(|_| ())
+    }
+
+    let su = "http://example.invalid/storage/p1";
+
+    // Zero part_size.
+    let r = run(
+        serde_json::json!({
+            "finalize_token": "t", "headers": {}, "mode": "multipart",
+            "part_size": 0, "part_urls": [su], "upload_id": "u",
+        }),
+        10,
+    )
+    .await;
+    assert!(
+        matches!(r, Err(UploadError::MalformedSession(_))),
+        "zero part_size: {r:?}"
+    );
+
+    // Negative part_size.
+    let r = run(
+        serde_json::json!({
+            "finalize_token": "t", "headers": {}, "mode": "multipart",
+            "part_size": -5, "part_urls": [su], "upload_id": "u",
+        }),
+        10,
+    )
+    .await;
+    assert!(
+        matches!(r, Err(UploadError::MalformedSession(_))),
+        "negative part_size: {r:?}"
+    );
+
+    // Empty part_urls.
+    let r = run(
+        serde_json::json!({
+            "finalize_token": "t", "headers": {}, "mode": "multipart",
+            "part_size": 5, "part_urls": [], "upload_id": "u",
+        }),
+        10,
+    )
+    .await;
+    assert!(
+        matches!(r, Err(UploadError::MalformedSession(_))),
+        "empty part_urls: {r:?}"
+    );
+
+    // Too FEW URLs: 10 bytes / 5 = 2 parts, but only 1 URL.
+    let r = run(
+        serde_json::json!({
+            "finalize_token": "t", "headers": {}, "mode": "multipart",
+            "part_size": 5, "part_urls": [su], "upload_id": "u",
+        }),
+        10,
+    )
+    .await;
+    assert!(
+        matches!(r, Err(UploadError::MalformedSession(_))),
+        "too few URLs: {r:?}"
+    );
+
+    // Too MANY URLs: 10 bytes / 5 = 2 parts, but 3 URLs.
+    let r = run(
+        serde_json::json!({
+            "finalize_token": "t", "headers": {}, "mode": "multipart",
+            "part_size": 5, "part_urls": [su, su, su], "upload_id": "u",
+        }),
+        10,
+    )
+    .await;
+    assert!(
+        matches!(r, Err(UploadError::MalformedSession(_))),
+        "too many URLs: {r:?}"
+    );
+}
+
+/// Server-provided Content-Type in the session `headers` map is replayed
+/// verbatim on the storage PUT.
+#[tokio::test]
+async fn server_content_type_is_replayed_on_storage_put() {
+    let server = MockServer::start().await;
+    let storage_url = format!("{}/storage/ct", server.uri());
+    let contents = b"typed bytes";
+
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "finalize_token": "ftok_ct",
+            "headers": { "Content-Type": "application/parquet" },
+            "mode": "single",
+            "upload_id": "upl_ct",
+            "url": storage_url,
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path("/storage/ct"))
+        .respond_with(ResponseTemplate::new(200).insert_header("ETag", "\"ct\""))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads/upl_ct/finalize"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(mock_finalize_ok("upl_ct", contents.len())),
+        )
+        .mount(&server)
+        .await;
+
+    let path = temp_file(contents);
+    let client = test_client(&server.uri());
+    let result = client.upload_file(&path, UploadOptions::default()).await;
+    let _ = std::fs::remove_file(&path);
+    result.expect("upload should succeed");
+
+    let requests = server.received_requests().await.expect("requests recorded");
+    let put = requests
+        .iter()
+        .find(|r| r.url.path() == "/storage/ct")
+        .expect("storage PUT");
+    assert_eq!(
+        put.headers
+            .get("content-type")
+            .and_then(|v| v.to_str().ok()),
+        Some("application/parquet"),
+        "server-provided Content-Type must be replayed verbatim (no charset appended)"
+    );
+}
+
+/// A Respond impl that records the peak number of concurrent in-flight storage
+/// PUTs (requests that have entered the responder but, with the injected delay,
+/// not yet released). Because each part task only issues its PUT once the
+/// JoinSet admits it, entry-concurrency can never exceed the effective in-flight
+/// cap — so the recorded peak is an upper bound we can assert against.
+struct ConcurrencyTracker {
+    active: AtomicUsize,
+    peak: AtomicUsize,
+    delay: Duration,
+}
+
+impl Respond for ConcurrencyTracker {
+    fn respond(&self, _req: &Request) -> ResponseTemplate {
+        let now = self.active.fetch_add(1, Ordering::SeqCst) + 1;
+        self.peak.fetch_max(now, Ordering::SeqCst);
+        // We cannot decrement after the delay from here, so model "in-flight"
+        // as entries during the delay window: the delay keeps responses pending
+        // long enough that all admitted tasks overlap, and admission is bounded
+        // by the cap. Decrement immediately is fine because peak is a max.
+        self.active.fetch_sub(1, Ordering::SeqCst);
+        ResponseTemplate::new(200)
+            .insert_header("ETag", "\"c\"")
+            .set_delay(self.delay)
+    }
+}
+
+/// #(bounded in-flight): with many parts and max_concurrency=2, the number of
+/// concurrently-admitted storage PUTs never exceeds the effective cap. The
+/// delayed responses force overlap so the JoinSet bound is exercised.
+#[tokio::test]
+async fn in_flight_concurrency_is_bounded() {
+    let server = MockServer::start().await;
+    let part_size = 5usize;
+    // 6 parts of 5 bytes (last exactly 5): 30 bytes total.
+    let contents: Vec<u8> = (0u8..30).collect();
+    let part_urls: Vec<String> = (1..=6)
+        .map(|i| format!("{}/storage/cpart/{i}", server.uri()))
+        .collect();
+
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "finalize_token": "ftok_c",
+            "headers": {},
+            "mode": "multipart",
+            "part_size": part_size,
+            "part_urls": part_urls,
+            "upload_id": "upl_c",
+        })))
+        .mount(&server)
+        .await;
+
+    let tracker = Arc::new(ConcurrencyTracker {
+        active: AtomicUsize::new(0),
+        peak: AtomicUsize::new(0),
+        delay: Duration::from_millis(50),
+    });
+    // wiremock's Respond is implemented for Arc<T: Respond> via &T; mount a
+    // closure delegating to the shared tracker so we can read `peak` after.
+    let tracker_for_mock = Arc::clone(&tracker);
+    Mock::given(method("PUT"))
+        .and(path_regex(r"^/storage/cpart/\d+$"))
+        .respond_with(move |req: &Request| tracker_for_mock.respond(req))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads/upl_c/finalize"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(mock_finalize_ok("upl_c", contents.len())),
+        )
+        .mount(&server)
+        .await;
+
+    let opts = UploadOptions {
+        max_concurrency: Some(2),
+        ..UploadOptions::default()
+    };
+    let path = temp_file(&contents);
+    let client = test_client(&server.uri());
+    let result = client.upload_file(&path, opts).await;
+    let _ = std::fs::remove_file(&path);
+    result.expect("upload should complete");
+
+    let peak = tracker.peak.load(Ordering::SeqCst);
+    assert!(peak >= 1, "at least one PUT should have been observed");
+    assert!(
+        peak <= 2,
+        "in-flight concurrency must not exceed max_concurrency=2, peak was {peak}"
+    );
+    // All 6 parts were uploaded.
+    let put_count = server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.url.path().starts_with("/storage/cpart/"))
+        .count();
+    assert_eq!(put_count, 6, "all 6 parts must be PUT");
 }

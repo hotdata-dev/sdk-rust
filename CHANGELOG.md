@@ -21,6 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   256 MiB peak-memory budget derived from the server's actual part size; when no
   `part_size` is given, the SDK auto-scales the hint (8 MiB for normal files,
   larger only past ~72 GiB to keep the part count under S3's 10,000-part limit).
+  Finalize is exactly-once (sent with retries disabled so an ambiguous failure
+  can't be retried into a spurious "already finalized" error); part `PUT`s stay
+  retryable. Storage `PUT`s use a dedicated header-bare reqwest client, so a host
+  app's default headers on the SDK's main client never leak to object storage.
+  The multipart session shape is validated (`part_urls` count must match the
+  file's part count) and pathological sizes (`> i64::MAX`) are rejected rather
+  than silently wrapped.
 
 ### Changed
 
