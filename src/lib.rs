@@ -55,7 +55,11 @@ pub use resources::{
     SavedQueriesApi, SecretsApi, UploadsApi, WorkspacesApi,
 };
 pub use status::{QueryRunStatus, QueryRunStatusExt, ResultStatus, ResultStatusExt};
-pub use uploads::{UploadError, UploadOptions, UploadProgress};
+pub use uploads::{
+    auto_part_size_hint, effective_in_flight, UploadError, UploadOptions, UploadProgress,
+    DEFAULT_MAX_CONCURRENCY, DEFAULT_PART_SIZE, MAX_PART_SIZE, MIN_PART_SIZE, TARGET_MAX_PARTS,
+    UPLOAD_MEMORY_BUDGET,
+};
 
 /// Process-wide lock serializing every test that mutates `std::env`. Env is a
 /// process-global resource, so per-module locks would race; all env-mutating

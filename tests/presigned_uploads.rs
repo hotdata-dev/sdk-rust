@@ -532,3 +532,98 @@ async fn storage_put_header_isolation_negative_check() {
         Some("ws_test"),
     );
 }
+
+/// Drive a single-PUT upload against a fresh mock server and return the JSON
+/// body the SDK sent to `POST /v1/uploads` (so tests can assert the part-size
+/// hint). The file written has `file_len` bytes; `opts` is passed through.
+async fn capture_create_body(file_len: usize, opts: UploadOptions) -> serde_json::Value {
+    let server = MockServer::start().await;
+    let storage_url = format!("{}/storage/hint", server.uri());
+
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "finalize_token": "ftok_hint",
+            "headers": {},
+            "mode": "single",
+            "upload_id": "upl_hint",
+            "url": storage_url,
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path("/storage/hint"))
+        .respond_with(ResponseTemplate::new(200).insert_header("ETag", "\"h\""))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads/upl_hint/finalize"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "created_at": "2026-06-25T00:00:00Z",
+            "size_bytes": file_len,
+            "status": "ready",
+            "upload_id": "upl_hint",
+        })))
+        .mount(&server)
+        .await;
+
+    let contents = vec![0u8; file_len];
+    let path = temp_file(&contents);
+    let client = test_client(&server.uri());
+    let result = client.upload_file(&path, opts).await;
+    let _ = std::fs::remove_file(&path);
+    result.expect("upload should succeed");
+
+    let requests = server.received_requests().await.expect("requests recorded");
+    let create = requests
+        .iter()
+        .find(|r| r.url.path() == "/v1/uploads")
+        .expect("a create-session request should have been made");
+    serde_json::from_slice(&create.body).expect("create body must be valid JSON")
+}
+
+#[tokio::test]
+async fn create_sends_8mib_part_size_hint_for_normal_file() {
+    // A normal-sized file sends the default 8 MiB hint (auto-scaling only kicks
+    // in for very large files).
+    let body = capture_create_body(4096, UploadOptions::default()).await;
+    assert_eq!(
+        body.get("part_size").and_then(|v| v.as_u64()),
+        Some(hotdata::DEFAULT_PART_SIZE),
+        "normal file must send the 8 MiB default hint, body: {body}"
+    );
+}
+
+#[tokio::test]
+async fn create_part_size_hint_matches_auto_scaler() {
+    // Whatever the SDK sends must equal the public pure scaler for the file's
+    // size, so the CLI can reason about it. (The scaler's large-file behavior is
+    // unit-tested directly in src/uploads.rs without writing a giant file.)
+    let file_len = 64 * 1024usize; // 64 KiB
+    let body = capture_create_body(file_len, UploadOptions::default()).await;
+    assert_eq!(
+        body.get("part_size").and_then(|v| v.as_u64()),
+        Some(hotdata::auto_part_size_hint(file_len as u64)),
+        "auto hint on the wire must match auto_part_size_hint(); body: {body}"
+    );
+    // Sanity: the auto scaler keeps the part count well under the S3 hard limit.
+    let hint = hotdata::auto_part_size_hint(file_len as u64);
+    assert!(hint.is_multiple_of(1024 * 1024), "hint must be a whole MiB");
+}
+
+#[tokio::test]
+async fn create_explicit_part_size_overrides_auto_hint() {
+    // An explicit opts.part_size must be forwarded verbatim, overriding the
+    // auto-scaler.
+    let explicit = 16 * 1024 * 1024u64; // 16 MiB
+    let opts = UploadOptions {
+        part_size: Some(explicit),
+        ..UploadOptions::default()
+    };
+    let body = capture_create_body(4096, opts).await;
+    assert_eq!(
+        body.get("part_size").and_then(|v| v.as_u64()),
+        Some(explicit),
+        "explicit part_size must override the auto hint, body: {body}"
+    );
+}

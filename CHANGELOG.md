@@ -16,7 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ones — then finalize, returning the `FinalizeUploadResponse`. Configurable via
   `UploadOptions` (content type/encoding, filename, part-size hint, and an
   `UploadProgress` callback). Never falls back to the legacy `POST /v1/files`
-  proxy; storage `PUT`s carry no SDK auth/scope headers.
+  proxy; storage `PUT`s carry no SDK auth/scope headers. Multipart concurrency
+  is tunable via `UploadOptions::max_concurrency` (default 10), bounded by a
+  256 MiB peak-memory budget derived from the server's actual part size; when no
+  `part_size` is given, the SDK auto-scales the hint (8 MiB for normal files,
+  larger only past ~72 GiB to keep the part count under S3's 10,000-part limit).
 
 ### Changed
 

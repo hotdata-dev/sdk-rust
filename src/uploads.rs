@@ -40,10 +40,73 @@ use crate::apis::configuration::Configuration;
 use crate::apis::{self, Error};
 use crate::models;
 
-/// Maximum number of part `PUT`s kept in flight at once for a multipart upload.
-/// Bounds memory (each in-flight part buffers up to `part_size` bytes) and the
-/// socket pool while keeping a large upload meaningfully parallel.
-const MAX_PARTS_IN_FLIGHT: usize = 6;
+/// One mebibyte, the unit the storage part-size range is expressed in.
+const MIB: u64 = 1024 * 1024;
+
+/// Default cap on concurrent part `PUT`s when the caller doesn't set
+/// [`UploadOptions::max_concurrency`]. Matches the boto3 / AWS CLI default of 10.
+/// The effective in-flight count is the MIN of this and a memory budget (see
+/// [`effective_in_flight`]).
+pub const DEFAULT_MAX_CONCURRENCY: usize = 10;
+
+/// Default part-size hint, in bytes (8 MiB), sent when the caller doesn't set
+/// [`UploadOptions::part_size`]. The server clamps the hint to its own range and
+/// returns the actual size. See [`auto_part_size_hint`].
+pub const DEFAULT_PART_SIZE: u64 = 8 * MIB;
+
+/// Target ceiling on part count when auto-scaling the part-size hint for very
+/// large files, with headroom under S3's hard 10,000-part limit. See
+/// [`auto_part_size_hint`].
+pub const TARGET_MAX_PARTS: u64 = 9000;
+
+/// Minimum part size storage accepts (5 MiB). The hint is clamped to at least
+/// this; the server enforces it too.
+pub const MIN_PART_SIZE: u64 = 5 * MIB;
+
+/// Maximum part size storage accepts (5 GiB). The hint is clamped to at most
+/// this.
+pub const MAX_PART_SIZE: u64 = 5 * 1024 * MIB;
+
+/// Peak-memory budget for in-flight part buffers (256 MiB). Each in-flight part
+/// buffers up to `part_size` bytes, so the effective in-flight count is bounded
+/// by `budget / part_size`. See [`effective_in_flight`].
+pub const UPLOAD_MEMORY_BUDGET: u64 = 256 * MIB;
+
+/// Compute the part-size HINT to send to the server in
+/// `CreateUploadRequest.part_size` when the caller did not specify one.
+///
+/// Starts from [`DEFAULT_PART_SIZE`] (8 MiB) and grows only for files large
+/// enough that 8 MiB parts would exceed [`TARGET_MAX_PARTS`] — so the common
+/// case is unchanged and only very large files (beyond ~72 GiB) get a larger
+/// hint to keep the part count bounded. The result is rounded UP to a whole MiB
+/// and clamped to `[MIN_PART_SIZE, MAX_PART_SIZE]`. The server still has the
+/// final say and clamps to its own range.
+///
+/// Pure and total: `declared_size == 0` yields [`DEFAULT_PART_SIZE`].
+pub fn auto_part_size_hint(declared_size: u64) -> u64 {
+    // Smallest part size that keeps the count at or under the target.
+    let by_count = declared_size.div_ceil(TARGET_MAX_PARTS);
+    let raw = DEFAULT_PART_SIZE.max(by_count);
+    // Round up to a whole MiB so the hint is a clean multiple.
+    let rounded = raw.div_ceil(MIB) * MIB;
+    rounded.clamp(MIN_PART_SIZE, MAX_PART_SIZE)
+}
+
+/// Compute how many part `PUT`s to keep in flight, given the caller's
+/// `max_concurrency` (already defaulted to [`DEFAULT_MAX_CONCURRENCY`]) and the
+/// SERVER's actual returned `part_size`.
+///
+/// Peak buffered memory is `in_flight * part_size`, so we cap in-flight at
+/// `UPLOAD_MEMORY_BUDGET / part_size` and then at `max_concurrency`, with a floor
+/// of 2 so progress is always made even for very large parts. Normal 8 MiB parts
+/// give `256/8 = 32`, capped to `max_concurrency`; a 64 MiB part gives `4`.
+///
+/// Pure and total: a zero `part_size` is treated as 1 to avoid division by zero
+/// (it still floors to 2).
+pub fn effective_in_flight(max_concurrency: usize, part_size: u64) -> usize {
+    let by_budget = (UPLOAD_MEMORY_BUDGET / part_size.max(1)) as usize;
+    by_budget.min(max_concurrency).max(2)
+}
 
 /// Progress callback: invoked as bytes flow with `(bytes_done_total, total)`,
 /// where `total` is the full declared file size. `bytes_done_total` is
@@ -70,8 +133,15 @@ pub struct UploadOptions {
     /// source path's file name when not set.
     pub filename: Option<String>,
     /// Preferred part size, in bytes, for a large (multipart) upload. A hint;
-    /// the server clamps it and ignores it for single-`PUT` uploads.
+    /// the server clamps it and ignores it for single-`PUT` uploads. When unset,
+    /// the SDK auto-scales a hint via [`auto_part_size_hint`] (8 MiB for normal
+    /// files, larger only for very large ones to bound the part count).
     pub part_size: Option<u64>,
+    /// Maximum number of part `PUT`s to keep in flight for a multipart upload.
+    /// `None` uses [`DEFAULT_MAX_CONCURRENCY`]. The effective in-flight count is
+    /// the MIN of this and a peak-memory budget derived from the server's actual
+    /// part size (see [`effective_in_flight`]), so memory stays bounded.
+    pub max_concurrency: Option<usize>,
     /// Optional progress callback invoked with `(bytes_done_total, total)`.
     pub progress: Option<UploadProgress>,
 }
@@ -83,6 +153,7 @@ impl std::fmt::Debug for UploadOptions {
             .field("content_encoding", &self.content_encoding)
             .field("filename", &self.filename)
             .field("part_size", &self.part_size)
+            .field("max_concurrency", &self.max_concurrency)
             .field("progress", &self.progress.as_ref().map(|_| "<callback>"))
             .finish()
     }
@@ -194,6 +265,11 @@ pub(crate) async fn upload_file(
         .clone()
         .or_else(|| path.file_name().map(|n| n.to_string_lossy().into_owned()));
 
+    // Part-size hint: honor an explicit caller value, else auto-scale from the
+    // declared size so the common case stays at 8 MiB and only very large files
+    // grow the hint (bounding the part count). The server clamps it regardless.
+    let part_size_hint = opts.part_size.unwrap_or_else(|| auto_part_size_hint(total));
+
     // Open the session. `declared_size_bytes` is the exact byte count finalize
     // validates against, so it must match the bytes we actually upload.
     let create = models::CreateUploadRequest {
@@ -201,7 +277,7 @@ pub(crate) async fn upload_file(
         content_type: opts.content_type.clone().map(Some),
         content_encoding: opts.content_encoding.clone().map(Some),
         filename: filename.map(Some),
-        part_size: opts.part_size.map(|s| Some(s as i64)),
+        part_size: Some(Some(part_size_hint as i64)),
         ..models::CreateUploadRequest::new(total as i64)
     };
     let session = apis::uploads_api::create_upload_session_handler(configuration, create)
@@ -219,9 +295,20 @@ pub(crate) async fn upload_file(
             upload_single(configuration, &session, path, total, opts.progress.as_ref()).await?;
             None
         }
-        "multipart" => Some(
-            upload_multipart(configuration, &session, path, total, opts.progress.as_ref()).await?,
-        ),
+        "multipart" => {
+            let max_concurrency = opts.max_concurrency.unwrap_or(DEFAULT_MAX_CONCURRENCY);
+            Some(
+                upload_multipart(
+                    configuration,
+                    &session,
+                    path,
+                    total,
+                    max_concurrency,
+                    opts.progress.as_ref(),
+                )
+                .await?,
+            )
+        }
         other => {
             return Err(UploadError::MalformedSession(format!(
                 "unknown upload mode `{other}`"
@@ -354,12 +441,17 @@ impl futures_core::Stream for ProgressStream {
 /// remainder), `PUT` each chunk to its `part_urls[i - 1]` with bounded
 /// concurrency, and collect `(part_number, e_tag)` per part.
 ///
+/// `max_concurrency` is the caller's ceiling on in-flight parts; the effective
+/// count also honors a peak-memory budget derived from the server's actual
+/// `part_size` (see [`effective_in_flight`]).
+///
 /// Returns the parts sorted ascending by part number, ready for finalize.
 async fn upload_multipart(
     configuration: &Configuration,
     session: &models::UploadSessionResponse,
     path: &Path,
     total: u64,
+    max_concurrency: usize,
     progress: Option<&UploadProgress>,
 ) -> Result<Vec<models::FinalizeUploadPart>, UploadError> {
     let part_urls = session.part_urls.clone().flatten().ok_or_else(|| {
@@ -374,6 +466,11 @@ async fn upload_multipart(
         )));
     }
     let part_size = part_size as u64;
+
+    // Peak buffered memory is in_flight * part_size; bound in-flight by both the
+    // caller's max_concurrency and the memory budget, using the SERVER's actual
+    // part size (the same value we slice by below).
+    let in_flight_cap = effective_in_flight(max_concurrency, part_size);
 
     // Aggregate progress across parts via a shared counter; each part adds its
     // own byte count as it completes.
@@ -391,7 +488,7 @@ async fn upload_multipart(
     > = tokio::task::JoinSet::new();
 
     loop {
-        while join_set.len() < MAX_PARTS_IN_FLIGHT && next < part_urls.len() {
+        while join_set.len() < in_flight_cap && next < part_urls.len() {
             let index = next;
             next += 1;
             let part_number = (index + 1) as i32;
@@ -592,4 +689,84 @@ where
 /// reference and reqwest clients are cheap to clone (an `Arc` internally).
 fn storage_client(configuration: &Configuration) -> reqwest::Client {
     configuration.client.clone()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The part count a given hint would produce for a file of `size`.
+    fn part_count(size: u64, part: u64) -> u64 {
+        size.div_ceil(part)
+    }
+
+    #[test]
+    fn auto_part_size_keeps_8mib_for_normal_files() {
+        // Empty and small files default to 8 MiB.
+        assert_eq!(auto_part_size_hint(0), DEFAULT_PART_SIZE);
+        assert_eq!(auto_part_size_hint(1), DEFAULT_PART_SIZE);
+        assert_eq!(auto_part_size_hint(100 * MIB), DEFAULT_PART_SIZE);
+        assert_eq!(auto_part_size_hint(1024 * MIB), DEFAULT_PART_SIZE); // 1 GiB
+                                                                        // Right at the boundary: 8 MiB * 9000 parts = 72 GiB still fits 8 MiB.
+        let boundary = DEFAULT_PART_SIZE * TARGET_MAX_PARTS;
+        assert_eq!(auto_part_size_hint(boundary), DEFAULT_PART_SIZE);
+    }
+
+    #[test]
+    fn auto_part_size_scales_up_for_very_large_files_and_caps_parts() {
+        // Beyond ~72 GiB the hint must grow above 8 MiB.
+        let big = 200 * 1024 * MIB; // 200 GiB
+        let hint = auto_part_size_hint(big);
+        assert!(
+            hint > DEFAULT_PART_SIZE,
+            "hint should scale above 8 MiB for a 200 GiB file, got {hint}"
+        );
+        // Hint is a whole number of MiB.
+        assert_eq!(hint % MIB, 0, "hint must be a whole MiB, got {hint}");
+        // Part count stays at or under the target ceiling.
+        assert!(
+            part_count(big, hint) <= TARGET_MAX_PARTS,
+            "part count {} must be <= {TARGET_MAX_PARTS}",
+            part_count(big, hint)
+        );
+        // And always within storage's accepted range.
+        assert!((MIN_PART_SIZE..=MAX_PART_SIZE).contains(&hint));
+    }
+
+    #[test]
+    fn auto_part_size_clamps_to_max_for_enormous_files() {
+        // A file so large the count-driven size would exceed 5 GiB clamps to the
+        // 5 GiB ceiling (the part count then necessarily exceeds the soft target,
+        // which is fine — it's a hint and the server has the final say).
+        let enormous = 100 * 1024 * 1024 * MIB; // 100 PiB
+        assert_eq!(auto_part_size_hint(enormous), MAX_PART_SIZE);
+    }
+
+    #[test]
+    fn effective_in_flight_capped_by_max_concurrency_for_small_parts() {
+        // 8 MiB parts: budget allows 256/8 = 32, so max_concurrency wins.
+        assert_eq!(effective_in_flight(12, 8 * MIB), 12);
+        assert_eq!(effective_in_flight(10, 8 * MIB), 10);
+        // A tiny part size still can't exceed max_concurrency.
+        assert_eq!(effective_in_flight(12, MIB), 12);
+    }
+
+    #[test]
+    fn effective_in_flight_reduced_by_memory_budget_for_large_parts() {
+        // 64 MiB parts: budget allows 256/64 = 4, below max_concurrency.
+        assert_eq!(effective_in_flight(12, 64 * MIB), 4);
+        // 128 MiB parts: 256/128 = 2.
+        assert_eq!(effective_in_flight(12, 128 * MIB), 2);
+    }
+
+    #[test]
+    fn effective_in_flight_floors_at_2_and_handles_zero() {
+        // A part larger than the whole budget still keeps at least 2 in flight.
+        assert_eq!(effective_in_flight(12, UPLOAD_MEMORY_BUDGET * 4), 2);
+        // max_concurrency below the floor is raised to 2.
+        assert_eq!(effective_in_flight(1, 8 * MIB), 2);
+        // Zero part size doesn't divide-by-zero (treated as 1 byte): the budget
+        // then allows a huge count, so max_concurrency wins.
+        assert_eq!(effective_in_flight(12, 0), 12);
+    }
 }
