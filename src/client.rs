@@ -513,6 +513,37 @@ impl Client {
         }
     }
 
+    /// Upload a local file directly to object storage and finalize it — the
+    /// primary, presigned upload entry point.
+    ///
+    /// Opens an upload session (`POST /v1/uploads`), `PUT`s the bytes **directly
+    /// to storage** (a single `PUT` for a small file, or bounded-concurrency
+    /// multipart `PUT`s split by the server's `part_size` for a large one), then
+    /// finalizes (`POST /v1/uploads/{id}/finalize`) and returns the
+    /// [`models::FinalizeUploadResponse`] — read `upload_id` from it to load the
+    /// upload into a managed table.
+    ///
+    /// This path NEVER falls back to the legacy `POST /v1/files` proxy: a server
+    /// that cannot presign (`501 PRESIGN_UNSUPPORTED`) is a hard
+    /// [`UploadError::CreateSession`] error.
+    ///
+    /// Pass [`UploadOptions`] to record advisory metadata (`content_type`,
+    /// `content_encoding`, `filename`), hint a `part_size` (the server clamps
+    /// it), or attach a `progress` callback invoked with
+    /// `(bytes_done_total, total)` as bytes flow.
+    ///
+    /// Large uploads legitimately take minutes; storage `PUT`s reuse the
+    /// configured reqwest client, so supply one with no request timeout (via
+    /// [`ClientBuilder::reqwest_client`](crate::ClientBuilder::reqwest_client))
+    /// when uploading large files.
+    pub async fn upload_file(
+        &self,
+        path: impl AsRef<std::path::Path>,
+        opts: crate::uploads::UploadOptions,
+    ) -> Result<models::FinalizeUploadResponse, crate::uploads::UploadError> {
+        crate::uploads::upload_file(&self.configuration, path.as_ref(), opts).await
+    }
+
     /// Stream an arbitrary byte source to `POST /v1/files`, the raw-body upload
     /// endpoint.
     ///
@@ -624,8 +655,7 @@ impl Client {
             .and_then(|v| v.to_str().ok())
             .unwrap_or("application/octet-stream")
             .to_owned();
-        let is_json =
-            content_type.starts_with("application") && content_type.contains("json");
+        let is_json = content_type.starts_with("application") && content_type.contains("json");
 
         if !status.is_client_error() && !status.is_server_error() {
             let content = resp.text().await?;
@@ -1270,10 +1300,7 @@ mod tests {
         // The mock only matches when all three headers are present, so a
         // successful Submitted outcome proves they reached the wire.
         let outcome = client
-            .submit_query(
-                models::QueryRequest::new("select 1".into()),
-                Some("db_123"),
-            )
+            .submit_query(models::QueryRequest::new("select 1".into()), Some("db_123"))
             .await
             .expect("submit_query should succeed with scoped headers");
 

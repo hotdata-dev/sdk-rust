@@ -27,6 +27,7 @@ pub mod models;
 pub mod query;
 pub mod resources;
 pub mod status;
+pub mod uploads;
 
 #[cfg(all(test, unix))]
 mod test_support;
@@ -49,11 +50,12 @@ pub use query::{
     DEFAULT_MAX_AUTO_BYTES, DEFAULT_MAX_AUTO_ROWS, OVERLOADED_ERROR_CODE,
 };
 pub use resources::{
-    ConnectionTypesApi, ConnectionsApi, DatabaseContextApi, DatabasesApi,
-    EmbeddingProvidersApi, IndexesApi, InformationSchemaApi, JobsApi, QueryApi, QueryRunsApi,
-    RefreshApi, ResultsApi, SavedQueriesApi, SecretsApi, UploadsApi, WorkspacesApi,
+    ConnectionTypesApi, ConnectionsApi, DatabaseContextApi, DatabasesApi, EmbeddingProvidersApi,
+    IndexesApi, InformationSchemaApi, JobsApi, QueryApi, QueryRunsApi, RefreshApi, ResultsApi,
+    SavedQueriesApi, SecretsApi, UploadsApi, WorkspacesApi,
 };
 pub use status::{QueryRunStatus, QueryRunStatusExt, ResultStatus, ResultStatusExt};
+pub use uploads::{UploadError, UploadOptions, UploadProgress};
 
 /// Process-wide lock serializing every test that mutates `std::env`. Env is a
 /// process-global resource, so per-module locks would race; all env-mutating
@@ -73,4 +75,5 @@ pub mod prelude {
     };
     pub use crate::resources::*;
     pub use crate::status::{QueryRunStatus, QueryRunStatusExt, ResultStatus, ResultStatusExt};
+    pub use crate::uploads::{UploadError, UploadOptions, UploadProgress};
 }

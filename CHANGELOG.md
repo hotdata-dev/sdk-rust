@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Ergonomic presigned (direct-to-storage) file uploads: `Client::upload_file`
+  (and `client.uploads().upload_file`) open an upload session, `PUT` the bytes
+  straight to object storage — a single `PUT` for small files, bounded-
+  concurrency multipart `PUT`s sliced by the server's `part_size` for large
+  ones — then finalize, returning the `FinalizeUploadResponse`. Configurable via
+  `UploadOptions` (content type/encoding, filename, part-size hint, and an
+  `UploadProgress` callback). Never falls back to the legacy `POST /v1/files`
+  proxy; storage `PUT`s carry no SDK auth/scope headers.
+
 ### Changed
 
 - feat(uploads): add file upload endpoints

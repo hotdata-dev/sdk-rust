@@ -12,6 +12,7 @@ src/resources.rs
 src/field.rs
 src/status.rs
 src/query.rs
+src/uploads.rs
 CHANGELOG.md
 RELEASING.md
 examples/
