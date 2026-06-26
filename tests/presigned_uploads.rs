@@ -160,13 +160,24 @@ async fn single_put_happy_path() {
         Some("ftok_single"),
         "finalize must carry the token in X-Upload-Finalize-Token"
     );
-    // The single-PUT finalize body must not enumerate parts.
+    // The single-PUT finalize body MUST be a JSON object (`{}`), NOT `null`:
+    // prod rejects a `null` finalize body ("invalid type: null, expected struct
+    // FinalizeUploadRequest"). Parse the raw bytes strictly so a literal `null`
+    // is caught (it would parse to Value::Null and fail this assert).
     let body: serde_json::Value =
-        serde_json::from_slice(&finalize.body).unwrap_or(serde_json::Value::Null);
-    let parts = body.get("parts");
+        serde_json::from_slice(&finalize.body).expect("finalize body must be valid JSON");
     assert!(
-        parts.is_none() || parts == Some(&serde_json::Value::Null),
-        "single-PUT finalize must not send a parts list, got {body}"
+        body.is_object(),
+        "single-PUT finalize body must be a JSON object, not {body}"
+    );
+    assert!(
+        !body.is_null(),
+        "single-PUT finalize body must not be JSON null"
+    );
+    // And it must not enumerate parts.
+    assert!(
+        body.get("parts").is_none(),
+        "single-PUT finalize must omit the parts key, got {body}"
     );
 }
 
@@ -349,6 +360,11 @@ async fn multipart_happy_path() {
         Some("ftok_multi"),
     );
     let body: serde_json::Value = serde_json::from_slice(&finalize.body).expect("finalize JSON");
+    // The body must be a JSON object carrying `parts` — never `null`.
+    assert!(
+        body.is_object(),
+        "multipart finalize body must be a JSON object, not {body}"
+    );
     let parts = body
         .get("parts")
         .and_then(|p| p.as_array())

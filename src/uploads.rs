@@ -229,12 +229,23 @@ pub(crate) async fn upload_file(
         }
     };
 
-    // Finalize: single sends an empty body; multipart sends the ascending,
-    // non-duplicate parts list. The token rides the X-Upload-Finalize-Token
-    // header (handled by the generated op).
-    let finalize_body = parts.map(|parts| models::FinalizeUploadRequest {
-        parts: Some(Some(parts)),
-    });
+    // Finalize: single sends an empty object `{}`; multipart sends
+    // `{"parts": [...]}` with the ascending, non-duplicate parts list. The token
+    // rides the X-Upload-Finalize-Token header (handled by the generated op).
+    //
+    // The body MUST be a JSON object, never `null`: the server rejects a `null`
+    // finalize body ("invalid type: null, expected struct FinalizeUploadRequest")
+    // even though the field is logically optional for single uploads. So we wrap
+    // in `Some(..)` for both modes — the generated op then serializes a struct,
+    // and `parts` (skip_serializing_if = Option::is_none) drops out for single,
+    // yielding `{}`.
+    let finalize_body = Some(
+        parts
+            .map(|parts| models::FinalizeUploadRequest {
+                parts: Some(Some(parts)),
+            })
+            .unwrap_or_default(),
+    );
 
     apis::uploads_api::finalize_upload_handler(
         configuration,
