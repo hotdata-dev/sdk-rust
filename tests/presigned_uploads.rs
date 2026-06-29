@@ -1645,3 +1645,141 @@ async fn expired_part_url_is_reminted_and_retried() {
         "part 1 must be re-minted after its URL expired, saw {p1_mints} mints for it"
     );
 }
+
+/// The SDK must pair each minted URL with the part number the SERVER labelled it
+/// — not with the order the URLs arrive in — so a response listing parts out of
+/// order still uploads every byte range to the correct part. Here the mint
+/// responder deliberately reverses the parts; each storage part must still
+/// receive its own slice.
+#[tokio::test]
+async fn mint_response_order_does_not_corrupt_part_slices() {
+    let server = MockServer::start().await;
+    let storage_base = server.uri();
+    // 9 MiB over a 4 MiB part size -> 3 parts: 4 MiB, 4 MiB, 1 MiB.
+    let part_size = 4 * MIB;
+    let contents: Vec<u8> = (0..9 * MIB).map(|i| (i % 251) as u8).collect();
+
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "finalize_token": "ftok_ord",
+            "headers": {},
+            "mode": "multipart",
+            "part_size": part_size,
+            "upload_id": "upl_ord",
+        })))
+        .mount(&server)
+        .await;
+
+    // Mint responder that returns the requested parts in REVERSE order.
+    let base = storage_base.clone();
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads/upl_ord/parts"))
+        .respond_with(move |req: &Request| {
+            let body: serde_json::Value = serde_json::from_slice(&req.body).unwrap();
+            let mut parts: Vec<serde_json::Value> = body["part_numbers"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|n| {
+                    let n = n.as_i64().unwrap();
+                    serde_json::json!({ "part_number": n, "url": format!("{base}/storage/spart/{n}") })
+                })
+                .collect();
+            parts.reverse();
+            ResponseTemplate::new(200).set_body_json(serde_json::json!({ "parts": parts }))
+        })
+        .mount(&server)
+        .await;
+
+    for n in 1..=3 {
+        Mock::given(method("PUT"))
+            .and(path(format!("/storage/spart/{n}")))
+            .respond_with(ResponseTemplate::new(200).insert_header("ETag", format!("\"etag-{n}\"")))
+            .mount(&server)
+            .await;
+    }
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads/upl_ord/finalize"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(mock_finalize_ok("upl_ord", contents.len())),
+        )
+        .mount(&server)
+        .await;
+
+    let path = temp_file(&contents);
+    let client = test_client(&server.uri());
+    let result = client.upload_file(&path, UploadOptions::default()).await;
+    let _ = std::fs::remove_file(&path);
+    result.expect("out-of-order mint response must not break the upload");
+
+    let requests = server.received_requests().await.expect("requests recorded");
+    let expected = [
+        &contents[0..4 * MIB],
+        &contents[4 * MIB..8 * MIB],
+        &contents[8 * MIB..9 * MIB],
+    ];
+    for (i, slice) in expected.iter().enumerate() {
+        let part_path = format!("/storage/spart/{}", i + 1);
+        let put = requests
+            .iter()
+            .find(|r| r.url.path() == part_path)
+            .unwrap_or_else(|| panic!("a PUT to {part_path} should have been made"));
+        assert_eq!(
+            &put.body[..],
+            *slice,
+            "part {} must receive its own {}-byte slice despite the reversed mint response",
+            i + 1,
+            slice.len()
+        );
+    }
+}
+
+/// If a mint response omits a requested part number, the SDK must fail loudly
+/// (rather than shift later parts' byte offsets), since the byte range for each
+/// part is keyed to its number.
+#[tokio::test]
+async fn mint_missing_requested_part_is_rejected() {
+    let server = MockServer::start().await;
+    let storage_base = server.uri();
+    let part_size = 5 * MIB;
+    let contents: Vec<u8> = (0..9 * MIB).map(|i| (i % 251) as u8).collect(); // 2 parts
+
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "finalize_token": "ftok_miss",
+            "headers": {},
+            "mode": "multipart",
+            "part_size": part_size,
+            "upload_id": "upl_miss",
+        })))
+        .mount(&server)
+        .await;
+
+    // Responder returns ONLY part 1 even when more were requested.
+    let base = storage_base.clone();
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads/upl_miss/parts"))
+        .respond_with(move |_req: &Request| {
+            ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "parts": [{ "part_number": 1, "url": format!("{base}/storage/spart/1") }]
+            }))
+        })
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path_regex(r"^/storage/spart/\d+$"))
+        .respond_with(ResponseTemplate::new(200).insert_header("ETag", "\"e\""))
+        .mount(&server)
+        .await;
+
+    let path = temp_file(&contents);
+    let client = test_client(&server.uri());
+    let result = client.upload_file(&path, UploadOptions::default()).await;
+    let _ = std::fs::remove_file(&path);
+    assert!(
+        matches!(result, Err(UploadError::MalformedSession(_))),
+        "a mint response missing a requested part must be rejected, got {result:?}"
+    );
+}

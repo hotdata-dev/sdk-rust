@@ -79,6 +79,15 @@ pub const MAX_PART_SIZE: u64 = 5 * 1024 * MIB;
 /// the parts it is about to upload.
 pub const MAX_MINT_BATCH: usize = 100;
 
+/// File-size boundary between the two upload strategies. A file at or below this
+/// size takes the known-size path — a single quick `PUT` (or a short eager
+/// multipart) that completes well within a presigned URL's TTL, so there is no
+/// expiry risk. A larger file uses the streaming just-in-time path, minting each
+/// part URL only moments before it is uploaded. Set to [`DEFAULT_PART_SIZE`],
+/// the server's default single-vs-multipart boundary, so small uploads keep the
+/// single-`PUT` fast path unchanged.
+pub const STREAMING_THRESHOLD: u64 = DEFAULT_PART_SIZE;
+
 /// Target peak-memory budget for in-flight part buffers (256 MiB). Each
 /// in-flight part buffers up to `part_size` bytes, so [`effective_in_flight`]
 /// derives the in-flight count as `budget / part_size`.
@@ -315,12 +324,8 @@ pub(crate) async fn upload_file(
     // grow the hint (bounding the part count). The server clamps it regardless.
     let part_size_hint = opts.part_size.unwrap_or_else(|| auto_part_size_hint(total));
 
-    // The wire models size as a signed i64; reject (rather than silently wrap)
-    // a pathological size beyond i64::MAX.
-    let declared_size_bytes = i64::try_from(total).map_err(|_| UploadError::SizeOverflow {
-        what: "declared_size_bytes",
-        value: total,
-    })?;
+    // The wire models the part-size hint as a signed i64; reject (rather than
+    // silently wrap) a pathological hint beyond i64::MAX.
     let part_size_hint_i64 =
         i64::try_from(part_size_hint).map_err(|_| UploadError::SizeOverflow {
             what: "part_size",
@@ -334,19 +339,26 @@ pub(crate) async fn upload_file(
     // matter how long a slow upload runs — the failure mode of the eager
     // known-size path, whose URLs share a ~30-minute TTL. A small file is a
     // single quick `PUT` with no expiry risk, so it keeps the known-size path
-    // (and the server's single-`PUT` fast path) by declaring its size. The
-    // struct-update base fills the optional checksum fields with None.
-    let stream = total > DEFAULT_PART_SIZE;
+    // (and the server's single-`PUT` fast path) by declaring its size.
+    //
+    // `declared_size_bytes` is sent (and so range-checked against the wire's
+    // i64) ONLY on the known-size path; a streaming upload omits it entirely, so
+    // a size beyond i64::MAX is never an obstacle to a streamed file.
+    let declared_size_bytes = if total > STREAMING_THRESHOLD {
+        None
+    } else {
+        let size = i64::try_from(total).map_err(|_| UploadError::SizeOverflow {
+            what: "declared_size_bytes",
+            value: total,
+        })?;
+        Some(Some(size))
+    };
     let create = models::CreateUploadRequest {
         content_type: opts.content_type.clone().map(Some),
         content_encoding: opts.content_encoding.clone().map(Some),
         filename: filename.map(Some),
         part_size: Some(Some(part_size_hint_i64)),
-        declared_size_bytes: if stream {
-            None
-        } else {
-            Some(Some(declared_size_bytes))
-        },
+        declared_size_bytes,
         ..models::CreateUploadRequest::new()
     };
     let session = apis::uploads_api::create_upload_session_handler(configuration, create)
@@ -722,49 +734,71 @@ async fn upload_multipart_streaming(
     let upload_id = session.upload_id.clone();
     let finalize_token = session.finalize_token.clone();
 
-    // Minted-but-not-yet-uploaded part URLs, ascending by part number. Refilled
-    // from POST /parts as it drains so a URL is minted shortly before its `PUT`.
-    let mut minted: std::collections::VecDeque<models::MintedUploadPartResponse> =
-        std::collections::VecDeque::new();
+    // Minted-but-not-yet-uploaded `(part_number, url)` pairs, ascending by part
+    // number. Refilled from POST /parts as it drains so a URL is minted shortly
+    // before its `PUT`.
+    let mut minted: std::collections::VecDeque<(i32, String)> = std::collections::VecDeque::new();
     let mut next_to_mint = 1i32; // next 1-based part number to request a URL for
-    let mut next_index = 0usize; // next 0-based part to spawn a `PUT` for
+    let mut next_part = 1i32; // next 1-based part number to spawn a `PUT` for
 
     let mut join_set: tokio::task::JoinSet<
         Result<(usize, models::FinalizeUploadPart), UploadError>,
     > = tokio::task::JoinSet::new();
 
     loop {
-        while join_set.len() < in_flight_cap && next_index < expected_parts {
+        while join_set.len() < in_flight_cap && (next_part as usize) <= expected_parts {
             // Keep the buffer at least one in-flight window ahead, minting in
             // batches capped at the server's per-call limit.
             if minted.len() < in_flight_cap && (next_to_mint as usize) <= expected_parts {
                 let lo = next_to_mint;
                 let hi = (lo as usize + MAX_MINT_BATCH - 1).min(expected_parts) as i32;
-                let part_numbers: Vec<i32> = (lo..=hi).collect();
                 let resp = apis::uploads_api::mint_upload_parts_handler(
                     &config,
                     &upload_id,
                     &finalize_token,
-                    models::MintUploadPartsRequest::new(part_numbers),
+                    models::MintUploadPartsRequest::new((lo..=hi).collect()),
                 )
                 .await
                 .map_err(UploadError::MintParts)?;
-                for p in resp.parts {
-                    minted.push_back(p);
+                // Pair each URL with the part number the SERVER labelled it,
+                // then enqueue strictly in the order WE requested (lo..=hi).
+                // This catches a missing or unexpected part number here — rather
+                // than letting a mismatch silently shift every later part's byte
+                // offset — and makes the queue order independent of the order the
+                // server happened to list the URLs in.
+                let mut by_number: std::collections::HashMap<i32, String> = resp
+                    .parts
+                    .into_iter()
+                    .map(|p| (p.part_number, p.url))
+                    .collect();
+                for n in lo..=hi {
+                    let url = by_number.remove(&n).ok_or_else(|| {
+                        UploadError::MalformedSession(format!(
+                            "mint did not return a URL for part {n}"
+                        ))
+                    })?;
+                    minted.push_back((n, url));
+                }
+                if !by_number.is_empty() {
+                    return Err(UploadError::MalformedSession(
+                        "mint returned URLs for parts that were not requested".to_owned(),
+                    ));
                 }
                 next_to_mint = hi + 1;
             }
 
-            let minted_part = minted.pop_front().ok_or_else(|| {
+            let (part_number, url) = minted.pop_front().ok_or_else(|| {
                 UploadError::MalformedSession(
                     "streaming mint returned no URL for a pending part".to_owned(),
                 )
             })?;
-            let part_number = minted_part.part_number;
-            let url = minted_part.url;
-            let index = next_index;
-            next_index += 1;
-
+            // Parts are minted and enqueued in ascending order, so the front of
+            // the queue is always `next_part`. Derive the byte range from the
+            // part number itself (not from queue position) so the uploaded slice
+            // and the finalize entry can never disagree.
+            debug_assert_eq!(part_number, next_part);
+            next_part += 1;
+            let index = (part_number - 1) as usize;
             let offset = index as u64 * part_size;
             let len = part_size.min(total.saturating_sub(offset));
 
@@ -851,7 +885,16 @@ async fn upload_multipart_streaming(
         }
     }
 
-    Ok(results.into_iter().flatten().collect())
+    // Every slot must be filled: we spawned exactly one task per part and place
+    // each result by its part index. A `None` would mean a part silently went
+    // unuploaded, so surface it rather than finalizing a short list.
+    let mut parts = Vec::with_capacity(results.len());
+    for (i, slot) in results.into_iter().enumerate() {
+        parts.push(slot.ok_or_else(|| {
+            UploadError::MalformedSession(format!("part {} was never uploaded", i + 1))
+        })?);
+    }
+    Ok(parts)
 }
 
 /// Read exactly `len` bytes starting at `offset` from `path`. A positioned read
