@@ -1358,3 +1358,428 @@ async fn serial_when_max_concurrency_is_one() {
         "max_concurrency=1 must keep PUTs strictly serial (no overlap)"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Streaming (just-in-time part minting) — issue sdk-rust#76
+// ---------------------------------------------------------------------------
+
+/// One mebibyte.
+const MIB: usize = 1024 * 1024;
+
+/// A wiremock responder for `POST /v1/uploads/{id}/parts` that reads the
+/// requested `part_numbers` from the request body and returns one minted URL per
+/// part, each pointing at `{storage_base}/storage/spart/{n}`. This mirrors the
+/// real server, which mints exactly the parts asked for, on demand.
+fn mint_parts_responder(
+    storage_base: String,
+) -> impl Fn(&Request) -> ResponseTemplate + Send + Sync + 'static {
+    move |req: &Request| {
+        let body: serde_json::Value =
+            serde_json::from_slice(&req.body).expect("mint request body must be JSON");
+        let nums = body
+            .get("part_numbers")
+            .and_then(|v| v.as_array())
+            .expect("mint request must carry a part_numbers array");
+        let parts: Vec<serde_json::Value> = nums
+            .iter()
+            .map(|n| {
+                let n = n.as_i64().expect("part_number must be an integer");
+                serde_json::json!({
+                    "part_number": n,
+                    "url": format!("{storage_base}/storage/spart/{n}"),
+                })
+            })
+            .collect();
+        ResponseTemplate::new(200).set_body_json(serde_json::json!({ "parts": parts }))
+    }
+}
+
+/// A large file (> the 8 MiB single-PUT threshold) must use the STREAMING path:
+/// open the session WITHOUT `declared_size_bytes`, mint part URLs on demand via
+/// `POST /v1/uploads/{id}/parts` (carrying the finalize token in the header), and
+/// finalize the ascending `{part_number, e_tag}` list. This is the structural fix
+/// for URL expiry — no part URL is minted until just before its chunk is sent.
+#[tokio::test]
+async fn large_file_uses_streaming_jit_minting() {
+    let server = MockServer::start().await;
+    let storage_base = server.uri();
+    // 9 MiB over a 5 MiB part size -> 2 parts: 5 MiB + 4 MiB.
+    let part_size = 5 * MIB;
+    let contents: Vec<u8> = (0..9 * MIB).map(|i| (i % 251) as u8).collect();
+
+    // Create: streaming session — NO part_urls up front, part_size echoed.
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "finalize_token": "ftok_stream",
+            "headers": {},
+            "mode": "multipart",
+            "part_size": part_size,
+            "upload_id": "upl_stream",
+        })))
+        .mount(&server)
+        .await;
+
+    // On-demand mint endpoint.
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads/upl_stream/parts"))
+        .respond_with(mint_parts_responder(storage_base.clone()))
+        .mount(&server)
+        .await;
+
+    // Storage PUT targets, one per part, each returning a distinct ETag.
+    for n in 1..=2 {
+        Mock::given(method("PUT"))
+            .and(path(format!("/storage/spart/{n}")))
+            .respond_with(ResponseTemplate::new(200).insert_header("ETag", format!("\"etag-{n}\"")))
+            .mount(&server)
+            .await;
+    }
+
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads/upl_stream/finalize"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(mock_finalize_ok("upl_stream", contents.len())),
+        )
+        .mount(&server)
+        .await;
+
+    let path = temp_file(&contents);
+    let client = test_client(&server.uri());
+    let result = client.upload_file(&path, UploadOptions::default()).await;
+    let _ = std::fs::remove_file(&path);
+    let result = result.expect("streaming upload should succeed");
+    assert_eq!(result.upload_id, "upl_stream");
+
+    let requests = server.received_requests().await.expect("requests recorded");
+
+    // 1. The create request omitted declared_size_bytes (the streaming signal)
+    //    while still sending the part_size hint.
+    let create = requests
+        .iter()
+        .find(|r| r.url.path() == "/v1/uploads")
+        .expect("a create-session request should have been made");
+    let create_body: serde_json::Value =
+        serde_json::from_slice(&create.body).expect("create body JSON");
+    assert!(
+        create_body.get("declared_size_bytes").is_none(),
+        "streaming create must omit declared_size_bytes, body: {create_body}"
+    );
+    assert!(
+        create_body.get("part_size").is_some(),
+        "streaming create must still send the part_size hint, body: {create_body}"
+    );
+
+    // 2. The SDK minted part URLs on demand, carrying the finalize token in the
+    //    header, and asked for the 1-based part numbers it was about to upload.
+    let mints: Vec<&Request> = requests
+        .iter()
+        .filter(|r| r.url.path() == "/v1/uploads/upl_stream/parts")
+        .collect();
+    assert!(
+        !mints.is_empty(),
+        "the SDK must mint part URLs via POST /v1/uploads/{{id}}/parts"
+    );
+    let mut minted_numbers: Vec<i64> = Vec::new();
+    for mint in &mints {
+        assert_eq!(
+            mint.headers
+                .get("x-upload-finalize-token")
+                .and_then(|v| v.to_str().ok()),
+            Some("ftok_stream"),
+            "each mint must carry the finalize token in X-Upload-Finalize-Token"
+        );
+        let body: serde_json::Value = serde_json::from_slice(&mint.body).expect("mint body JSON");
+        let nums = body
+            .get("part_numbers")
+            .and_then(|v| v.as_array())
+            .expect("mint must send part_numbers");
+        assert!(!nums.is_empty(), "mint part_numbers must be non-empty");
+        for n in nums {
+            minted_numbers.push(n.as_i64().expect("part number int"));
+        }
+    }
+    minted_numbers.sort_unstable();
+    assert_eq!(
+        minted_numbers,
+        vec![1, 2],
+        "exactly parts 1 and 2 must be minted (each once)"
+    );
+
+    // 3. Each part received its slice ([0..5MiB), [5MiB..9MiB)).
+    let expected = [&contents[0..5 * MIB], &contents[5 * MIB..9 * MIB]];
+    for (i, slice) in expected.iter().enumerate() {
+        let part_path = format!("/storage/spart/{}", i + 1);
+        let put = requests
+            .iter()
+            .find(|r| r.url.path() == part_path)
+            .unwrap_or_else(|| panic!("a PUT to {part_path} should have been made"));
+        assert_eq!(&put.body[..], *slice, "part {} body slice", i + 1);
+        assert_no_sdk_headers(put);
+    }
+
+    // 4. Finalize carried the ascending {part_number, e_tag} list.
+    let finalize = requests
+        .iter()
+        .find(|r| r.url.path() == "/v1/uploads/upl_stream/finalize")
+        .expect("a finalize request should have been made");
+    let body: serde_json::Value = serde_json::from_slice(&finalize.body).expect("finalize JSON");
+    let parts = body
+        .get("parts")
+        .and_then(|p| p.as_array())
+        .expect("finalize must send a parts array");
+    assert_eq!(parts.len(), 2, "both parts must be finalized");
+    for (i, part) in parts.iter().enumerate() {
+        assert_eq!(
+            part.get("part_number").and_then(|v| v.as_i64()),
+            Some((i + 1) as i64),
+            "parts ascending and 1-based"
+        );
+        assert_eq!(
+            part.get("e_tag").and_then(|v| v.as_str()),
+            Some(format!("\"etag-{}\"", i + 1).as_str()),
+            "ETag forwarded byte-for-byte"
+        );
+    }
+}
+
+/// An expired part URL (storage 403 / SignatureDoesNotMatch) on the streaming
+/// path must NOT abort the upload: the SDK re-mints that single part via
+/// `POST /v1/uploads/{id}/parts` and retries the `PUT`, so a slow upload whose
+/// pre-minted URL lapsed still completes. (Today a storage 403 aborts the whole
+/// upload — see `storage_error_status_is_surfaced`.)
+#[tokio::test]
+async fn expired_part_url_is_reminted_and_retried() {
+    let server = MockServer::start().await;
+    let storage_base = server.uri();
+    let part_size = 5 * MIB;
+    let contents: Vec<u8> = (0..9 * MIB).map(|i| (i % 251) as u8).collect();
+
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "finalize_token": "ftok_exp",
+            "headers": {},
+            "mode": "multipart",
+            "part_size": part_size,
+            "upload_id": "upl_exp",
+        })))
+        .mount(&server)
+        .await;
+
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads/upl_exp/parts"))
+        .respond_with(mint_parts_responder(storage_base.clone()))
+        .mount(&server)
+        .await;
+
+    // Part 1's URL is "expired": first PUT gets 403 (S3-style), then 200 after a
+    // re-mint. Part 2 succeeds outright.
+    Mock::given(method("PUT"))
+        .and(path("/storage/spart/1"))
+        .respond_with(
+            ResponseTemplate::new(403)
+                .set_body_string("<Error><Code>SignatureDoesNotMatch</Code></Error>"),
+        )
+        .up_to_n_times(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path("/storage/spart/1"))
+        .respond_with(ResponseTemplate::new(200).insert_header("ETag", "\"etag-1\""))
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path("/storage/spart/2"))
+        .respond_with(ResponseTemplate::new(200).insert_header("ETag", "\"etag-2\""))
+        .mount(&server)
+        .await;
+
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads/upl_exp/finalize"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(mock_finalize_ok("upl_exp", contents.len())),
+        )
+        .mount(&server)
+        .await;
+
+    let path = temp_file(&contents);
+    // Serial uploads so the 403/re-mint sequence on part 1 is deterministic.
+    let opts = UploadOptions {
+        max_concurrency: Some(1),
+        ..UploadOptions::default()
+    };
+    let client = test_client(&server.uri());
+    let result = client.upload_file(&path, opts).await;
+    let _ = std::fs::remove_file(&path);
+    result.expect("upload must complete after re-minting the expired part");
+
+    let requests = server.received_requests().await.expect("requests recorded");
+
+    // Part 1 was PUT twice: the expired 403 then the retry after re-mint.
+    let p1_puts = requests
+        .iter()
+        .filter(|r| r.url.path() == "/storage/spart/1")
+        .count();
+    assert_eq!(p1_puts, 2, "part 1 must be retried after the 403");
+
+    // Part 1 (number 1) was minted at least twice: the initial batch and the
+    // single-part re-mint.
+    let p1_mints = requests
+        .iter()
+        .filter(|r| r.url.path() == "/v1/uploads/upl_exp/parts")
+        .filter(|r| {
+            serde_json::from_slice::<serde_json::Value>(&r.body)
+                .ok()
+                .and_then(|b| {
+                    b.get("part_numbers")
+                        .and_then(|v| v.as_array())
+                        .map(|a| a.iter().any(|n| n.as_i64() == Some(1)))
+                })
+                .unwrap_or(false)
+        })
+        .count();
+    assert!(
+        p1_mints >= 2,
+        "part 1 must be re-minted after its URL expired, saw {p1_mints} mints for it"
+    );
+}
+
+/// The SDK must pair each minted URL with the part number the SERVER labelled it
+/// — not with the order the URLs arrive in — so a response listing parts out of
+/// order still uploads every byte range to the correct part. Here the mint
+/// responder deliberately reverses the parts; each storage part must still
+/// receive its own slice.
+#[tokio::test]
+async fn mint_response_order_does_not_corrupt_part_slices() {
+    let server = MockServer::start().await;
+    let storage_base = server.uri();
+    // 9 MiB over a 4 MiB part size -> 3 parts: 4 MiB, 4 MiB, 1 MiB.
+    let part_size = 4 * MIB;
+    let contents: Vec<u8> = (0..9 * MIB).map(|i| (i % 251) as u8).collect();
+
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "finalize_token": "ftok_ord",
+            "headers": {},
+            "mode": "multipart",
+            "part_size": part_size,
+            "upload_id": "upl_ord",
+        })))
+        .mount(&server)
+        .await;
+
+    // Mint responder that returns the requested parts in REVERSE order.
+    let base = storage_base.clone();
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads/upl_ord/parts"))
+        .respond_with(move |req: &Request| {
+            let body: serde_json::Value = serde_json::from_slice(&req.body).unwrap();
+            let mut parts: Vec<serde_json::Value> = body["part_numbers"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|n| {
+                    let n = n.as_i64().unwrap();
+                    serde_json::json!({ "part_number": n, "url": format!("{base}/storage/spart/{n}") })
+                })
+                .collect();
+            parts.reverse();
+            ResponseTemplate::new(200).set_body_json(serde_json::json!({ "parts": parts }))
+        })
+        .mount(&server)
+        .await;
+
+    for n in 1..=3 {
+        Mock::given(method("PUT"))
+            .and(path(format!("/storage/spart/{n}")))
+            .respond_with(ResponseTemplate::new(200).insert_header("ETag", format!("\"etag-{n}\"")))
+            .mount(&server)
+            .await;
+    }
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads/upl_ord/finalize"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(mock_finalize_ok("upl_ord", contents.len())),
+        )
+        .mount(&server)
+        .await;
+
+    let path = temp_file(&contents);
+    let client = test_client(&server.uri());
+    let result = client.upload_file(&path, UploadOptions::default()).await;
+    let _ = std::fs::remove_file(&path);
+    result.expect("out-of-order mint response must not break the upload");
+
+    let requests = server.received_requests().await.expect("requests recorded");
+    let expected = [
+        &contents[0..4 * MIB],
+        &contents[4 * MIB..8 * MIB],
+        &contents[8 * MIB..9 * MIB],
+    ];
+    for (i, slice) in expected.iter().enumerate() {
+        let part_path = format!("/storage/spart/{}", i + 1);
+        let put = requests
+            .iter()
+            .find(|r| r.url.path() == part_path)
+            .unwrap_or_else(|| panic!("a PUT to {part_path} should have been made"));
+        assert_eq!(
+            &put.body[..],
+            *slice,
+            "part {} must receive its own {}-byte slice despite the reversed mint response",
+            i + 1,
+            slice.len()
+        );
+    }
+}
+
+/// If a mint response omits a requested part number, the SDK must fail loudly
+/// (rather than shift later parts' byte offsets), since the byte range for each
+/// part is keyed to its number.
+#[tokio::test]
+async fn mint_missing_requested_part_is_rejected() {
+    let server = MockServer::start().await;
+    let storage_base = server.uri();
+    let part_size = 5 * MIB;
+    let contents: Vec<u8> = (0..9 * MIB).map(|i| (i % 251) as u8).collect(); // 2 parts
+
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "finalize_token": "ftok_miss",
+            "headers": {},
+            "mode": "multipart",
+            "part_size": part_size,
+            "upload_id": "upl_miss",
+        })))
+        .mount(&server)
+        .await;
+
+    // Responder returns ONLY part 1 even when more were requested.
+    let base = storage_base.clone();
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads/upl_miss/parts"))
+        .respond_with(move |_req: &Request| {
+            ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "parts": [{ "part_number": 1, "url": format!("{base}/storage/spart/1") }]
+            }))
+        })
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path_regex(r"^/storage/spart/\d+$"))
+        .respond_with(ResponseTemplate::new(200).insert_header("ETag", "\"e\""))
+        .mount(&server)
+        .await;
+
+    let path = temp_file(&contents);
+    let client = test_client(&server.uri());
+    let result = client.upload_file(&path, UploadOptions::default()).await;
+    let _ = std::fs::remove_file(&path);
+    assert!(
+        matches!(result, Err(UploadError::MalformedSession(_))),
+        "a mint response missing a requested part must be rejected, got {result:?}"
+    );
+}

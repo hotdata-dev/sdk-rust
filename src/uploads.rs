@@ -5,14 +5,20 @@
 //! presigned-upload flow that the generated [`apis::uploads_api`](crate::apis::uploads_api)
 //! ops expose as raw building blocks:
 //!
-//! 1. `POST /v1/uploads` ([`create_upload_session_handler`]) opens a session and
-//!    returns either a single `url` (`mode == "single"`) or a set of `part_urls`
-//!    plus a `part_size` (`mode == "multipart"`), along with a one-time
-//!    `finalize_token`.
+//! 1. `POST /v1/uploads` ([`create_upload_session_handler`]) opens a session.
+//!    A small file declares its size and gets a single `url` (`mode == "single"`)
+//!    or, for a known-size multipart upload, a full set of `part_urls` plus a
+//!    `part_size` (`mode == "multipart"`). A large file omits its declared size
+//!    to open a **streaming** session: `mode == "multipart"` with a `part_size`
+//!    but NO `part_urls` — the client mints each part URL on demand from
+//!    `POST /v1/uploads/{id}/parts` ([`mint_upload_parts_handler`]) just before
+//!    uploading that part, so a URL can't expire mid-transfer on a slow upload.
+//!    Every session also carries a one-time `finalize_token`.
 //! 2. The client `PUT`s the bytes **directly to object storage** — never back
 //!    through the API. Single uploads stream the whole file to `url`; multipart
 //!    uploads slice the file into `part_size`-byte chunks and `PUT` each chunk to
-//!    its `part_urls[i - 1]`, collecting the storage `ETag` per part.
+//!    its part URL (pre-issued for known-size, minted on demand for streaming),
+//!    collecting the storage `ETag` per part.
 //! 3. `POST /v1/uploads/{upload_id}/finalize` ([`finalize_upload_handler`])
 //!    confirms the upload with the finalize token in the `X-Upload-Finalize-Token`
 //!    header (empty body for single; the ascending `{part_number, e_tag}` list
@@ -66,6 +72,21 @@ pub const MIN_PART_SIZE: u64 = 5 * MIB;
 /// Maximum part size storage accepts (5 GiB). The hint is clamped to at most
 /// this.
 pub const MAX_PART_SIZE: u64 = 5 * 1024 * MIB;
+
+/// Maximum number of part numbers to request in a single on-demand mint call
+/// (`POST /v1/uploads/{id}/parts`). The server caps a batch at this, so the
+/// streaming uploader mints in batches no larger than this, kept just ahead of
+/// the parts it is about to upload.
+pub const MAX_MINT_BATCH: usize = 100;
+
+/// File-size boundary between the two upload strategies. A file at or below this
+/// size takes the known-size path — a single quick `PUT` (or a short eager
+/// multipart) that completes well within a presigned URL's TTL, so there is no
+/// expiry risk. A larger file uses the streaming just-in-time path, minting each
+/// part URL only moments before it is uploaded. Set to [`DEFAULT_PART_SIZE`],
+/// the server's default single-vs-multipart boundary, so small uploads keep the
+/// single-`PUT` fast path unchanged.
+pub const STREAMING_THRESHOLD: u64 = DEFAULT_PART_SIZE;
 
 /// Target peak-memory budget for in-flight part buffers (256 MiB). Each
 /// in-flight part buffers up to `part_size` bytes, so [`effective_in_flight`]
@@ -219,6 +240,9 @@ pub enum UploadError {
     },
     /// Finalizing the upload (`POST /v1/uploads/{id}/finalize`) failed.
     Finalize(Error<apis::uploads_api::FinalizeUploadHandlerError>),
+    /// Minting part URLs on demand (`POST /v1/uploads/{id}/parts`) failed during
+    /// a streaming upload — either the initial batch or an on-403 re-mint.
+    MintParts(Error<apis::uploads_api::MintUploadPartsHandlerError>),
 }
 
 impl std::fmt::Display for UploadError {
@@ -252,6 +276,7 @@ impl std::fmt::Display for UploadError {
                 write!(f, "malformed upload session response: {msg}")
             }
             UploadError::Finalize(e) => write!(f, "finalizing the upload failed: {e}"),
+            UploadError::MintParts(e) => write!(f, "minting upload part URLs failed: {e}"),
         }
     }
 }
@@ -263,6 +288,7 @@ impl std::error::Error for UploadError {
             UploadError::CreateSession(e) => Some(e),
             UploadError::Storage(e) => Some(e),
             UploadError::Finalize(e) => Some(e),
+            UploadError::MintParts(e) => Some(e),
             _ => None,
         }
     }
@@ -298,28 +324,41 @@ pub(crate) async fn upload_file(
     // grow the hint (bounding the part count). The server clamps it regardless.
     let part_size_hint = opts.part_size.unwrap_or_else(|| auto_part_size_hint(total));
 
-    // The wire models size as a signed i64; reject (rather than silently wrap)
-    // a pathological size beyond i64::MAX.
-    let declared_size_bytes = i64::try_from(total).map_err(|_| UploadError::SizeOverflow {
-        what: "declared_size_bytes",
-        value: total,
-    })?;
+    // The wire models the part-size hint as a signed i64; reject (rather than
+    // silently wrap) a pathological hint beyond i64::MAX.
     let part_size_hint_i64 =
         i64::try_from(part_size_hint).map_err(|_| UploadError::SizeOverflow {
             what: "part_size",
             value: part_size_hint,
         })?;
 
-    // Open the session. `declared_size_bytes` (the exact byte count finalize
-    // validates against) is sent explicitly, which keeps the session in
-    // known-size mode; the struct-update base fills the optional checksum
-    // fields with None.
+    // Default a large file to a JUST-IN-TIME (streaming) session: omit
+    // `declared_size_bytes` so the server mints NO part URLs up front. The client
+    // then mints each part URL moments before it uploads that part (see
+    // `upload_multipart_streaming`), so a URL cannot expire mid-transfer no
+    // matter how long a slow upload runs — the failure mode of the eager
+    // known-size path, whose URLs share a ~30-minute TTL. A small file is a
+    // single quick `PUT` with no expiry risk, so it keeps the known-size path
+    // (and the server's single-`PUT` fast path) by declaring its size.
+    //
+    // `declared_size_bytes` is sent (and so range-checked against the wire's
+    // i64) ONLY on the known-size path; a streaming upload omits it entirely, so
+    // a size beyond i64::MAX is never an obstacle to a streamed file.
+    let declared_size_bytes = if total > STREAMING_THRESHOLD {
+        None
+    } else {
+        let size = i64::try_from(total).map_err(|_| UploadError::SizeOverflow {
+            what: "declared_size_bytes",
+            value: total,
+        })?;
+        Some(Some(size))
+    };
     let create = models::CreateUploadRequest {
         content_type: opts.content_type.clone().map(Some),
         content_encoding: opts.content_encoding.clone().map(Some),
         filename: filename.map(Some),
         part_size: Some(Some(part_size_hint_i64)),
-        declared_size_bytes: Some(Some(declared_size_bytes)),
+        declared_size_bytes,
         ..models::CreateUploadRequest::new()
     };
     let session = apis::uploads_api::create_upload_session_handler(configuration, create)
@@ -339,7 +378,12 @@ pub(crate) async fn upload_file(
         }
         "multipart" => {
             let max_concurrency = opts.max_concurrency.unwrap_or(DEFAULT_MAX_CONCURRENCY);
-            Some(
+            // A streaming (unknown-size) session returns NO part URLs up front
+            // (the `part_urls` key is absent or null) — mint them on demand. A
+            // known-size session returns the full `part_urls` list to PUT to
+            // directly. An explicitly present (even empty) list is a known-size
+            // response; `upload_multipart` validates it and rejects an empty one.
+            let parts = if matches!(session.part_urls, Some(Some(_))) {
                 upload_multipart(
                     configuration,
                     &session,
@@ -348,8 +392,19 @@ pub(crate) async fn upload_file(
                     max_concurrency,
                     opts.progress.as_ref(),
                 )
-                .await?,
-            )
+                .await?
+            } else {
+                upload_multipart_streaming(
+                    configuration,
+                    &session,
+                    path,
+                    total,
+                    max_concurrency,
+                    opts.progress.as_ref(),
+                )
+                .await?
+            };
+            Some(parts)
         }
         other => {
             return Err(UploadError::MalformedSession(format!(
@@ -626,6 +681,220 @@ async fn upload_multipart(
     // `results` is indexed by 0-based part position, so collecting it in order
     // yields parts ascending by part_number with no duplicates.
     Ok(results.into_iter().flatten().collect())
+}
+
+/// Streaming (just-in-time) multipart path: the session was opened WITHOUT a
+/// declared size, so the server minted no part URLs up front. We still know the
+/// local file's size, so the part count is fixed by the server's echoed
+/// `part_size`; we mint URLs on demand — in batches of at most [`MAX_MINT_BATCH`]
+/// kept just ahead of upload progress — and `PUT` each part with bounded
+/// concurrency.
+///
+/// If a part `PUT` is rejected with `403` (an expired presigned URL / S3
+/// `SignatureDoesNotMatch`), that single part is re-minted and the `PUT` retried
+/// once: the part number and underlying upload are unchanged, so storage simply
+/// overwrites that part. This is what lets a slow upload outlive a minted URL's
+/// TTL and still complete.
+///
+/// Returns the parts sorted ascending by part number, ready for finalize.
+async fn upload_multipart_streaming(
+    configuration: &Configuration,
+    session: &models::UploadSessionResponse,
+    path: &Path,
+    total: u64,
+    max_concurrency: usize,
+    progress: Option<&UploadProgress>,
+) -> Result<Vec<models::FinalizeUploadPart>, UploadError> {
+    let part_size = session.part_size.flatten().ok_or_else(|| {
+        UploadError::MalformedSession("streaming upload missing `part_size`".to_owned())
+    })?;
+    if part_size <= 0 {
+        return Err(UploadError::MalformedSession(format!(
+            "streaming upload has non-positive `part_size` {part_size}"
+        )));
+    }
+    let part_size = part_size as u64;
+
+    // Slice by the SERVER's echoed part size (never our hint); the last part is
+    // the remainder. We know the file size, so the part count is fixed up front
+    // even though the server does not.
+    let expected_parts = total.div_ceil(part_size).max(1) as usize;
+
+    // Peak buffered memory is in_flight * part_size; bound in-flight by both the
+    // caller's max_concurrency and the memory budget (same as the eager path).
+    let in_flight_cap = effective_in_flight(max_concurrency, part_size);
+
+    // Aggregate progress across parts via a shared counter.
+    let done = Arc::new(AtomicU64::new(0));
+    let mut results: Vec<Option<models::FinalizeUploadPart>> = vec![None; expected_parts];
+
+    // Shared by the proactive minting below AND each part task's on-403 re-mint.
+    // `reqwest::Client` clones cheaply (Arc inside), so cloning the config is fine.
+    let config = Arc::new(configuration.clone());
+    let upload_id = session.upload_id.clone();
+    let finalize_token = session.finalize_token.clone();
+
+    // Minted-but-not-yet-uploaded `(part_number, url)` pairs, ascending by part
+    // number. Refilled from POST /parts as it drains so a URL is minted shortly
+    // before its `PUT`.
+    let mut minted: std::collections::VecDeque<(i32, String)> = std::collections::VecDeque::new();
+    let mut next_to_mint = 1i32; // next 1-based part number to request a URL for
+    let mut next_part = 1i32; // next 1-based part number to spawn a `PUT` for
+
+    let mut join_set: tokio::task::JoinSet<
+        Result<(usize, models::FinalizeUploadPart), UploadError>,
+    > = tokio::task::JoinSet::new();
+
+    loop {
+        while join_set.len() < in_flight_cap && (next_part as usize) <= expected_parts {
+            // Keep the buffer at least one in-flight window ahead, minting in
+            // batches capped at the server's per-call limit.
+            if minted.len() < in_flight_cap && (next_to_mint as usize) <= expected_parts {
+                let lo = next_to_mint;
+                let hi = (lo as usize + MAX_MINT_BATCH - 1).min(expected_parts) as i32;
+                let resp = apis::uploads_api::mint_upload_parts_handler(
+                    &config,
+                    &upload_id,
+                    &finalize_token,
+                    models::MintUploadPartsRequest::new((lo..=hi).collect()),
+                )
+                .await
+                .map_err(UploadError::MintParts)?;
+                // Pair each URL with the part number the SERVER labelled it,
+                // then enqueue strictly in the order WE requested (lo..=hi).
+                // This catches a missing or unexpected part number here — rather
+                // than letting a mismatch silently shift every later part's byte
+                // offset — and makes the queue order independent of the order the
+                // server happened to list the URLs in.
+                let mut by_number: std::collections::HashMap<i32, String> = resp
+                    .parts
+                    .into_iter()
+                    .map(|p| (p.part_number, p.url))
+                    .collect();
+                for n in lo..=hi {
+                    let url = by_number.remove(&n).ok_or_else(|| {
+                        UploadError::MalformedSession(format!(
+                            "mint did not return a URL for part {n}"
+                        ))
+                    })?;
+                    minted.push_back((n, url));
+                }
+                if !by_number.is_empty() {
+                    return Err(UploadError::MalformedSession(
+                        "mint returned URLs for parts that were not requested".to_owned(),
+                    ));
+                }
+                next_to_mint = hi + 1;
+            }
+
+            let (part_number, url) = minted.pop_front().ok_or_else(|| {
+                UploadError::MalformedSession(
+                    "streaming mint returned no URL for a pending part".to_owned(),
+                )
+            })?;
+            // Parts are minted and enqueued in ascending order, so the front of
+            // the queue is always `next_part`. Derive the byte range from the
+            // part number itself (not from queue position) so the uploaded slice
+            // and the finalize entry can never disagree.
+            debug_assert_eq!(part_number, next_part);
+            next_part += 1;
+            let index = (part_number - 1) as usize;
+            let offset = index as u64 * part_size;
+            let len = part_size.min(total.saturating_sub(offset));
+
+            let headers = session.headers.clone();
+            let done = Arc::clone(&done);
+            let progress = progress.cloned();
+            let retry = configuration.retry;
+            let path = path.to_path_buf();
+            let config = Arc::clone(&config);
+            let upload_id = upload_id.clone();
+            let finalize_token = finalize_token.clone();
+
+            join_set.spawn(async move {
+                let chunk = read_range(&path, offset, len).await?;
+                let resp =
+                    match put_to_storage(&retry, &url, &headers, chunk, len, Some(part_number))
+                        .await
+                    {
+                        // An expired presigned URL surfaces as 403. Re-mint this
+                        // one part and retry the `PUT` once.
+                        Err(UploadError::StorageStatus { status, .. })
+                            if status == reqwest::StatusCode::FORBIDDEN =>
+                        {
+                            let remint = apis::uploads_api::mint_upload_parts_handler(
+                                &config,
+                                &upload_id,
+                                &finalize_token,
+                                models::MintUploadPartsRequest::new(vec![part_number]),
+                            )
+                            .await
+                            .map_err(UploadError::MintParts)?;
+                            let fresh = remint
+                                .parts
+                                .into_iter()
+                                .find(|p| p.part_number == part_number)
+                                .ok_or_else(|| {
+                                    UploadError::MalformedSession(format!(
+                                        "re-mint returned no URL for part {part_number}"
+                                    ))
+                                })?;
+                            let chunk = read_range(&path, offset, len).await?;
+                            put_to_storage(
+                                &retry,
+                                &fresh.url,
+                                &headers,
+                                chunk,
+                                len,
+                                Some(part_number),
+                            )
+                            .await?
+                        }
+                        other => other?,
+                    };
+
+                let e_tag = resp
+                    .headers()
+                    .get(reqwest::header::ETAG)
+                    .and_then(|v| v.to_str().ok())
+                    .map(|s| s.to_owned())
+                    .ok_or(UploadError::MissingETag { part_number })?;
+
+                if let Some(progress) = progress.as_ref() {
+                    let now = done.fetch_add(len, Ordering::SeqCst) + len;
+                    progress(now, total);
+                }
+
+                Ok::<_, UploadError>((index, models::FinalizeUploadPart { e_tag, part_number }))
+            });
+        }
+
+        match join_set.join_next().await {
+            Some(Ok(Ok((index, part)))) => results[index] = Some(part),
+            Some(Ok(Err(e))) => {
+                join_set.abort_all();
+                return Err(e);
+            }
+            Some(Err(join_err)) => {
+                join_set.abort_all();
+                return Err(UploadError::Io(std::io::Error::other(format!(
+                    "part upload task failed: {join_err}"
+                ))));
+            }
+            None => break,
+        }
+    }
+
+    // Every slot must be filled: we spawned exactly one task per part and place
+    // each result by its part index. A `None` would mean a part silently went
+    // unuploaded, so surface it rather than finalizing a short list.
+    let mut parts = Vec::with_capacity(results.len());
+    for (i, slot) in results.into_iter().enumerate() {
+        parts.push(slot.ok_or_else(|| {
+            UploadError::MalformedSession(format!("part {} was never uploaded", i + 1))
+        })?);
+    }
+    Ok(parts)
 }
 
 /// Read exactly `len` bytes starting at `offset` from `path`. A positioned read
