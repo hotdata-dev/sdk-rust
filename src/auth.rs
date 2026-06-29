@@ -395,11 +395,24 @@ impl TokenManager {
             crate::http_log::log_response_status(status);
 
             if status.is_success() {
-                let text = resp.text().await.map_err(TokenExchangeError::Transport)?;
-                // JWT/refresh token in the body are masked by log_response_body.
-                crate::http_log::log_response_body(&text);
-                return serde_json::from_str::<TokenResponse>(&text)
-                    .map_err(|e| TokenExchangeError::Malformed(e.to_string()));
+                match resp.text().await {
+                    Ok(text) => {
+                        // JWT/refresh token in the body are masked by log.
+                        crate::http_log::log_response_body(&text);
+                        return serde_json::from_str::<TokenResponse>(&text)
+                            .map_err(|e| TokenExchangeError::Malformed(e.to_string()));
+                    }
+                    // The status line arrived but reading the body failed (the
+                    // connection dropped mid-response): transport-level and
+                    // transient, like a connection error. Retry within budget.
+                    Err(e) => {
+                        if last {
+                            return Err(TokenExchangeError::Transport(e));
+                        }
+                        tokio::time::sleep(backoff_delay(attempt)).await;
+                        continue;
+                    }
+                }
             }
 
             let body = resp.text().await.unwrap_or_default();
@@ -537,15 +550,32 @@ fn backoff_delay(attempt: u32) -> Duration {
 
 /// A pseudo-random fraction in `[0.0, 1.0)` for backoff jitter.
 ///
-/// Derived from the sub-second clock rather than pulling in a `rand`
-/// dependency: jitter only needs to de-correlate concurrent retriers, not be
-/// cryptographically uniform.
+/// Seeds a SplitMix64 step from the sub-second clock mixed with a
+/// process-global counter, rather than pulling in a `rand` dependency. The
+/// counter guarantees successive calls diverge even within the same nanosecond,
+/// so concurrent retriers don't resynchronize; the hash spreads those seeds
+/// uniformly across `[0, 1)`. Jitter only needs to de-correlate retriers, not
+/// be cryptographically uniform.
 fn jitter_unit() -> f64 {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.subsec_nanos())
-        .unwrap_or(0);
-    f64::from(nanos % 1_000_000_000) / 1_000_000_000.0
+        .unwrap_or(0) as u64;
+    let seq = SEQ.fetch_add(1, Ordering::Relaxed);
+
+    // SplitMix64 finalizer over (counter, clock) -> well-distributed 64 bits.
+    let mut z = seq
+        .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+        .wrapping_add(nanos);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^= z >> 31;
+
+    // Top 53 bits -> a uniform f64 in [0, 1), the standard double construction.
+    (z >> 11) as f64 / (1u64 << 53) as f64
 }
 
 /// Whether `HOTDATA_DISABLE_JWT_EXCHANGE` is set to an affirmative value.
@@ -968,6 +998,62 @@ mod tests {
             MAX_ATTEMPTS as usize,
             "a persistent 5xx must be tried exactly MAX_ATTEMPTS times"
         );
+    }
+
+    #[tokio::test]
+    async fn retries_transport_error_then_succeeds() {
+        use std::io::{Read, Write};
+        use std::net::TcpListener;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let _g = EnvGuard::unset();
+        // A minimal raw HTTP server on its own OS thread: the first connection
+        // sends a 200 status line promising 100 body bytes but closes after a
+        // few, so reqwest gets the status then a truncated-body read error
+        // (transport-level). The retry opens a fresh connection and is served a
+        // complete, valid token body. Exercises the success-path body-read
+        // retry that wiremock cannot simulate.
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let conns = Arc::new(AtomicUsize::new(0));
+        let counter = conns.clone();
+
+        let server = std::thread::spawn(move || {
+            for (i, stream) in listener.incoming().enumerate() {
+                let mut stream = stream.unwrap();
+                counter.fetch_add(1, Ordering::SeqCst);
+                // Drain the request so the client finishes writing and waits on
+                // the response (we don't parse it).
+                let mut buf = [0u8; 2048];
+                let _ = stream.read(&mut buf);
+                if i == 0 {
+                    // Promise 100 bytes, send 8, then drop -> truncated body.
+                    let _ = stream.write_all(
+                        b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n{\"access",
+                    );
+                    // stream dropped here -> EOF mid-body.
+                } else {
+                    let body = b"{\"access_token\":\"after-transport-retry\",\"expires_in\":300}";
+                    let head = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        body.len()
+                    );
+                    let _ = stream.write_all(head.as_bytes());
+                    let _ = stream.write_all(body);
+                    let _ = stream.flush();
+                    break;
+                }
+            }
+        });
+
+        let m = manager("hd_opaque", &format!("http://{addr}"));
+        assert_eq!(m.bearer_value().await.unwrap(), "after-transport-retry");
+        assert_eq!(
+            conns.load(Ordering::SeqCst),
+            2,
+            "the truncated-body transport error must be retried on a fresh connection"
+        );
+        server.join().unwrap();
     }
 
     #[tokio::test]
