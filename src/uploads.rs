@@ -311,14 +311,16 @@ pub(crate) async fn upload_file(
         })?;
 
     // Open the session. `declared_size_bytes` (the exact byte count finalize
-    // validates against) comes from `new(..)`, the single source; the
-    // struct-update base also fills the optional checksum fields with None.
+    // validates against) is sent explicitly, which keeps the session in
+    // known-size mode; the struct-update base fills the optional checksum
+    // fields with None.
     let create = models::CreateUploadRequest {
         content_type: opts.content_type.clone().map(Some),
         content_encoding: opts.content_encoding.clone().map(Some),
         filename: filename.map(Some),
         part_size: Some(Some(part_size_hint_i64)),
-        ..models::CreateUploadRequest::new(declared_size_bytes)
+        declared_size_bytes: Some(Some(declared_size_bytes)),
+        ..models::CreateUploadRequest::new()
     };
     let session = apis::uploads_api::create_upload_session_handler(configuration, create)
         .await
