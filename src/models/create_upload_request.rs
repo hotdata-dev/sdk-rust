@@ -46,9 +46,14 @@ pub struct CreateUploadRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub content_type: Option<Option<String>>,
-    /// The exact size, in bytes, of the file you will upload. Validated at create time against the maximum allowed size, and again at finalize against the bytes actually stored — a mismatch fails the finalize.
-    #[serde(rename = "declared_size_bytes")]
-    pub declared_size_bytes: i64,
+    /// The exact size, in bytes, of the file you will upload. Optional. When provided, it is validated at create time against the maximum allowed size, and again at finalize against the bytes actually stored — a mismatch fails the finalize. Omit it to create a streaming (unknown-size) upload: the session is always multi-part and returns no part URLs up front; instead you mint part URLs on demand from `POST /v1/uploads/{upload_id}/parts` as you upload, and finalize validates only that the file is non-empty.
+    #[serde(
+        rename = "declared_size_bytes",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub declared_size_bytes: Option<Option<i64>>,
     /// Original file name, recorded with the upload for your own bookkeeping. Optional and advisory — it does not affect where the bytes are stored or how they are loaded.
     #[serde(
         rename = "filename",
@@ -69,13 +74,13 @@ pub struct CreateUploadRequest {
 
 impl CreateUploadRequest {
     /// Request body for `POST /v1/uploads` and for each entry of `POST /v1/uploads/batch`.  Describes a single file you intend to upload directly to storage. The service chooses where the bytes are stored and returns a short-lived URL to `PUT` them to; you do not pick the storage location. The declared size is validated against the bytes you actually upload when you finalize.
-    pub fn new(declared_size_bytes: i64) -> CreateUploadRequest {
+    pub fn new() -> CreateUploadRequest {
         CreateUploadRequest {
             checksum_algo: None,
             checksum_value: None,
             content_encoding: None,
             content_type: None,
-            declared_size_bytes,
+            declared_size_bytes: None,
             filename: None,
             part_size: None,
         }
