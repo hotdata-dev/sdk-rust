@@ -33,6 +33,11 @@
 //! * **Refresh, then re-mint** -- prefer the refresh token when available; on
 //!   any refresh failure, drop it and re-mint from the held API token (always
 //!   possible since the SDK holds it). Matches the CLI.
+//! * **Transient-failure retry** -- a momentary `5xx` or a transport error on
+//!   the token endpoint is retried with bounded exponential backoff + jitter
+//!   ([`MAX_ATTEMPTS`] total) before giving up, so a brief server-side blip
+//!   doesn't fail the caller; a `4xx` (bad/expired credential) is never
+//!   retried. Applies to both the initial mint and the refresh path.
 //! * **TLS/proxy reuse** -- the exchange reuses the SDK's configured
 //!   `reqwest::Client` (cloned in by the [`crate::client::Client`] builder), so
 //!   it honors the same TLS / proxy / timeout settings as every other request,
@@ -59,6 +64,25 @@ pub const TIMEOUT_SECS: u64 = 30;
 
 /// Default access-token lifetime when the server omits `expires_in` (seconds).
 const DEFAULT_EXPIRES_IN: u64 = 300;
+
+/// Total token-exchange attempts -- one initial try plus up to two retries --
+/// before giving up. Bounds the retry of *transient* failures (#55): a
+/// momentary `5xx` or a transport error on the token endpoint should not fail
+/// the caller outright when an immediate re-attempt would succeed. A `4xx`
+/// (bad/expired credential) is never retried.
+const MAX_ATTEMPTS: u32 = 3;
+
+/// First-retry backoff in seconds; doubles each subsequent retry (capped by
+/// [`BACKOFF_MAX_SECS`]).
+const BACKOFF_BASE_SECS: f64 = 0.1;
+
+/// Cap on a single backoff (seconds) so a flapping host can't stall us.
+const BACKOFF_MAX_SECS: f64 = 2.0;
+
+/// Additive jitter fraction: the actual delay lands in
+/// `[base, (1 + BACKOFF_JITTER) * base]` so concurrent clients retrying the
+/// same blip don't resynchronize into a thundering herd.
+const BACKOFF_JITTER: f64 = 0.5;
 
 /// Env var that disables exchange entirely. Hard escape hatch during the
 /// rollout window and for local/dev setups. Only affirmative values opt out so
@@ -321,6 +345,14 @@ impl TokenManager {
     /// reqwest client. Errors are returned as [`TokenExchangeError`]; the caller
     /// decides whether a given grant is best-effort (refresh) or hard
     /// (api_token).
+    ///
+    /// Transient failures -- a `5xx` response or a transport error
+    /// (connection/read failure) -- are retried up to [`MAX_ATTEMPTS`] total
+    /// with exponential backoff + jitter (#55). A `4xx` is fatal immediately
+    /// (bad/expired credentials are not transient). Once the budget is
+    /// exhausted the last failure is surfaced, preserving its status/body. A
+    /// malformed `200` body is not retried -- the server answered, just
+    /// unparseably.
     async fn mint(&self, grant: &[(&str, &str)]) -> Result<TokenResponse, TokenExchangeError> {
         let url = format!(
             "{}{}",
@@ -330,29 +362,70 @@ impl TokenManager {
         let mut params: Vec<(&str, &str)> = grant.to_vec();
         params.push(("client_id", &self.client_id));
 
-        // Build then execute (rather than `.send()`) so the request can be
-        // debug-logged; `log_request` redacts the api_token/refresh_token form
-        // fields. Mirrors the generated ops and the rest of the SDK.
-        let req = self
-            .client
-            .post(&url)
-            .form(&params)
-            .timeout(Duration::from_secs(TIMEOUT_SECS))
-            .build()
-            .map_err(TokenExchangeError::Transport)?;
-        crate::http_log::log_request(&req);
-        let resp = self
-            .client
-            .execute(req)
-            .await
-            .map_err(TokenExchangeError::Transport)?;
+        for attempt in 0..MAX_ATTEMPTS {
+            let last = attempt == MAX_ATTEMPTS - 1;
 
-        let status = resp.status();
-        crate::http_log::log_response_status(status);
-        if !status.is_success() {
+            // Build then execute (rather than `.send()`) so the request can be
+            // debug-logged; `log_request` redacts the api_token/refresh_token
+            // form fields. Mirrors the generated ops and the rest of the SDK.
+            // Rebuilt each attempt because executing consumes the request.
+            let req = self
+                .client
+                .post(&url)
+                .form(&params)
+                .timeout(Duration::from_secs(TIMEOUT_SECS))
+                .build()
+                .map_err(TokenExchangeError::Transport)?;
+            crate::http_log::log_request(&req);
+
+            let resp = match self.client.execute(req).await {
+                Ok(resp) => resp,
+                // Transport-level failure (connection refused, TLS, timeout,
+                // read error): transient. Retry within budget, else surface it.
+                Err(e) => {
+                    if last {
+                        return Err(TokenExchangeError::Transport(e));
+                    }
+                    tokio::time::sleep(backoff_delay(attempt)).await;
+                    continue;
+                }
+            };
+
+            let status = resp.status();
+            crate::http_log::log_response_status(status);
+
+            if status.is_success() {
+                match resp.text().await {
+                    Ok(text) => {
+                        // JWT/refresh token in the body are masked by log.
+                        crate::http_log::log_response_body(&text);
+                        return serde_json::from_str::<TokenResponse>(&text)
+                            .map_err(|e| TokenExchangeError::Malformed(e.to_string()));
+                    }
+                    // The status line arrived but reading the body failed (the
+                    // connection dropped mid-response): transport-level and
+                    // transient, like a connection error. Retry within budget.
+                    Err(e) => {
+                        if last {
+                            return Err(TokenExchangeError::Transport(e));
+                        }
+                        tokio::time::sleep(backoff_delay(attempt)).await;
+                        continue;
+                    }
+                }
+            }
+
             let body = resp.text().await.unwrap_or_default();
             crate::http_log::log_response_body(&body);
-            // Truncate to keep error messages bounded (mirrors python's [:200]).
+
+            // A momentary 5xx is worth a retry; a 4xx is a definitive rejection.
+            if is_transient_status(status.as_u16()) && !last {
+                tokio::time::sleep(backoff_delay(attempt)).await;
+                continue;
+            }
+
+            // A 4xx, or a 5xx with the budget exhausted: fatal. Truncate to keep
+            // error messages bounded (mirrors python's [:200]).
             let body: String = body.chars().take(200).collect();
             return Err(TokenExchangeError::Status {
                 status: status.as_u16(),
@@ -360,11 +433,8 @@ impl TokenManager {
             });
         }
 
-        let text = resp.text().await.map_err(TokenExchangeError::Transport)?;
-        // The minted JWT/refresh token in the body are masked by log_response_body.
-        crate::http_log::log_response_body(&text);
-        serde_json::from_str::<TokenResponse>(&text)
-            .map_err(|e| TokenExchangeError::Malformed(e.to_string()))
+        // The final attempt (`last == true`) always returns above.
+        unreachable!("mint loop returns on the final attempt");
     }
 
     /// Apply a successful mint response to the cached state.
@@ -457,6 +527,55 @@ fn now_unix() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0)
+}
+
+/// Whether an HTTP status is worth retrying (server-side, likely momentary).
+///
+/// Only `5xx` is transient: the request reached the server but it failed to
+/// handle it (a brief `500`/`503`). A `4xx` -- including `400`/`401` from a
+/// bad or expired credential -- is a definitive rejection a retry won't fix.
+fn is_transient_status(status: u16) -> bool {
+    (500..600).contains(&status)
+}
+
+/// Seconds to sleep before retry number `attempt` (0 = first retry).
+///
+/// Exponential growth from [`BACKOFF_BASE_SECS`] (doubling per attempt) capped
+/// at [`BACKOFF_MAX_SECS`], plus additive jitter in
+/// `[0, BACKOFF_JITTER * base]`. Mirrors the Python SDK's `_backoff_delay`.
+fn backoff_delay(attempt: u32) -> Duration {
+    let base = (BACKOFF_BASE_SECS * 2f64.powi(attempt as i32)).min(BACKOFF_MAX_SECS);
+    Duration::from_secs_f64(base * (1.0 + BACKOFF_JITTER * jitter_unit()))
+}
+
+/// A pseudo-random fraction in `[0.0, 1.0)` for backoff jitter.
+///
+/// Seeds a SplitMix64 step from the sub-second clock mixed with a
+/// process-global counter, rather than pulling in a `rand` dependency. The
+/// counter guarantees successive calls diverge even within the same nanosecond,
+/// so concurrent retriers don't resynchronize; the hash spreads those seeds
+/// uniformly across `[0, 1)`. Jitter only needs to de-correlate retriers, not
+/// be cryptographically uniform.
+fn jitter_unit() -> f64 {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(0) as u64;
+    let seq = SEQ.fetch_add(1, Ordering::Relaxed);
+
+    // SplitMix64 finalizer over (counter, clock) -> well-distributed 64 bits.
+    let mut z = seq
+        .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+        .wrapping_add(nanos);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^= z >> 31;
+
+    // Top 53 bits -> a uniform f64 in [0, 1), the standard double construction.
+    (z >> 11) as f64 / (1u64 << 53) as f64
 }
 
 /// Whether `HOTDATA_DISABLE_JWT_EXCHANGE` is set to an affirmative value.
@@ -753,6 +872,256 @@ mod tests {
             }
             other => panic!("expected Status error, got {other:?}"),
         }
+    }
+
+    // --- transient-failure retry (#55) -------------------------------------
+
+    /// A wiremock responder that returns the first `fail_count` requests with
+    /// `fail_status`, then `200` with a valid token body, counting every hit.
+    struct FlakyThenOk {
+        hits: Arc<std::sync::atomic::AtomicUsize>,
+        fail_count: usize,
+        fail_status: u16,
+    }
+    impl wiremock::Respond for FlakyThenOk {
+        fn respond(&self, _: &wiremock::Request) -> wiremock::ResponseTemplate {
+            use std::sync::atomic::Ordering;
+            let n = self.hits.fetch_add(1, Ordering::SeqCst);
+            if n < self.fail_count {
+                wiremock::ResponseTemplate::new(self.fail_status).set_body_string("transient")
+            } else {
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "access_token": "minted-after-retry",
+                    "expires_in": 300
+                }))
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn retries_transient_5xx_then_succeeds() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer};
+
+        let _g = EnvGuard::unset();
+        let server = MockServer::start().await;
+        let hits = Arc::new(AtomicUsize::new(0));
+        // First response is a momentary 503; the retry must succeed.
+        Mock::given(method("POST"))
+            .and(path("/v1/auth/jwt"))
+            .respond_with(FlakyThenOk {
+                hits: hits.clone(),
+                fail_count: 1,
+                fail_status: 503,
+            })
+            .mount(&server)
+            .await;
+
+        let m = manager("hd_opaque", &server.uri());
+        assert_eq!(m.bearer_value().await.unwrap(), "minted-after-retry");
+        assert_eq!(
+            hits.load(Ordering::SeqCst),
+            2,
+            "one transient 503 then a successful retry == 2 hits"
+        );
+    }
+
+    #[tokio::test]
+    async fn fatal_status_4xx_is_not_retried() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
+
+        let _g = EnvGuard::unset();
+        let server = MockServer::start().await;
+        struct Counter(Arc<AtomicUsize>);
+        impl Respond for Counter {
+            fn respond(&self, _: &Request) -> ResponseTemplate {
+                self.0.fetch_add(1, Ordering::SeqCst);
+                ResponseTemplate::new(401).set_body_string("invalid api token")
+            }
+        }
+        let hits = Arc::new(AtomicUsize::new(0));
+        Mock::given(method("POST"))
+            .and(path("/v1/auth/jwt"))
+            .respond_with(Counter(hits.clone()))
+            .mount(&server)
+            .await;
+
+        let m = manager("revoked", &server.uri());
+        let err = m.bearer_value().await.unwrap_err();
+        match err {
+            TokenExchangeError::Status { status, .. } => assert_eq!(status, 401),
+            other => panic!("expected Status error, got {other:?}"),
+        }
+        assert_eq!(
+            hits.load(Ordering::SeqCst),
+            1,
+            "a 4xx is a definitive rejection and must not be retried"
+        );
+    }
+
+    #[tokio::test]
+    async fn exhausts_retry_budget_on_persistent_5xx() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
+
+        let _g = EnvGuard::unset();
+        let server = MockServer::start().await;
+        struct Counter(Arc<AtomicUsize>);
+        impl Respond for Counter {
+            fn respond(&self, _: &Request) -> ResponseTemplate {
+                self.0.fetch_add(1, Ordering::SeqCst);
+                ResponseTemplate::new(500).set_body_string("still down")
+            }
+        }
+        let hits = Arc::new(AtomicUsize::new(0));
+        Mock::given(method("POST"))
+            .and(path("/v1/auth/jwt"))
+            .respond_with(Counter(hits.clone()))
+            .mount(&server)
+            .await;
+
+        let m = manager("hd_opaque", &server.uri());
+        let err = m.bearer_value().await.unwrap_err();
+        match err {
+            TokenExchangeError::Status { status, body } => {
+                assert_eq!(status, 500);
+                assert!(body.contains("still down"), "body={body}");
+            }
+            other => panic!("expected the last Status error, got {other:?}"),
+        }
+        assert_eq!(
+            hits.load(Ordering::SeqCst),
+            MAX_ATTEMPTS as usize,
+            "a persistent 5xx must be tried exactly MAX_ATTEMPTS times"
+        );
+    }
+
+    #[tokio::test]
+    async fn retries_transport_error_then_succeeds() {
+        use std::io::{Read, Write};
+        use std::net::TcpListener;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let _g = EnvGuard::unset();
+        // A minimal raw HTTP server on its own OS thread: the first connection
+        // sends a 200 status line promising 100 body bytes but closes after a
+        // few, so reqwest gets the status then a truncated-body read error
+        // (transport-level). The retry opens a fresh connection and is served a
+        // complete, valid token body. Exercises the success-path body-read
+        // retry that wiremock cannot simulate.
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let conns = Arc::new(AtomicUsize::new(0));
+        let counter = conns.clone();
+
+        let server = std::thread::spawn(move || {
+            for (i, stream) in listener.incoming().enumerate() {
+                let mut stream = stream.unwrap();
+                counter.fetch_add(1, Ordering::SeqCst);
+                // Drain the request so the client finishes writing and waits on
+                // the response (we don't parse it).
+                let mut buf = [0u8; 2048];
+                let _ = stream.read(&mut buf);
+                if i == 0 {
+                    // Promise 100 bytes, send 8, then drop -> truncated body.
+                    let _ = stream.write_all(
+                        b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n{\"access",
+                    );
+                    // stream dropped here -> EOF mid-body.
+                } else {
+                    let body = b"{\"access_token\":\"after-transport-retry\",\"expires_in\":300}";
+                    let head = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        body.len()
+                    );
+                    let _ = stream.write_all(head.as_bytes());
+                    let _ = stream.write_all(body);
+                    let _ = stream.flush();
+                    break;
+                }
+            }
+        });
+
+        let m = manager("hd_opaque", &format!("http://{addr}"));
+        assert_eq!(m.bearer_value().await.unwrap(), "after-transport-retry");
+        assert_eq!(
+            conns.load(Ordering::SeqCst),
+            2,
+            "the truncated-body transport error must be retried on a fresh connection"
+        );
+        server.join().unwrap();
+    }
+
+    #[tokio::test]
+    async fn refresh_path_retries_transient_then_succeeds() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use wiremock::matchers::{body_string_contains, method, path};
+        use wiremock::{Mock, MockServer};
+
+        let _g = EnvGuard::unset();
+        let server = MockServer::start().await;
+        let hits = Arc::new(AtomicUsize::new(0));
+        // The refresh grant blips once (500) then succeeds; the manager must
+        // retry it rather than fall through to an api_token re-mint.
+        Mock::given(method("POST"))
+            .and(path("/v1/auth/jwt"))
+            .and(body_string_contains("grant_type=refresh_token"))
+            .respond_with(FlakyThenOk {
+                hits: hits.clone(),
+                fail_count: 1,
+                fail_status: 500,
+            })
+            .mount(&server)
+            .await;
+
+        let m = manager("hd_opaque", &server.uri());
+        {
+            let mut state = m.state.lock().await;
+            state.jwt = Some("expired".into());
+            state.exp = now_unix(); // inside leeway -> must refresh
+            state.refresh = Some("seeded".into());
+        }
+        assert_eq!(m.bearer_value().await.unwrap(), "minted-after-retry");
+        assert_eq!(
+            hits.load(Ordering::SeqCst),
+            2,
+            "the refresh grant retried its transient 500 and succeeded"
+        );
+    }
+
+    #[test]
+    fn is_transient_status_only_for_5xx() {
+        for s in [500u16, 502, 503, 599] {
+            assert!(is_transient_status(s), "{s} should be transient");
+        }
+        for s in [400u16, 401, 403, 404, 429, 200, 301] {
+            assert!(!is_transient_status(s), "{s} must not be transient");
+        }
+    }
+
+    #[test]
+    fn backoff_delay_grows_and_is_bounded() {
+        // Each attempt's delay stays within [base, (1+JITTER)*base], the base
+        // doubles per attempt, and a large attempt is capped by BACKOFF_MAX.
+        for attempt in 0..3u32 {
+            let base = (BACKOFF_BASE_SECS * 2f64.powi(attempt as i32)).min(BACKOFF_MAX_SECS);
+            let d = backoff_delay(attempt).as_secs_f64();
+            assert!(d >= base, "attempt {attempt}: {d} < base {base}");
+            assert!(
+                d <= base * (1.0 + BACKOFF_JITTER) + 1e-9,
+                "attempt {attempt}: {d} exceeds jittered base {base}"
+            );
+        }
+        // Far-out attempt is capped, jitter aside.
+        let capped = backoff_delay(20).as_secs_f64();
+        assert!(
+            capped <= BACKOFF_MAX_SECS * (1.0 + BACKOFF_JITTER) + 1e-9,
+            "capped delay {capped} exceeds bound"
+        );
     }
 
     #[tokio::test]
