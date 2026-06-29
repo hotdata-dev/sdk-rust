@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (bad/expired credential) is never retried, and the last status/body is
   preserved once the budget is exhausted. Applies to both the initial mint and
   the refresh path.
-
+- feat(uploads): support streaming uploads with on-demand part URLs
 
 ## [0.5.0] - 2026-06-26
 

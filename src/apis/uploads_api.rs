@@ -49,6 +49,16 @@ pub enum ListUploadsError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`mint_upload_parts_handler`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum MintUploadPartsHandlerError {
+    Status400(models::ApiErrorResponse),
+    Status404(models::ApiErrorResponse),
+    Status501(models::ApiErrorResponse),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`upload_file`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -57,7 +67,7 @@ pub enum UploadFileError {
     UnknownValue(serde_json::Value),
 }
 
-/// Create an upload session for a file you will send directly to storage. Based on the declared size, the response is one of two shapes. For a small file (`mode: single`) it contains a short-lived `url` to `PUT` the whole file to. For a large file (`mode: multipart`) it contains `part_urls` and `part_size`: split the file into `part_size`-byte chunks (the last is the remainder) and `PUT` chunk *i* (1-based) to `part_urls[i - 1]`, keeping each response's `ETag`. Slice by `part_size`, not by an even division across `part_urls.len()` (which can make a non-final part too small). In both cases the response also includes a one-time `finalize_token`. After uploading, call the finalize endpoint with the token (and, for multipart, the `{part_number, e_tag}` list) to make the upload usable as managed-table contents. The returned upload ID can then be passed to the managed-table load endpoint.  You may hint a preferred part size with `part_size`; the service clamps it to the allowed range and ignores it for single-`PUT` uploads.  If the response status is `501` with error code `PRESIGN_UNSUPPORTED`, the configured storage backend cannot issue upload URLs; send the file to the `POST /v1/files` endpoint instead.
+/// Create an upload session for a file you will send directly to storage. The response is one of three shapes. For a small file (`mode: single`) it contains a short-lived `url` to `PUT` the whole file to. For a large file with a known size (`mode: multipart`) it contains `part_urls` and `part_size`: split the file into `part_size`-byte chunks (the last is the remainder) and `PUT` chunk *i* (1-based) to `part_urls[i - 1]`, keeping each response's `ETag`. Slice by `part_size`, not by an even division across `part_urls.len()` (which can make a non-final part too small). For a file whose size you do not know up front, omit `declared_size_bytes`: the response is `mode: multipart` with a `part_size` but NO `part_urls`. As you stream, call `POST /v1/uploads/{upload_id}/parts` with a batch of `part_numbers` to mint per-part `PUT` URLs, `PUT` each part and keep its `ETag`, then finalize as for any multipart upload. In all cases the response also includes a one-time `finalize_token`. After uploading, call the finalize endpoint with the token (and, for multipart, the `{part_number, e_tag}` list) to make the upload usable as managed-table contents. The returned upload ID can then be passed to the managed-table load endpoint.  You may hint a preferred part size with `part_size`; the service clamps it to the allowed range and ignores it for single-`PUT` uploads.  If the response status is `501` with error code `PRESIGN_UNSUPPORTED`, the configured storage backend cannot issue upload URLs; send the file to the `POST /v1/files` endpoint instead.
 pub async fn create_upload_session_handler(
     configuration: &configuration::Configuration,
     create_upload_request: models::CreateUploadRequest,
@@ -190,7 +200,7 @@ pub async fn create_upload_sessions_batch_handler(
     }
 }
 
-/// Confirm that a file has been uploaded to storage and make it usable as managed-table contents. Supply the `finalize_token` returned when the session was created, in the `X-Upload-Finalize-Token` header. The uploaded file's size is validated against the size declared at create time; a mismatch is rejected. Finalize is exactly-once: a second finalize of the same upload is rejected.
+/// Confirm that a file has been uploaded to storage and make it usable as managed-table contents. Supply the `finalize_token` returned when the session was created, in the `X-Upload-Finalize-Token` header. When you declared a size at create time, the uploaded file's size is validated against it and a mismatch is rejected. An upload created without a declared size is finalized from its uploaded parts; it must be non-empty and is rejected if it exceeds the server's maximum upload size. Finalize is exactly-once: a second finalize of the same upload is rejected.
 pub async fn finalize_upload_handler(
     configuration: &configuration::Configuration,
     upload_id: &str,
@@ -325,6 +335,84 @@ pub async fn list_uploads(
         let content = resp.text().await?;
         crate::http_log::log_response_body(&content);
         let entity: Option<ListUploadsError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Mint short-lived presigned URLs for specific parts of a multi-part upload. This is required for a streaming (unknown-size) upload — created by omitting the declared size — which mints no part URLs up front. It also works for a known-size multi-part upload: use it to re-mint a part whose URL expired before you uploaded that part. Supply the `finalize_token` returned when the session was created, in the `X-Upload-Finalize-Token` header, and the 1-based `part_numbers` you want URLs for. `PUT` each part's bytes to its URL, keep each response's `ETag`, then pass the `{part_number, e_tag}` list to finalize. You may mint parts in batches as you upload, and re-mint a part number whose URL expired before you finished uploading it.
+pub async fn mint_upload_parts_handler(
+    configuration: &configuration::Configuration,
+    upload_id: &str,
+    x_upload_finalize_token: &str,
+    mint_upload_parts_request: models::MintUploadPartsRequest,
+) -> Result<models::MintUploadPartsResponse, Error<MintUploadPartsHandlerError>> {
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_path_upload_id = upload_id;
+    let p_header_x_upload_finalize_token = x_upload_finalize_token;
+    let p_body_mint_upload_parts_request = mint_upload_parts_request;
+
+    let uri_str = format!(
+        "{}/v1/uploads/{upload_id}/parts",
+        configuration.base_path,
+        upload_id = crate::apis::urlencode(p_path_upload_id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    req_builder = req_builder.header(
+        "X-Upload-Finalize-Token",
+        p_header_x_upload_finalize_token.to_string(),
+    );
+    if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
+        let key = apikey.key.clone();
+        let value = match apikey.prefix {
+            Some(ref prefix) => format!("{} {}", prefix, key),
+            None => key,
+        };
+        req_builder = req_builder.header("X-Workspace-Id", value);
+    };
+    if let Some(token) = configuration.resolve_bearer_token().await {
+        req_builder = req_builder.bearer_auth(token);
+    };
+    req_builder = req_builder.json(&p_body_mint_upload_parts_request);
+
+    let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
+    // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
+    // shedding) is retried per `configuration.retry` on every generated op, not
+    // just the hand-written query path. See crate::http::execute_retrying.
+    let resp =
+        crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
+
+    let status = resp.status();
+    crate::http_log::log_response_status(status);
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::MintUploadPartsResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::MintUploadPartsResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        let entity: Option<MintUploadPartsHandlerError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
