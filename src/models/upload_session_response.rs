@@ -23,7 +23,7 @@ pub struct UploadSessionResponse {
     /// Upload mode: `single` (upload the whole file with one `PUT` to `url`) or `multipart` (upload each part with one `PUT` to the matching entry in `part_urls`). Modeled as a string so additional modes can be added later without breaking clients.
     #[serde(rename = "mode")]
     pub mode: String,
-    /// For a `multipart` upload, the size in bytes to split the file into: send bytes `[(i-1) * part_size, i * part_size)` to `part_urls[i - 1]`, with the last part carrying the remainder. Slice by this value — do **not** divide the file evenly by `part_urls.len()`, which can make a non-final part smaller than the 5 MiB minimum that storage requires (the upload then fails at finalize). Absent for `single` uploads.
+    /// For a `multipart` upload (both known-size and streaming), the size in bytes to split the file into: send bytes `[(i-1) * part_size, i * part_size)` as part *i*, with the last part carrying the remainder. Slice by this value — do **not** divide the file evenly by the number of parts, which can make a non-final part smaller than the 5 MiB minimum that storage requires (the upload then fails at finalize). Absent for `single` uploads.
     #[serde(
         rename = "part_size",
         default,
@@ -31,7 +31,7 @@ pub struct UploadSessionResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub part_size: Option<Option<i64>>,
-    /// For a `multipart` upload, the per-part URLs in ascending part order: `PUT` your file's part *i* (1-based) to `part_urls[i - 1]` and keep each response's `ETag`, then pass the `{part_number, e_tag}` list to finalize. Absent for `single` uploads.
+    /// For a known-size `multipart` upload, the per-part URLs in ascending part order: `PUT` your file's part *i* (1-based) to `part_urls[i - 1]` and keep each response's `ETag`, then pass the `{part_number, e_tag}` list to finalize. Absent for `single` uploads, and also absent for a streaming (unknown-size) `multipart` upload — there, mint part URLs on demand via `POST /v1/uploads/{upload_id}/parts`.
     #[serde(
         rename = "part_urls",
         default,

@@ -90,6 +90,9 @@ docs/LoadManagedTableRequest.md
 docs/LoadManagedTableResponse.md
 docs/ManagedSchemaResponse.md
 docs/ManagedTableResponse.md
+docs/MintUploadPartsRequest.md
+docs/MintUploadPartsResponse.md
+docs/MintedUploadPartResponse.md
 docs/NumericProfileDetail.md
 docs/QueryApi.md
 docs/QueryRequest.md
@@ -235,6 +238,9 @@ src/models/load_managed_table_request.rs
 src/models/load_managed_table_response.rs
 src/models/managed_schema_response.rs
 src/models/managed_table_response.rs
+src/models/mint_upload_parts_request.rs
+src/models/mint_upload_parts_response.rs
+src/models/minted_upload_part_response.rs
 src/models/mod.rs
 src/models/numeric_profile_detail.rs
 src/models/query_request.rs
