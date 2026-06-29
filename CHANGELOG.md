@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Token exchange (`POST /v1/auth/jwt`) now retries transient failures before
+  giving up: a momentary `5xx` or a transport error (connection/read failure)
+  is retried with bounded exponential backoff + jitter (3 attempts total), so a
+  brief server-side blip no longer fails the caller outright. A `4xx`
+  (bad/expired credential) is never retried, and the last status/body is
+  preserved once the budget is exhausted. Applies to both the initial mint and
+  the refresh path.
+
 
 ## [0.5.0] - 2026-06-26
 
