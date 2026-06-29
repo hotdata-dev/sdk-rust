@@ -66,9 +66,10 @@ jobs:
       # Read (do NOT bump) the current crate version. A regen is just a set of
       # changes; which release ships them — and the bump kind — is decided later
       # by the release tooling, not minted per regen. The version is still read
-      # here because the generator bakes it into the default user-agent and
-      # packageVersion below, so generated output reflects the committed crate
-      # version (Cargo.toml is ignore-protected, so the generator never edits it).
+      # here only because the generator wants a packageVersion below; Cargo.toml
+      # is ignore-protected so the generator never edits it. The default
+      # user-agent is NOT pinned at regen time: configuration.mustache computes
+      # it from CARGO_PKG_VERSION at compile time, so it can never lag (#69).
       - name: Read package version
         id: pkg
         run: |
@@ -135,7 +136,6 @@ jobs:
             -o . \
             -t .openapi-generator-templates \
             --additional-properties=packageName=hotdata,packageVersion=$PACKAGE_VERSION,library=reqwest,supportAsync=true,useChrono=false \
-            --http-user-agent "hotdata-rust/${PACKAGE_VERSION}" \
             --skip-validate-spec
 
       # The 7.22.0 generator emits compact, non-rustfmt output, which buries real
@@ -287,3 +287,16 @@ jobs:
           branch: openapi-update-${{ github.run_id }}
           commit-message: "${{ inputs.title || 'chore: regenerate client from OpenAPI spec' }}"
           body: "${{ inputs.summary || 'Auto-generated from updated HotData OpenAPI spec.' }}"
+
+      # Enable native auto-merge (squash). Branch protection on main gates the
+      # merge on the test checks (scenario-parity, integration) plus the org
+      # Claude review check and its approving review, so this only merges once
+      # everything is green and Claude has approved.
+      - name: Enable auto-merge
+        if: steps.cpr.outputs.pull-request-number
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh pr merge "${{ steps.cpr.outputs.pull-request-number }}" \
+            --repo "${{ github.repository }}" \
+            --squash --auto
