@@ -7,9 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-29
+
+### Added
+
+- Streaming uploads with just-in-time part minting for large files.
+  `Client::upload_file` now opens a streaming multipart session for files past
+  the multipart threshold and mints presigned part URLs on demand (via
+  `POST /v1/uploads/{id}/parts`) immediately before each chunk uploads, instead
+  of pre-minting every URL when the session opens. A part URL that expires
+  mid-transfer (storage `403`) is transparently re-minted and the chunk retried,
+  so large or slow uploads that outlive a presigned URL's ~30-minute TTL still
+  complete within the session's 24-hour window rather than failing partway.
+  Small files keep the single-`PUT` fast path. (Fixes #76.)
+- Low-level `POST /v1/uploads/{id}/parts` part-minting endpoint with its
+  `MintUploadPartsRequest` / `MintUploadPartsResponse` / `MintedUploadPartResponse`
+  models, generated from the OpenAPI spec.
+
 ### Changed
 
-- feat(uploads): support streaming uploads with on-demand part URLs
+- Token exchange (`POST /v1/auth/jwt`) now retries transient failures before
+  giving up: a momentary `5xx` or a transport error (connection/read failure)
+  is retried with bounded exponential backoff + jitter (3 attempts total), so a
+  brief server-side blip no longer fails the caller outright. A `4xx`
+  (bad/expired credential) is never retried, and the last status/body is
+  preserved once the budget is exhausted. Applies to both the initial mint and
+  the refresh path.
+
+### Fixed
+
+- The default `User-Agent` is now computed from the crate version at build time
+  (`CARGO_PKG_VERSION`) instead of a hardcoded string, so it always reflects the
+  published version.
 
 ## [0.5.0] - 2026-06-26
 

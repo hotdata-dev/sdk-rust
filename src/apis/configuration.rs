@@ -71,7 +71,12 @@ impl Default for Configuration {
     fn default() -> Self {
         Configuration {
             base_path: "https://api.hotdata.dev".to_owned(),
-            user_agent: Some("hotdata-rust/0.5.0".to_owned()),
+            // Computed from CARGO_PKG_VERSION at compile time so the default UA
+            // always matches the shipped crate version (issue #69). Deliberately
+            // ignores the generator's httpUserAgent: a regen has no idea which
+            // version will publish, so baking a concrete version here lags. This
+            // mirrors what ClientBuilder already does for the ergonomic surface.
+            user_agent: Some(concat!("hotdata-rust/", env!("CARGO_PKG_VERSION")).to_owned()),
             client: reqwest::Client::new(),
             basic_auth: None,
             oauth_access_token: None,
