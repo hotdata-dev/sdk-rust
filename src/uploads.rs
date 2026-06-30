@@ -857,6 +857,13 @@ async fn upload_multipart(
 /// and with bounded concurrency the extra mint round-trip overlaps other parts'
 /// in-flight `PUT`s rather than serializing.
 ///
+/// The deliberate cost is mint *request volume*: one `POST /parts` per part
+/// (up to [`TARGET_MAX_PARTS`]) instead of the old batched ≤100-per-call. We
+/// accept it because pre-minting a batch ahead is what made slow uploads fail —
+/// buffered URLs age in the queue and can expire before their part's `PUT` is
+/// reached on a constrained link. Minting each URL immediately before use keeps
+/// its age minimal, which is the whole point on the slow links this hardens.
+///
 /// Returns the parts sorted ascending by part number, ready for finalize.
 async fn upload_multipart_streaming(
     configuration: &Configuration,
