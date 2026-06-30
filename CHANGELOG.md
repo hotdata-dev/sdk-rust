@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Multipart uploads now survive transient per-part failures. A single part
+  exhausting its inner transport retries no longer aborts the whole transfer:
+  an outer round loop re-sweeps just the failed parts (at decaying concurrency,
+  with backoff) while completed parts keep their ETags, so a flaky or slow link
+  recovers instead of discarding the work already done. Each part PUT also gets
+  a part-size-scaled total timeout (bounded by an operational ceiling), so a
+  silently stalled connection fails fast rather than hanging the upload.
+
+### Changed
+
+- Streaming multipart uploads now mint one presigned part URL per part, on
+  demand immediately before each PUT, instead of pre-minting in batches. This
+  keeps each URL's age minimal so it can't expire mid-transfer on a slow link,
+  at the cost of more `POST /v1/uploads/{id}/parts` requests for large uploads.
+
+### Removed
+
+- `uploads::MAX_MINT_BATCH` (`pub const`), obsoleted by per-part minting. No
+  longer part of the public API.
+
 ## [0.6.0] - 2026-06-29
 
 ### Added

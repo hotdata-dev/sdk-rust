@@ -41,6 +41,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::apis::configuration::Configuration;
 use crate::apis::{self, Error};
@@ -72,12 +73,6 @@ pub const MIN_PART_SIZE: u64 = 5 * MIB;
 /// Maximum part size storage accepts (5 GiB). The hint is clamped to at most
 /// this.
 pub const MAX_PART_SIZE: u64 = 5 * 1024 * MIB;
-
-/// Maximum number of part numbers to request in a single on-demand mint call
-/// (`POST /v1/uploads/{id}/parts`). The server caps a batch at this, so the
-/// streaming uploader mints in batches no larger than this, kept just ahead of
-/// the parts it is about to upload.
-pub const MAX_MINT_BATCH: usize = 100;
 
 /// File-size boundary between the two upload strategies. A file at or below this
 /// size takes the known-size path — a single quick `PUT` (or a short eager
@@ -543,6 +538,187 @@ impl futures_core::Stream for ProgressStream {
     }
 }
 
+/// A single part's upload work, independent of how the bytes actually get to
+/// storage. The known-size path builds one of these per part and hands them to
+/// [`upload_parts_resilient`]; tests substitute a fake uploader.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PartPlan {
+    /// 0-based position — indexes both the results vector and the URL list.
+    index: usize,
+    /// 1-based S3 part number.
+    part_number: i32,
+    /// Byte offset of this part within the source file.
+    offset: u64,
+    /// Byte length of this part (the last part is the remainder).
+    len: u64,
+}
+
+/// Outer-loop retry policy for whole-upload resilience, layered ON TOP of the
+/// per-part transport retries in [`crate::http::execute_retrying`].
+///
+/// The inner per-part retries all burn within a few seconds, so they only ride
+/// out a momentary blip *during one part*. A longer network interruption (or a
+/// flaky uplink that resets connections under load) needs a genuinely later
+/// attempt. Each extra round re-sweeps ONLY the parts still failing, after a
+/// backoff, and at reduced concurrency — fewer in-flight connections reset less
+/// on a saturated link. Crucially, parts that already succeeded keep their
+/// ETags across rounds, so a single bad part never discards the whole transfer.
+#[derive(Clone, Copy, Debug)]
+struct RetryRounds {
+    /// Re-sweeps after the initial pass. `0` reproduces the legacy behavior: a
+    /// single part exhausting its inner retries fails the entire upload.
+    max_extra_rounds: u32,
+    /// Backoff before the first re-sweep; doubles each subsequent round.
+    base_delay: Duration,
+}
+
+impl Default for RetryRounds {
+    fn default() -> Self {
+        Self {
+            max_extra_rounds: 3,
+            base_delay: Duration::from_secs(2),
+        }
+    }
+}
+
+impl RetryRounds {
+    /// Backoff before `round` (1-based for re-sweeps): capped exponential.
+    fn delay_for(self, round: u32) -> Duration {
+        let shift = round.saturating_sub(1).min(16);
+        self.base_delay.saturating_mul(1u32 << shift)
+    }
+}
+
+/// In-flight cap for a given 0-based round: halve per round, never below 1. A
+/// saturated, jittery uplink (the failure mode this whole loop targets) resets
+/// fewer connections when fewer are in flight, so later rounds back off.
+fn round_in_flight(base_in_flight: usize, round: u32) -> usize {
+    let shift = round.min(usize::BITS - 1);
+    (base_in_flight >> shift).max(1)
+}
+
+/// Whether an upload error is *terminal* — guaranteed to reproduce on a
+/// re-sweep because it reflects a server-contract or sizing violation rather
+/// than a transient network condition. Terminal errors fail the upload
+/// immediately; everything else (transport resets, timeouts, storage 4xx/5xx,
+/// mint failures) stays retryable, so a flaky link is never mistaken for a
+/// permanent fault. Kept deliberately narrow: only errors that are deterministic
+/// in the part's own inputs belong here.
+fn is_terminal(err: &UploadError) -> bool {
+    matches!(
+        err,
+        UploadError::MalformedSession(_) | UploadError::SizeOverflow { .. }
+    )
+}
+
+/// Upload every part, surviving transient per-part failures without discarding
+/// the parts that already succeeded.
+///
+/// A round runs the still-pending parts through a `JoinSet` bounded by the
+/// round's in-flight cap, recording each success and **collecting** (not
+/// propagating) each failure. If any parts remain, it waits per [`RetryRounds`]
+/// and re-sweeps just those, at reduced concurrency, until they all land or the
+/// rounds are exhausted. Completed parts' ETags persist across rounds, so the
+/// work already done is never thrown away — the bug this replaces aborted the
+/// whole upload the moment one part exhausted its inner retries.
+///
+/// `upload_part` performs one part's transfer (including its own inner transport
+/// retries) and MUST be idempotent: re-running a part overwrites it in storage
+/// (S3 `UploadPart` by number), so a re-swept part is safe.
+async fn upload_parts_resilient<F, Fut>(
+    plans: Vec<PartPlan>,
+    base_in_flight: usize,
+    rounds: RetryRounds,
+    upload_part: F,
+) -> Result<Vec<models::FinalizeUploadPart>, UploadError>
+where
+    F: Fn(PartPlan) -> Fut + Clone + Send + Sync + 'static,
+    Fut: std::future::Future<Output = Result<models::FinalizeUploadPart, UploadError>>
+        + Send
+        + 'static,
+{
+    let total_parts = plans.len();
+    // `results` is indexed by `plan.index`, so every plan's index must fall in
+    // `0..total_parts` (both callers build consecutive 0-based plans). Enforce
+    // it so a future caller passing a sparse/offset set fails loudly in tests
+    // rather than panicking or writing the wrong slot.
+    debug_assert!(
+        plans.iter().all(|p| p.index < total_parts),
+        "PartPlan.index must be within 0..plans.len()"
+    );
+    let mut results: Vec<Option<models::FinalizeUploadPart>> = vec![None; total_parts];
+    let mut remaining = plans;
+    let mut last_err: Option<UploadError> = None;
+
+    for round in 0..=rounds.max_extra_rounds {
+        if remaining.is_empty() {
+            break;
+        }
+        if round > 0 {
+            // A genuinely later attempt on a fresh window — the point of the
+            // outer loop, distinct from the inner retries that already ran.
+            tokio::time::sleep(rounds.delay_for(round)).await;
+        }
+
+        let in_flight = round_in_flight(base_in_flight, round);
+        let mut pending = std::mem::take(&mut remaining).into_iter();
+        let mut failed: Vec<PartPlan> = Vec::new();
+        let mut join_set: tokio::task::JoinSet<
+            Result<(usize, models::FinalizeUploadPart), (PartPlan, UploadError)>,
+        > = tokio::task::JoinSet::new();
+
+        loop {
+            while join_set.len() < in_flight {
+                let Some(plan) = pending.next() else { break };
+                let upload_part = upload_part.clone();
+                join_set.spawn(async move {
+                    let index = plan.index;
+                    match upload_part(plan.clone()).await {
+                        Ok(part) => Ok((index, part)),
+                        Err(e) => Err((plan, e)),
+                    }
+                });
+            }
+            match join_set.join_next().await {
+                Some(Ok(Ok((index, part)))) => results[index] = Some(part),
+                Some(Ok(Err((plan, e)))) => {
+                    // A clearly-terminal error (server-contract / sizing
+                    // violation) reproduces identically on every re-sweep, so
+                    // fail fast rather than burning the whole round budget on it.
+                    // Anything network-ish stays retryable — we never regress
+                    // resilience by mistaking a flaky link for a permanent fault.
+                    if is_terminal(&e) {
+                        join_set.abort_all();
+                        return Err(e);
+                    }
+                    // Record the failure and keep draining the rest — do NOT
+                    // abort the other in-flight parts. This part is re-swept in
+                    // the next round.
+                    failed.push(plan);
+                    last_err = Some(e);
+                }
+                Some(Err(join_err)) => {
+                    join_set.abort_all();
+                    return Err(UploadError::Io(std::io::Error::other(format!(
+                        "part upload task failed: {join_err}"
+                    ))));
+                }
+                None => break,
+            }
+        }
+        remaining = failed;
+    }
+
+    if !remaining.is_empty() {
+        // Rounds exhausted with parts still failing — surface the last
+        // underlying error so the caller's normal error mapping applies.
+        return Err(last_err
+            .unwrap_or_else(|| UploadError::Io(std::io::Error::other("multipart upload failed"))));
+    }
+
+    Ok(results.into_iter().flatten().collect())
+}
+
 /// Multipart path: slice the file into `part_size`-byte chunks (the last is the
 /// remainder), `PUT` each chunk to its `part_urls[i - 1]` with bounded
 /// concurrency, and collect `(part_number, e_tag)` per part.
@@ -598,103 +774,95 @@ async fn upload_multipart(
     let in_flight_cap = effective_in_flight(max_concurrency, part_size);
 
     // Aggregate progress across parts via a shared counter; each part adds its
-    // own byte count as it completes.
+    // own byte count once it lands (on success only — a re-swept part that
+    // failed an earlier round did not count, so bytes are never double-counted).
     let done = Arc::new(AtomicU64::new(0));
 
-    // Drive part PUTs with a bounded number in flight via a JoinSet. Each task
-    // opens its own file handle and does a positioned read of exactly its byte
-    // range so a retry inside `put_to_storage` re-reads cleanly and tasks never
-    // share a cursor. Each task carries its 0-based `index` so the completion
-    // order (which JoinSet does not preserve) is undone when placing results.
-    let mut results: Vec<Option<models::FinalizeUploadPart>> = vec![None; part_urls.len()];
-    let mut next = 0usize;
-    let mut join_set: tokio::task::JoinSet<
-        Result<(usize, models::FinalizeUploadPart), UploadError>,
-    > = tokio::task::JoinSet::new();
-
-    loop {
-        while join_set.len() < in_flight_cap && next < part_urls.len() {
-            let index = next;
-            next += 1;
-            let part_number = (index + 1) as i32;
-            let url = part_urls[index].clone();
-            let offset = index as u64 * part_size;
-            // The part-count check above guarantees every part has bytes, but
-            // guard defensively: a part starting at/after EOF has no bytes to
-            // send, so skip it rather than PUT a zero-length object.
-            if offset >= total && total > 0 {
-                continue;
-            }
-            // The last part carries the remainder; earlier parts are exactly
-            // `part_size`.
-            let len = part_size.min(total.saturating_sub(offset));
-            let headers = session.headers.clone();
-            let done = Arc::clone(&done);
-            let progress = progress.cloned();
-            // RetryPolicy is Copy.
-            let retry = configuration.retry;
-            let path = path.to_path_buf();
-
-            join_set.spawn(async move {
-                let chunk = read_range(&path, offset, len).await?;
-                let resp =
-                    put_to_storage(&retry, &url, &headers, chunk, len, Some(part_number)).await?;
-                let e_tag = resp
-                    .headers()
-                    .get(reqwest::header::ETAG)
-                    .and_then(|v| v.to_str().ok())
-                    .map(|s| s.to_owned())
-                    .ok_or(UploadError::MissingETag { part_number })?;
-
-                // Aggregate progress: add this part's bytes once it lands.
-                if let Some(progress) = progress.as_ref() {
-                    let now = done.fetch_add(len, Ordering::SeqCst) + len;
-                    progress(now, total);
-                }
-
-                Ok::<_, UploadError>((index, models::FinalizeUploadPart { e_tag, part_number }))
-            });
+    // One plan per part. The last part carries the remainder; earlier parts are
+    // exactly `part_size`. A part starting at/after EOF (only possible for a
+    // zero-length file) is skipped rather than PUT as a zero-length object.
+    let mut plans: Vec<PartPlan> = Vec::with_capacity(part_urls.len());
+    for index in 0..part_urls.len() {
+        let offset = index as u64 * part_size;
+        if offset >= total && total > 0 {
+            continue;
         }
-
-        match join_set.join_next().await {
-            // A part finished. `join_next` yields the task's `Result`; the outer
-            // `Result` is the JoinError (panic/cancel), the inner is our
-            // `UploadError`.
-            Some(Ok(Ok((index, part)))) => results[index] = Some(part),
-            Some(Ok(Err(e))) => {
-                join_set.abort_all();
-                return Err(e);
-            }
-            Some(Err(join_err)) => {
-                join_set.abort_all();
-                // A part task panicked or was cancelled — surface it as an I/O
-                // error so the upload fails loudly rather than silently dropping
-                // a part.
-                return Err(UploadError::Io(std::io::Error::other(format!(
-                    "part upload task failed: {join_err}"
-                ))));
-            }
-            None => break,
-        }
+        let len = part_size.min(total.saturating_sub(offset));
+        plans.push(PartPlan {
+            index,
+            part_number: (index + 1) as i32,
+            offset,
+            len,
+        });
     }
 
-    // `results` is indexed by 0-based part position, so collecting it in order
-    // yields parts ascending by part_number with no duplicates.
-    Ok(results.into_iter().flatten().collect())
+    // Per-part uploader: a positioned read of exactly this part's byte range (so
+    // a re-read on retry never shares a cursor) then a header-isolated `PUT`.
+    // Captures only `Arc`s and `Copy` values, so the closure is
+    // `Clone + Send + Sync + 'static` and `upload_parts_resilient` can re-run it
+    // across rounds and concurrent tasks.
+    let part_urls = Arc::new(part_urls);
+    let headers = Arc::new(session.headers.clone());
+    let path = Arc::new(path.to_path_buf());
+    let retry = configuration.retry; // RetryPolicy is Copy.
+    let progress = progress.cloned();
+
+    let uploader = move |plan: PartPlan| {
+        let part_urls = Arc::clone(&part_urls);
+        let headers = Arc::clone(&headers);
+        let path = Arc::clone(&path);
+        let done = Arc::clone(&done);
+        let progress = progress.clone();
+        async move {
+            let url = part_urls[plan.index].clone();
+            let chunk = read_range(&path, plan.offset, plan.len).await?;
+            let resp = put_to_storage(
+                &retry,
+                &url,
+                &headers,
+                chunk,
+                plan.len,
+                Some(plan.part_number),
+            )
+            .await?;
+            let e_tag = parse_etag(resp.headers(), plan.part_number)?;
+            if let Some(progress) = progress.as_ref() {
+                let now = done.fetch_add(plan.len, Ordering::SeqCst) + plan.len;
+                progress(now, total);
+            }
+            Ok(models::FinalizeUploadPart {
+                e_tag,
+                part_number: plan.part_number,
+            })
+        }
+    };
+
+    // Resilient outer loop: a single part's transient failure no longer aborts
+    // the whole upload — it is re-swept on a later round while completed parts
+    // keep their ETags. `upload_parts_resilient` returns the parts ascending by
+    // part number with no duplicates.
+    upload_parts_resilient(plans, in_flight_cap, RetryRounds::default(), uploader).await
 }
 
 /// Streaming (just-in-time) multipart path: the session was opened WITHOUT a
 /// declared size, so the server minted no part URLs up front. We still know the
 /// local file's size, so the part count is fixed by the server's echoed
-/// `part_size`; we mint URLs on demand — in batches of at most [`MAX_MINT_BATCH`]
-/// kept just ahead of upload progress — and `PUT` each part with bounded
-/// concurrency.
+/// `part_size`.
 ///
-/// If a part `PUT` is rejected with `403` (an expired presigned URL / S3
-/// `SignatureDoesNotMatch`), that single part is re-minted and the `PUT` retried
-/// once: the part number and underlying upload are unchanged, so storage simply
-/// overwrites that part. This is what lets a slow upload outlive a minted URL's
-/// TTL and still complete.
+/// Each part mints a FRESH presigned URL immediately before its `PUT` (via
+/// `POST /v1/uploads/{id}/parts`), so a URL can never expire mid-transfer on a
+/// slow upload — and a part re-swept by [`upload_parts_resilient`] simply
+/// re-mints. This replaces the earlier batched pre-mint pipeline and its
+/// one-shot on-`403` re-mint: per-part minting is simpler and fully resilient,
+/// and with bounded concurrency the extra mint round-trip overlaps other parts'
+/// in-flight `PUT`s rather than serializing.
+///
+/// The deliberate cost is mint *request volume*: one `POST /parts` per part
+/// (up to [`TARGET_MAX_PARTS`]) instead of the old batched ≤100-per-call. We
+/// accept it because pre-minting a batch ahead is what made slow uploads fail —
+/// buffered URLs age in the queue and can expire before their part's `PUT` is
+/// reached on a constrained link. Minting each URL immediately before use keeps
+/// its age minimal, which is the whole point on the slow links this hardens.
 ///
 /// Returns the parts sorted ascending by part number, ready for finalize.
 async fn upload_multipart_streaming(
@@ -724,177 +892,113 @@ async fn upload_multipart_streaming(
     // caller's max_concurrency and the memory budget (same as the eager path).
     let in_flight_cap = effective_in_flight(max_concurrency, part_size);
 
-    // Aggregate progress across parts via a shared counter.
-    let done = Arc::new(AtomicU64::new(0));
-    let mut results: Vec<Option<models::FinalizeUploadPart>> = vec![None; expected_parts];
+    // One plan per part (same shape as the known-size path). A part starting
+    // at/after EOF (only possible for a zero-length file) is skipped rather than
+    // PUT as a zero-length object.
+    let mut plans: Vec<PartPlan> = Vec::with_capacity(expected_parts);
+    for index in 0..expected_parts {
+        let offset = index as u64 * part_size;
+        if offset >= total && total > 0 {
+            continue;
+        }
+        let len = part_size.min(total.saturating_sub(offset));
+        plans.push(PartPlan {
+            index,
+            part_number: (index + 1) as i32,
+            offset,
+            len,
+        });
+    }
 
-    // Shared by the proactive minting below AND each part task's on-403 re-mint.
-    // `reqwest::Client` clones cheaply (Arc inside), so cloning the config is fine.
+    // Per-part uploader: mint a fresh URL for THIS part immediately before
+    // uploading it, then PUT. Captures only `Arc`s and `Copy` values, so the
+    // closure is `Clone + Send + Sync + 'static` and `upload_parts_resilient`
+    // can re-run it across rounds and concurrent tasks; a re-swept part re-mints
+    // a fresh URL, so expiry is impossible.
     let config = Arc::new(configuration.clone());
-    let upload_id = session.upload_id.clone();
-    let finalize_token = session.finalize_token.clone();
+    let upload_id = Arc::new(session.upload_id.clone());
+    let finalize_token = Arc::new(session.finalize_token.clone());
+    let headers = Arc::new(session.headers.clone());
+    let path = Arc::new(path.to_path_buf());
+    let retry = configuration.retry;
+    let done = Arc::new(AtomicU64::new(0));
+    let progress = progress.cloned();
 
-    // Minted-but-not-yet-uploaded `(part_number, url)` pairs, ascending by part
-    // number. Refilled from POST /parts as it drains so a URL is minted shortly
-    // before its `PUT`.
-    let mut minted: std::collections::VecDeque<(i32, String)> = std::collections::VecDeque::new();
-    let mut next_to_mint = 1i32; // next 1-based part number to request a URL for
-    let mut next_part = 1i32; // next 1-based part number to spawn a `PUT` for
+    let uploader = move |plan: PartPlan| {
+        let config = Arc::clone(&config);
+        let upload_id = Arc::clone(&upload_id);
+        let finalize_token = Arc::clone(&finalize_token);
+        let headers = Arc::clone(&headers);
+        let path = Arc::clone(&path);
+        let done = Arc::clone(&done);
+        let progress = progress.clone();
+        async move {
+            let minted = apis::uploads_api::mint_upload_parts_handler(
+                &config,
+                &upload_id,
+                &finalize_token,
+                models::MintUploadPartsRequest::new(vec![plan.part_number]),
+            )
+            .await
+            .map_err(UploadError::MintParts)?;
+            let url = minted
+                .parts
+                .into_iter()
+                .find(|p| p.part_number == plan.part_number)
+                .map(|p| p.url)
+                .ok_or_else(|| {
+                    UploadError::MalformedSession(format!(
+                        "mint returned no URL for part {}",
+                        plan.part_number
+                    ))
+                })?;
 
-    let mut join_set: tokio::task::JoinSet<
-        Result<(usize, models::FinalizeUploadPart), UploadError>,
-    > = tokio::task::JoinSet::new();
-
-    loop {
-        while join_set.len() < in_flight_cap && (next_part as usize) <= expected_parts {
-            // Keep the buffer at least one in-flight window ahead, minting in
-            // batches capped at the server's per-call limit.
-            if minted.len() < in_flight_cap && (next_to_mint as usize) <= expected_parts {
-                let lo = next_to_mint;
-                let hi = (lo as usize + MAX_MINT_BATCH - 1).min(expected_parts) as i32;
-                let resp = apis::uploads_api::mint_upload_parts_handler(
-                    &config,
-                    &upload_id,
-                    &finalize_token,
-                    models::MintUploadPartsRequest::new((lo..=hi).collect()),
-                )
-                .await
-                .map_err(UploadError::MintParts)?;
-                // Pair each URL with the part number the SERVER labelled it,
-                // then enqueue strictly in the order WE requested (lo..=hi).
-                // This catches a missing or unexpected part number here — rather
-                // than letting a mismatch silently shift every later part's byte
-                // offset — and makes the queue order independent of the order the
-                // server happened to list the URLs in.
-                let mut by_number: std::collections::HashMap<i32, String> = resp
-                    .parts
-                    .into_iter()
-                    .map(|p| (p.part_number, p.url))
-                    .collect();
-                for n in lo..=hi {
-                    let url = by_number.remove(&n).ok_or_else(|| {
-                        UploadError::MalformedSession(format!(
-                            "mint did not return a URL for part {n}"
-                        ))
-                    })?;
-                    minted.push_back((n, url));
-                }
-                if !by_number.is_empty() {
-                    return Err(UploadError::MalformedSession(
-                        "mint returned URLs for parts that were not requested".to_owned(),
-                    ));
-                }
-                next_to_mint = hi + 1;
+            let chunk = read_range(&path, plan.offset, plan.len).await?;
+            let resp = put_to_storage(
+                &retry,
+                &url,
+                &headers,
+                chunk,
+                plan.len,
+                Some(plan.part_number),
+            )
+            .await?;
+            let e_tag = parse_etag(resp.headers(), plan.part_number)?;
+            if let Some(progress) = progress.as_ref() {
+                let now = done.fetch_add(plan.len, Ordering::SeqCst) + plan.len;
+                progress(now, total);
             }
-
-            let (part_number, url) = minted.pop_front().ok_or_else(|| {
-                UploadError::MalformedSession(
-                    "streaming mint returned no URL for a pending part".to_owned(),
-                )
-            })?;
-            // Parts are minted and enqueued in ascending order, so the front of
-            // the queue is always `next_part`. Derive the byte range from the
-            // part number itself (not from queue position) so the uploaded slice
-            // and the finalize entry can never disagree.
-            debug_assert_eq!(part_number, next_part);
-            next_part += 1;
-            let index = (part_number - 1) as usize;
-            let offset = index as u64 * part_size;
-            let len = part_size.min(total.saturating_sub(offset));
-
-            let headers = session.headers.clone();
-            let done = Arc::clone(&done);
-            let progress = progress.cloned();
-            let retry = configuration.retry;
-            let path = path.to_path_buf();
-            let config = Arc::clone(&config);
-            let upload_id = upload_id.clone();
-            let finalize_token = finalize_token.clone();
-
-            join_set.spawn(async move {
-                let chunk = read_range(&path, offset, len).await?;
-                let resp =
-                    match put_to_storage(&retry, &url, &headers, chunk, len, Some(part_number))
-                        .await
-                    {
-                        // An expired presigned URL surfaces as 403. Re-mint this
-                        // one part and retry the `PUT` once.
-                        Err(UploadError::StorageStatus { status, .. })
-                            if status == reqwest::StatusCode::FORBIDDEN =>
-                        {
-                            let remint = apis::uploads_api::mint_upload_parts_handler(
-                                &config,
-                                &upload_id,
-                                &finalize_token,
-                                models::MintUploadPartsRequest::new(vec![part_number]),
-                            )
-                            .await
-                            .map_err(UploadError::MintParts)?;
-                            let fresh = remint
-                                .parts
-                                .into_iter()
-                                .find(|p| p.part_number == part_number)
-                                .ok_or_else(|| {
-                                    UploadError::MalformedSession(format!(
-                                        "re-mint returned no URL for part {part_number}"
-                                    ))
-                                })?;
-                            let chunk = read_range(&path, offset, len).await?;
-                            put_to_storage(
-                                &retry,
-                                &fresh.url,
-                                &headers,
-                                chunk,
-                                len,
-                                Some(part_number),
-                            )
-                            .await?
-                        }
-                        other => other?,
-                    };
-
-                let e_tag = resp
-                    .headers()
-                    .get(reqwest::header::ETAG)
-                    .and_then(|v| v.to_str().ok())
-                    .map(|s| s.to_owned())
-                    .ok_or(UploadError::MissingETag { part_number })?;
-
-                if let Some(progress) = progress.as_ref() {
-                    let now = done.fetch_add(len, Ordering::SeqCst) + len;
-                    progress(now, total);
-                }
-
-                Ok::<_, UploadError>((index, models::FinalizeUploadPart { e_tag, part_number }))
-            });
+            Ok(models::FinalizeUploadPart {
+                e_tag,
+                part_number: plan.part_number,
+            })
         }
+    };
 
-        match join_set.join_next().await {
-            Some(Ok(Ok((index, part)))) => results[index] = Some(part),
-            Some(Ok(Err(e))) => {
-                join_set.abort_all();
-                return Err(e);
-            }
-            Some(Err(join_err)) => {
-                join_set.abort_all();
-                return Err(UploadError::Io(std::io::Error::other(format!(
-                    "part upload task failed: {join_err}"
-                ))));
-            }
-            None => break,
-        }
-    }
+    // Same resilient outer loop as the known-size path: a transient part failure
+    // is re-swept on a later round (re-minting a fresh URL) instead of aborting
+    // the whole upload; completed parts keep their ETags.
+    upload_parts_resilient(plans, in_flight_cap, RetryRounds::default(), uploader).await
+}
 
-    // Every slot must be filled: we spawned exactly one task per part and place
-    // each result by its part index. A `None` would mean a part silently went
-    // unuploaded, so surface it rather than finalizing a short list.
-    let mut parts = Vec::with_capacity(results.len());
-    for (i, slot) in results.into_iter().enumerate() {
-        parts.push(slot.ok_or_else(|| {
-            UploadError::MalformedSession(format!("part {} was never uploaded", i + 1))
-        })?);
+/// Extract and validate the storage `ETag` from a part `PUT` response. Rejects a
+/// missing OR empty/whitespace-only header: finalize needs a real ETag per part,
+/// and an empty value would be carried into the completion request only to fail
+/// (or silently corrupt) it later. Treated as [`UploadError::MissingETag`], so a
+/// re-sweep can re-`PUT` the part and pick up a real ETag.
+fn parse_etag(
+    headers: &reqwest::header::HeaderMap,
+    part_number: i32,
+) -> Result<String, UploadError> {
+    let etag = headers
+        .get(reqwest::header::ETAG)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_owned())
+        .ok_or(UploadError::MissingETag { part_number })?;
+    if etag.trim().is_empty() {
+        return Err(UploadError::MissingETag { part_number });
     }
-    Ok(parts)
+    Ok(etag)
 }
 
 /// Read exactly `len` bytes starting at `offset` from `path`. A positioned read
@@ -910,6 +1014,41 @@ async fn read_range(path: &Path, offset: u64, len: u64) -> Result<bytes::Bytes, 
     Ok(bytes::Bytes::from(buf))
 }
 
+/// Connect-phase timeout for storage `PUT`s. Bounds only TCP+TLS establishment
+/// (not the transfer), so it is safe for both the bounded multipart parts and
+/// the unbounded single-`PUT` whole-file path. Generous: a healthy connect is
+/// sub-second, so 30 s only trips a genuinely dead/black-holed endpoint.
+const STORAGE_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Fixed slack added to every per-part timeout for connect/TLS, request
+/// queueing, and the response round-trip, independent of part size.
+const PART_TIMEOUT_BASE: Duration = Duration::from_secs(60);
+
+/// Throughput floor used to size the per-part timeout. A part is only aborted if
+/// it cannot sustain even this rate — 64 KiB/s (≈512 kbit/s), well below any
+/// link on which an upload is worth attempting — so a legitimately slow but
+/// progressing transfer is never killed; only a true stall is.
+const PART_TIMEOUT_MIN_BYTES_PER_SEC: u64 = 64 * 1024;
+
+/// Operational ceiling on the per-part timeout. Without it a huge part (e.g. a
+/// 5 GiB part on a multi-TB upload) would compute a ~22-hour timeout, so a
+/// stalled giant part would hang for the better part of a day before the outer
+/// loop could re-sweep it. 30 minutes still comfortably covers a legitimately
+/// slow large part while keeping stall recovery bounded.
+const PART_TIMEOUT_MAX: Duration = Duration::from_secs(30 * 60);
+
+/// Generous per-part total `PUT` timeout, scaled to the part size: a fixed base
+/// plus the time the part would take at the throughput floor, capped at
+/// [`PART_TIMEOUT_MAX`]. Examples: an 8 MiB part → ~188 s; a 64 MiB part →
+/// ~18 min; anything above ~111 MiB → the 30 min cap. The goal is to catch a
+/// stalled connection (which would otherwise hang the upload forever) without
+/// aborting a healthy slow link — the outer [`upload_parts_resilient`] loop then
+/// re-sweeps the timed-out part.
+fn part_put_timeout(content_length: u64) -> Duration {
+    (PART_TIMEOUT_BASE + Duration::from_secs(content_length / PART_TIMEOUT_MIN_BYTES_PER_SEC))
+        .min(PART_TIMEOUT_MAX)
+}
+
 /// `PUT` a body to a presigned storage URL with strict header isolation.
 ///
 /// Attaches NONE of the SDK's auth/workspace/session/user-agent headers — a
@@ -919,12 +1058,15 @@ async fn read_range(path: &Path, offset: u64, len: u64) -> Result<bytes::Bytes, 
 /// currently always empty) are sent. A `Content-Type` is set ONLY when the
 /// `headers` map includes one, so reqwest never auto-appends a charset.
 ///
-/// Sent on the dedicated, header-bare [`storage_client`] with **no request
-/// timeout** (a large upload legitimately takes minutes); the body buffers in
-/// memory so it clones cleanly across retries via [`crate::http::execute_retrying`].
-/// Part `PUT`s are retryable: storage overwrites a part by number, so a retried
-/// part is idempotent. `retry` is the SDK's retry policy (carried on
-/// `Configuration`), used only for the retry timing here.
+/// Sent on the dedicated, header-bare [`storage_client`] with a generous,
+/// part-size-scaled request timeout (see [`part_put_timeout`]) so a stalled
+/// connection fails — into the outer retry loop — instead of hanging forever,
+/// while a legitimately slow but progressing part is never aborted. The body
+/// buffers in memory so it clones cleanly across retries via
+/// [`crate::http::execute_retrying`]. Part `PUT`s are retryable: storage
+/// overwrites a part by number, so a retried part is idempotent. `retry` is the
+/// SDK's retry policy (carried on `Configuration`), used only for the retry
+/// timing here.
 async fn put_to_storage(
     retry: &crate::query::RetryPolicy,
     url: &str,
@@ -949,6 +1091,14 @@ async fn put_to_storage(
     // A buffered Bytes body clones cleanly, so 429 / pre-response-reset retries
     // in `execute_retrying` can re-send it.
     req_builder = req_builder.body(reqwest::Body::from(body));
+
+    // Per-PART total timeout, scaled to the part size. Bounds a single part so a
+    // silently black-holed connection (no RST, write just stalls — which a
+    // read/idle timeout would not catch) fails instead of hanging the whole
+    // upload forever. NOT applied to the single-`PUT` whole-file path, which is
+    // legitimately unbounded. `try_clone` in `execute_retrying` preserves this
+    // per-request timeout, so every inner attempt gets a fresh full budget.
+    req_builder = req_builder.timeout(part_put_timeout(content_length));
 
     let req = req_builder.build().map_err(UploadError::Storage)?;
     crate::http_log::log_request(&req);
@@ -1039,8 +1189,13 @@ fn storage_client() -> reqwest::Client {
     STORAGE_CLIENT
         .get_or_init(|| {
             reqwest::Client::builder()
-                // No `default_headers`, no `timeout`. A connect timeout is fine
-                // (it bounds only connection establishment, not the transfer).
+                // No `default_headers` and no client-wide request `timeout` (the
+                // single-`PUT` whole-file path is legitimately unbounded; the
+                // multipart path bounds each part per-request — see
+                // `part_put_timeout`). A connect timeout is safe for both: it
+                // bounds only connection establishment, not the transfer, so a
+                // dead endpoint fails fast into the retry/outer loop.
+                .connect_timeout(STORAGE_CONNECT_TIMEOUT)
                 .build()
                 // Falls back to a plain default client if the builder somehow
                 // fails (e.g. no TLS backend); still header-bare.
@@ -1136,5 +1291,314 @@ mod tests {
         // Zero part size doesn't divide-by-zero (treated as 1 byte): the budget
         // then allows a huge count, so max_concurrency wins.
         assert_eq!(effective_in_flight(12, 0), 12);
+    }
+}
+
+#[cfg(test)]
+mod resilient_retry_tests {
+    use super::*;
+    use std::collections::HashMap;
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::Mutex;
+
+    fn plan(n: i32) -> PartPlan {
+        PartPlan {
+            index: (n - 1) as usize,
+            part_number: n,
+            offset: (n as u64 - 1) * 16,
+            len: 16,
+        }
+    }
+    fn plans(count: i32) -> Vec<PartPlan> {
+        (1..=count).map(plan).collect()
+    }
+    fn no_delay(max_extra_rounds: u32) -> RetryRounds {
+        RetryRounds {
+            max_extra_rounds,
+            base_delay: Duration::ZERO,
+        }
+    }
+
+    /// A transport-free stand-in for the real per-part uploader. It records
+    /// attempts per part and can be told to fail the first K attempts of
+    /// specific parts (modelling a part whose inner transport retries were
+    /// exhausted by a network blip) before succeeding. Also tracks peak
+    /// in-flight concurrency to verify the cap is honored.
+    #[derive(Clone)]
+    struct FakeUploader {
+        fail: Arc<Mutex<HashMap<i32, usize>>>, // part_number -> remaining forced failures
+        attempts: Arc<Mutex<HashMap<i32, usize>>>,
+        in_flight: Arc<AtomicUsize>,
+        peak_in_flight: Arc<AtomicUsize>,
+    }
+
+    impl FakeUploader {
+        fn new(fail: HashMap<i32, usize>) -> Self {
+            Self {
+                fail: Arc::new(Mutex::new(fail)),
+                attempts: Arc::new(Mutex::new(HashMap::new())),
+                in_flight: Arc::new(AtomicUsize::new(0)),
+                peak_in_flight: Arc::new(AtomicUsize::new(0)),
+            }
+        }
+        fn attempts_for(&self, n: i32) -> usize {
+            *self.attempts.lock().unwrap().get(&n).unwrap_or(&0)
+        }
+        fn peak(&self) -> usize {
+            self.peak_in_flight.load(Ordering::SeqCst)
+        }
+
+        fn call(
+            &self,
+            plan: PartPlan,
+        ) -> impl std::future::Future<Output = Result<models::FinalizeUploadPart, UploadError>>
+               + Send
+               + 'static {
+            let fail = Arc::clone(&self.fail);
+            let attempts = Arc::clone(&self.attempts);
+            let in_flight = Arc::clone(&self.in_flight);
+            let peak = Arc::clone(&self.peak_in_flight);
+            async move {
+                let cur = in_flight.fetch_add(1, Ordering::SeqCst) + 1;
+                peak.fetch_max(cur, Ordering::SeqCst);
+                // Force overlap so peak-in-flight reflects real concurrency.
+                tokio::task::yield_now().await;
+                *attempts
+                    .lock()
+                    .unwrap()
+                    .entry(plan.part_number)
+                    .or_insert(0) += 1;
+                let should_fail = {
+                    let mut f = fail.lock().unwrap();
+                    match f.get_mut(&plan.part_number) {
+                        Some(remaining) if *remaining > 0 => {
+                            *remaining -= 1;
+                            true
+                        }
+                        _ => false,
+                    }
+                };
+                in_flight.fetch_sub(1, Ordering::SeqCst);
+                if should_fail {
+                    Err(UploadError::Io(std::io::Error::other(
+                        "simulated connection reset",
+                    )))
+                } else {
+                    Ok(models::FinalizeUploadPart {
+                        e_tag: format!("etag-{}", plan.part_number),
+                        part_number: plan.part_number,
+                    })
+                }
+            }
+        }
+    }
+
+    // ---- pure policy ----
+
+    #[test]
+    fn round_in_flight_halves_each_round_min_one() {
+        assert_eq!(round_in_flight(8, 0), 8);
+        assert_eq!(round_in_flight(8, 1), 4);
+        assert_eq!(round_in_flight(8, 2), 2);
+        assert_eq!(round_in_flight(8, 3), 1);
+        assert_eq!(round_in_flight(8, 99), 1);
+        assert_eq!(round_in_flight(1, 3), 1);
+    }
+
+    #[test]
+    fn delay_for_grows_exponentially() {
+        let r = RetryRounds {
+            max_extra_rounds: 3,
+            base_delay: Duration::from_secs(2),
+        };
+        assert_eq!(r.delay_for(1), Duration::from_secs(2));
+        assert_eq!(r.delay_for(2), Duration::from_secs(4));
+        assert_eq!(r.delay_for(3), Duration::from_secs(8));
+    }
+
+    #[test]
+    fn part_put_timeout_is_generous_and_scales_with_part_size() {
+        // 8 MiB part: 60s base + 8MiB / 64KiB/s = 60 + 128 = 188s. Comfortably
+        // above the ~3s an 8 MiB part takes on a healthy link, so a legit slow
+        // transfer is never aborted; only a true stall trips it.
+        assert_eq!(part_put_timeout(8 * 1024 * 1024), Duration::from_secs(188));
+        // 64 MiB part stays generous (~18 min).
+        assert_eq!(
+            part_put_timeout(64 * 1024 * 1024),
+            Duration::from_secs(60 + 1024)
+        );
+        // A tiny/empty part still gets the full fixed base.
+        assert_eq!(part_put_timeout(0), Duration::from_secs(60));
+        // Monotonic in part size (below the cap).
+        assert!(part_put_timeout(32 * 1024 * 1024) > part_put_timeout(8 * 1024 * 1024));
+        // A huge part is capped at the 30 min operational ceiling rather than the
+        // ~22.8 h the raw formula would yield, so stall recovery stays bounded.
+        assert_eq!(part_put_timeout(5 * 1024 * 1024 * 1024), PART_TIMEOUT_MAX);
+        assert_eq!(part_put_timeout(u64::MAX), PART_TIMEOUT_MAX);
+    }
+
+    #[test]
+    fn terminal_errors_are_only_contract_violations() {
+        assert!(is_terminal(&UploadError::MalformedSession("bad".into())));
+        assert!(is_terminal(&UploadError::SizeOverflow {
+            what: "x",
+            value: 1,
+        }));
+        // Network-ish failures must stay retryable so the outer loop re-sweeps.
+        assert!(!is_terminal(&UploadError::Io(std::io::Error::other(
+            "reset"
+        ))));
+        assert!(!is_terminal(&UploadError::MissingETag { part_number: 1 }));
+        assert!(!is_terminal(&UploadError::StorageStatus {
+            status: reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+            part_number: Some(1),
+            body: String::new(),
+        }));
+    }
+
+    #[test]
+    fn parse_etag_rejects_missing_and_blank() {
+        use reqwest::header::{HeaderMap, HeaderValue, ETAG};
+        let mut ok = HeaderMap::new();
+        ok.insert(ETAG, HeaderValue::from_static("\"etag-7\""));
+        assert_eq!(parse_etag(&ok, 7).unwrap(), "\"etag-7\"");
+
+        // Missing header.
+        assert!(matches!(
+            parse_etag(&HeaderMap::new(), 7),
+            Err(UploadError::MissingETag { part_number: 7 })
+        ));
+        // Present but empty / whitespace-only — must be rejected, not finalized.
+        for blank in ["", "   "] {
+            let mut h = HeaderMap::new();
+            h.insert(ETAG, HeaderValue::from_str(blank).unwrap());
+            assert!(
+                matches!(parse_etag(&h, 7), Err(UploadError::MissingETag { .. })),
+                "blank ETag {blank:?} must be rejected"
+            );
+        }
+    }
+
+    // ---- REPRODUCE: legacy behavior = one pass, no outer rounds ----
+
+    #[tokio::test]
+    async fn repro_single_part_blip_sinks_whole_upload_without_rounds() {
+        // Part 3 fails once. With NO extra rounds (the legacy abort-on-first-
+        // exhaustion behavior) that single transient failure fails the entire
+        // upload, discarding the work done on parts 1, 2, 4, 5.
+        let fake = FakeUploader::new(HashMap::from([(3, 1)]));
+        let f = fake.clone();
+        let res = upload_parts_resilient(plans(5), 4, no_delay(0), move |p| f.call(p)).await;
+        assert!(
+            res.is_err(),
+            "a single transient part failure should sink the upload under legacy (0-round) semantics"
+        );
+    }
+
+    // ---- FIX: outer rounds re-sweep only the failed parts ----
+
+    #[tokio::test]
+    async fn fix_single_part_blip_recovers_on_a_later_round() {
+        let fake = FakeUploader::new(HashMap::from([(3, 1)]));
+        let f = fake.clone();
+        let res = upload_parts_resilient(plans(5), 4, no_delay(3), move |p| f.call(p))
+            .await
+            .expect("the flaky part should recover on a later round");
+        // All five parts present, ascending, with the right ETags.
+        let nums: Vec<i32> = res.iter().map(|p| p.part_number).collect();
+        assert_eq!(nums, vec![1, 2, 3, 4, 5]);
+        assert_eq!(res[2].e_tag, "etag-3");
+        // The flaky part was attempted twice (round 0 fail, round 1 success);
+        // every healthy part exactly once — completed work is never redone.
+        assert_eq!(fake.attempts_for(3), 2);
+        for n in [1, 2, 4, 5] {
+            assert_eq!(fake.attempts_for(n), 1, "part {n} must not be re-uploaded");
+        }
+    }
+
+    #[tokio::test]
+    async fn fix_multiple_flaky_parts_all_recover() {
+        let fake = FakeUploader::new(HashMap::from([(2, 2), (5, 1), (7, 3)]));
+        let f = fake.clone();
+        let res = upload_parts_resilient(plans(8), 4, no_delay(3), move |p| f.call(p))
+            .await
+            .expect("all parts should recover within the round budget");
+        assert_eq!(res.len(), 8);
+        assert_eq!(fake.attempts_for(2), 3); // 2 fails + success
+        assert_eq!(fake.attempts_for(7), 4); // 3 fails + success
+        assert_eq!(fake.attempts_for(5), 2);
+    }
+
+    #[tokio::test]
+    async fn permanent_failure_surfaced_after_exhausting_rounds() {
+        // Part 4 always fails (more failures than rounds). After the initial
+        // pass plus `max_extra_rounds` re-sweeps the upload gives up — but only
+        // after exactly 1 + max_extra_rounds attempts of that part, and without
+        // ever re-uploading the healthy parts.
+        let fake = FakeUploader::new(HashMap::from([(4, 99)]));
+        let f = fake.clone();
+        let res = upload_parts_resilient(plans(5), 4, no_delay(2), move |p| f.call(p)).await;
+        assert!(res.is_err());
+        assert_eq!(fake.attempts_for(4), 3, "1 initial pass + 2 re-sweeps");
+        for n in [1, 2, 3, 5] {
+            assert_eq!(fake.attempts_for(n), 1);
+        }
+    }
+
+    #[tokio::test]
+    async fn happy_path_uploads_each_part_exactly_once() {
+        let fake = FakeUploader::new(HashMap::new());
+        let f = fake.clone();
+        let res = upload_parts_resilient(plans(6), 4, no_delay(3), move |p| f.call(p))
+            .await
+            .unwrap();
+        assert_eq!(res.len(), 6);
+        for n in 1..=6 {
+            assert_eq!(fake.attempts_for(n), 1);
+        }
+    }
+
+    #[tokio::test]
+    async fn concurrency_never_exceeds_base_cap() {
+        let fake = FakeUploader::new(HashMap::new());
+        let f = fake.clone();
+        upload_parts_resilient(plans(20), 3, no_delay(3), move |p| f.call(p))
+            .await
+            .unwrap();
+        assert!(
+            fake.peak() <= 3,
+            "peak in-flight {} exceeded the cap of 3",
+            fake.peak()
+        );
+    }
+
+    #[tokio::test]
+    async fn terminal_error_fails_fast_without_resweeping() {
+        // A terminal error (server-contract violation) reproduces on every
+        // re-sweep, so it must fail the upload immediately — NOT be retried for
+        // all rounds the way a transient failure is.
+        let p2_attempts = Arc::new(AtomicUsize::new(0));
+        let counter = Arc::clone(&p2_attempts);
+        let res = upload_parts_resilient(plans(4), 4, no_delay(3), move |plan: PartPlan| {
+            let counter = Arc::clone(&counter);
+            async move {
+                if plan.part_number == 2 {
+                    counter.fetch_add(1, Ordering::SeqCst);
+                    Err(UploadError::MalformedSession("contract violation".into()))
+                } else {
+                    Ok(models::FinalizeUploadPart {
+                        e_tag: format!("etag-{}", plan.part_number),
+                        part_number: plan.part_number,
+                    })
+                }
+            }
+        })
+        .await;
+        assert!(matches!(res, Err(UploadError::MalformedSession(_))));
+        assert_eq!(
+            p2_attempts.load(Ordering::SeqCst),
+            1,
+            "a terminal error must be attempted once, never re-swept across rounds"
+        );
     }
 }

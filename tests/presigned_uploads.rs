@@ -1735,6 +1735,120 @@ async fn mint_response_order_does_not_corrupt_part_slices() {
     }
 }
 
+/// A transient storage 500 on ONE part must NOT sink the whole upload: it is a
+/// non-retryable status for the inner per-request retry wrapper (which only
+/// retries connection resets / 429), so it propagates out of the per-part task
+/// and is re-swept by the OUTER `upload_parts_resilient` round loop. Part 1's
+/// PUT returns 500 once then 200; the upload must finalize with the full
+/// ascending part list. Before the resilience change a single failed part
+/// aborted the entire upload. The outer-round backoff (RetryRounds::default,
+/// base_delay 2s) means this test takes a couple seconds — expected.
+#[tokio::test]
+async fn transient_part_500_is_recovered_by_outer_round_loop() {
+    let server = MockServer::start().await;
+    let storage_base = server.uri();
+    // 9 MiB over a 5 MiB part size -> 2 parts: 5 MiB + 4 MiB. Streaming session
+    // (no declared size), so part URLs are minted on demand.
+    let part_size = 5 * MIB;
+    let contents: Vec<u8> = (0..9 * MIB).map(|i| (i % 251) as u8).collect();
+
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "finalize_token": "ftok_500",
+            "headers": {},
+            "mode": "multipart",
+            "part_size": part_size,
+            "upload_id": "upl_500",
+        })))
+        .mount(&server)
+        .await;
+
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads/upl_500/parts"))
+        .respond_with(mint_parts_responder(storage_base.clone()))
+        .mount(&server)
+        .await;
+
+    // Part 1: ONE 500 (a transient server error, NOT a 429 — so the inner retry
+    // wrapper does not swallow it), then 200 on the re-sweep.
+    Mock::given(method("PUT"))
+        .and(path("/storage/spart/1"))
+        .respond_with(ResponseTemplate::new(500).set_body_string("<Error>InternalError</Error>"))
+        .up_to_n_times(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path("/storage/spart/1"))
+        .respond_with(ResponseTemplate::new(200).insert_header("ETag", "\"etag-1\""))
+        .mount(&server)
+        .await;
+    // Part 2 succeeds outright.
+    Mock::given(method("PUT"))
+        .and(path("/storage/spart/2"))
+        .respond_with(ResponseTemplate::new(200).insert_header("ETag", "\"etag-2\""))
+        .mount(&server)
+        .await;
+
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads/upl_500/finalize"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(mock_finalize_ok("upl_500", contents.len())),
+        )
+        .mount(&server)
+        .await;
+
+    let path = temp_file(&contents);
+    let client = test_client(&server.uri());
+    let result = client.upload_file(&path, UploadOptions::default()).await;
+    let _ = std::fs::remove_file(&path);
+    let result =
+        result.expect("upload must survive a transient 500 on one part via the round loop");
+    assert_eq!(result.upload_id, "upl_500");
+
+    let requests = server.received_requests().await.expect("requests recorded");
+
+    // Part 1 was PUT twice (the 500, then the recovering 200); part 2 once.
+    let p1_puts = requests
+        .iter()
+        .filter(|r| r.url.path() == "/storage/spart/1")
+        .count();
+    assert_eq!(
+        p1_puts, 2,
+        "part 1 must be re-swept after the transient 500"
+    );
+    let p2_puts = requests
+        .iter()
+        .filter(|r| r.url.path() == "/storage/spart/2")
+        .count();
+    assert_eq!(p2_puts, 1, "part 2 succeeded on the first attempt");
+
+    // Finalize carried the FULL ascending part list with both ETags — completed
+    // parts kept their ETags across the round.
+    let finalize = requests
+        .iter()
+        .find(|r| r.url.path() == "/v1/uploads/upl_500/finalize")
+        .expect("a finalize request should have been made");
+    let body: serde_json::Value = serde_json::from_slice(&finalize.body).expect("finalize JSON");
+    let parts = body
+        .get("parts")
+        .and_then(|p| p.as_array())
+        .expect("finalize must send a parts array");
+    assert_eq!(parts.len(), 2, "both parts must be finalized");
+    for (i, part) in parts.iter().enumerate() {
+        assert_eq!(
+            part.get("part_number").and_then(|v| v.as_i64()),
+            Some((i + 1) as i64),
+            "parts must be ascending and 1-based after recovery"
+        );
+        assert_eq!(
+            part.get("e_tag").and_then(|v| v.as_str()),
+            Some(format!("\"etag-{}\"", i + 1).as_str()),
+            "each ETag must be present in the finalized list"
+        );
+    }
+}
+
 /// If a mint response omits a requested part number, the SDK must fail loudly
 /// (rather than shift later parts' byte offsets), since the byte range for each
 /// part is keyed to its number.
