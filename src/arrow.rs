@@ -251,11 +251,12 @@ impl Iterator for ArrowBatchStream {
 pub async fn get_result_arrow(
     configuration: &Configuration,
     id: &str,
+    x_database_id: &str,
     offset: Option<i64>,
     limit: Option<i64>,
 ) -> Result<ArrowResult, ArrowError> {
     let (bytes, total_row_count, next_link) =
-        fetch_arrow_bytes(configuration, id, offset, limit).await?;
+        fetch_arrow_bytes(configuration, id, x_database_id, offset, limit).await?;
     let reader = StreamReader::try_new(Cursor::new(bytes), None)?;
     let schema = reader.schema();
     let mut batches = Vec::new();
@@ -283,11 +284,12 @@ pub async fn get_result_arrow(
 pub async fn stream_result_arrow(
     configuration: &Configuration,
     id: &str,
+    x_database_id: &str,
     offset: Option<i64>,
     limit: Option<i64>,
 ) -> Result<ArrowBatchStream, ArrowError> {
     let (bytes, total_row_count, next_link) =
-        fetch_arrow_bytes(configuration, id, offset, limit).await?;
+        fetch_arrow_bytes(configuration, id, x_database_id, offset, limit).await?;
     let reader = StreamReader::try_new(Cursor::new(bytes), None)?;
     Ok(ArrowBatchStream {
         reader,
@@ -326,6 +328,7 @@ fn apply_apikey_headers(
 async fn fetch_arrow_bytes(
     configuration: &Configuration,
     id: &str,
+    x_database_id: &str,
     offset: Option<i64>,
     limit: Option<i64>,
 ) -> Result<(Bytes, Option<i64>, Option<String>), ArrowError> {
@@ -335,6 +338,10 @@ async fn fetch_arrow_bytes(
         id = crate::apis::urlencode(id)
     );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    // `GET /v1/results/{id}` is scoped to a database: the `X-Database-Id` header
+    // is required (mirrors the generated `get_result`).
+    req_builder = req_builder.header("X-Database-Id", x_database_id.to_string());
 
     // format=arrow takes precedence over the Accept header server-side, but we
     // send both to match the generated client and be explicit on the wire.
@@ -663,6 +670,38 @@ mod tests {
         assert_eq!(result.batches.len(), 2);
         assert_eq!(result.num_rows(), 5);
         assert_eq!(result.total_row_count, Some(5));
+    }
+
+    /// Regression (database-scoped results): the Arrow path must send the
+    /// required `X-Database-Id` header on `GET /v1/results/{id}`. The mock
+    /// matches only when the header is present, so a missing header 404s and the
+    /// fetch fails.
+    #[tokio::test]
+    async fn fetch_arrow_sends_database_id_header() {
+        use wiremock::matchers::{header, method, path, query_param};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let (ipc, _schema) = make_ipc_stream();
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/results/res_1"))
+            .and(query_param("format", "arrow"))
+            .and(header("X-Database-Id", "db_x"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-type", ARROW_STREAM_MEDIA_TYPE)
+                    .set_body_bytes(ipc),
+            )
+            .mount(&server)
+            .await;
+
+        let mut configuration = Configuration::new();
+        configuration.base_path = server.uri();
+
+        let result = get_result_arrow(&configuration, "res_1", "db_x", None, None)
+            .await
+            .expect("arrow fetch should forward X-Database-Id and succeed");
+        assert_eq!(result.num_rows(), 5);
     }
 
     #[test]

@@ -11,10 +11,10 @@ Method | HTTP request | Description
 
 ## get_query_run
 
-> models::QueryRunInfo get_query_run(id)
+> models::QueryRunInfo get_query_run(id, x_database_id)
 Get query run
 
-Get the status and details of a specific query run by ID.
+Get the status and details of a specific query run by ID, scoped to the database named by the required X-Database-Id header.
 
 ### Parameters
 
@@ -22,6 +22,7 @@ Get the status and details of a specific query run by ID.
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **id** | **String** | Query run ID | [required] |
+**x_database_id** | **String** | Database the query run belongs to (required) | [required] |
 
 ### Return type
 
@@ -41,14 +42,17 @@ Name | Type | Description  | Required | Notes
 
 ## list_query_runs
 
-> models::ListQueryRunsResponse list_query_runs(limit, cursor, status, saved_query_id)
+> models::ListQueryRunsResponse list_query_runs(x_database_id, limit, cursor, status, saved_query_id)
 List query runs
+
+List query runs for the database named by the required X-Database-Id header.
 
 ### Parameters
 
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
+**x_database_id** | **String** | Database to scope the query runs to (required) | [required] |
 **limit** | Option<**i32**> | Maximum number of results |  |
 **cursor** | Option<**String**> | Pagination cursor |  |
 **status** | Option<**String**> | Filter by status (comma-separated, e.g. status=running,failed) |  |

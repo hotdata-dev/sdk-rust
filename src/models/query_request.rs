@@ -17,7 +17,7 @@ pub struct QueryRequest {
     /// When true, execute the query asynchronously and return a query run ID for polling via GET /query-runs/{id}. The query results can be retrieved via GET /results/{id} once the query run status is \"succeeded\".
     #[serde(rename = "async", skip_serializing_if = "Option::is_none")]
     pub r#async: Option<bool>,
-    /// If set with async=true, wait up to this many milliseconds for the query to complete synchronously before returning an async response. Minimum 1000ms. Ignored if async is false.
+    /// If set (requires `async` = true), first attempt the query synchronously and wait up to this many milliseconds: if it finishes in time the full result is returned, otherwise an async response (a run id to poll) is returned. Must be at least 1000 and at most the server's configured maximum; a value out of that range, or set without `async` = true, is rejected with 400.
     #[serde(
         rename = "async_after_ms",
         default,

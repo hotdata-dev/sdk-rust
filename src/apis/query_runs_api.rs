@@ -17,6 +17,7 @@ use serde::{de::Error as _, Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetQueryRunError {
+    Status400(models::ApiErrorResponse),
     Status404(models::ApiErrorResponse),
     UnknownValue(serde_json::Value),
 }
@@ -25,16 +26,20 @@ pub enum GetQueryRunError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ListQueryRunsError {
+    Status400(models::ApiErrorResponse),
+    Status404(models::ApiErrorResponse),
     UnknownValue(serde_json::Value),
 }
 
-/// Get the status and details of a specific query run by ID.
+/// Get the status and details of a specific query run by ID, scoped to the database named by the required X-Database-Id header.
 pub async fn get_query_run(
     configuration: &configuration::Configuration,
     id: &str,
+    x_database_id: &str,
 ) -> Result<models::QueryRunInfo, Error<GetQueryRunError>> {
     // add a prefix to parameters to efficiently prevent name collisions
     let p_path_id = id;
+    let p_header_x_database_id = x_database_id;
 
     let uri_str = format!(
         "{}/v1/query-runs/{id}",
@@ -46,6 +51,7 @@ pub async fn get_query_run(
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
+    req_builder = req_builder.header("X-Database-Id", p_header_x_database_id.to_string());
     if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
         let key = apikey.key.clone();
         let value = match apikey.prefix {
@@ -95,14 +101,17 @@ pub async fn get_query_run(
     }
 }
 
+/// List query runs for the database named by the required X-Database-Id header.
 pub async fn list_query_runs(
     configuration: &configuration::Configuration,
+    x_database_id: &str,
     limit: Option<i32>,
     cursor: Option<&str>,
     status: Option<&str>,
     saved_query_id: Option<&str>,
 ) -> Result<models::ListQueryRunsResponse, Error<ListQueryRunsError>> {
     // add a prefix to parameters to efficiently prevent name collisions
+    let p_header_x_database_id = x_database_id;
     let p_query_limit = limit;
     let p_query_cursor = cursor;
     let p_query_status = status;
@@ -126,6 +135,7 @@ pub async fn list_query_runs(
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
+    req_builder = req_builder.header("X-Database-Id", p_header_x_database_id.to_string());
     if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
         let key = apikey.key.clone();
         let value = match apikey.prefix {

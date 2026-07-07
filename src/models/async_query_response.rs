@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// AsyncQueryResponse : Response returned when a query is submitted asynchronously (202 Accepted).  Poll GET /query-runs/{id} to track progress. Once status is \"succeeded\", retrieve results via GET /results/{result_id}.
+/// AsyncQueryResponse : Response returned when a query is submitted asynchronously (202 Accepted).  Poll GET /query-runs/{id} to track progress, sending the same `X-Database-Id` header used to submit the query — the endpoint is scoped to that database and returns 400 without it. Once status is \"succeeded\", retrieve results via GET /results/{result_id}.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AsyncQueryResponse {
     /// Unique identifier for the query run.
@@ -28,13 +28,13 @@ pub struct AsyncQueryResponse {
     /// Current status of the query run.
     #[serde(rename = "status")]
     pub status: String,
-    /// URL to poll for query run status.
+    /// URL to poll for query run status. Requires the same `X-Database-Id` header used to submit the query.
     #[serde(rename = "status_url")]
     pub status_url: String,
 }
 
 impl AsyncQueryResponse {
-    /// Response returned when a query is submitted asynchronously (202 Accepted).  Poll GET /query-runs/{id} to track progress. Once status is \"succeeded\", retrieve results via GET /results/{result_id}.
+    /// Response returned when a query is submitted asynchronously (202 Accepted).  Poll GET /query-runs/{id} to track progress, sending the same `X-Database-Id` header used to submit the query — the endpoint is scoped to that database and returns 400 without it. Once status is \"succeeded\", retrieve results via GET /results/{result_id}.
     pub fn new(query_run_id: String, status: String, status_url: String) -> AsyncQueryResponse {
         AsyncQueryResponse {
             query_run_id,

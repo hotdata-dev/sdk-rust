@@ -493,7 +493,16 @@ pub(crate) async fn execute_query(
             if !qc.auto_follow || !resp.truncated {
                 Ok(resp)
             } else {
-                materialize_full(config, resp, qc).await
+                // Auto-follow re-fetches the persisted result and the query run,
+                // both of which are scoped to a database via the required
+                // `X-Database-Id` header. The spec requires exactly one database
+                // source on `/v1/query`, so the effective database is the header
+                // value when present, otherwise the request-body `database_id`.
+                let effective_db = x_database_id
+                    .map(str::to_owned)
+                    .or_else(|| request.database_id.clone().flatten())
+                    .unwrap_or_default();
+                materialize_full(config, resp, &effective_db, qc).await
             }
         }
     }
@@ -653,13 +662,17 @@ fn apply_apikey_headers(
 pub(crate) async fn wait_for_result(
     config: &Configuration,
     result_id: &str,
+    x_database_id: &str,
     poll: &PollPolicy,
 ) -> Result<crate::models::GetResultResponse, QueryError> {
     let start = Instant::now();
     let mut delay = poll.base_backoff;
     loop {
         // offset=None, limit=0 (status only), default format.
-        let result = match results_api::get_result(config, result_id, None, Some(0), None).await {
+        let result =
+            match results_api::get_result(config, result_id, x_database_id, None, Some(0), None)
+                .await
+            {
             Ok(result) => result,
             // A failed result is delivered as HTTP 409: the generated client
             // raises on any non-2xx rather than returning status="failed". The
@@ -709,6 +722,7 @@ pub(crate) async fn wait_for_result(
 async fn materialize_full(
     config: &Configuration,
     mut preview: QueryResponse,
+    x_database_id: &str,
     qc: &QueryConfig,
 ) -> Result<QueryResponse, QueryError> {
     let result_id = match preview.result_id.clone().flatten() {
@@ -721,9 +735,9 @@ async fn materialize_full(
         }
     };
 
-    wait_for_result(config, &result_id, &qc.poll).await?;
+    wait_for_result(config, &result_id, x_database_id, &qc.poll).await?;
 
-    let total = authoritative_total(config, &preview).await;
+    let total = authoritative_total(config, &preview, x_database_id).await;
     // Auto-follow does extra round-trips (poll + paginate) and materializes the
     // full result; log it so the hidden work behind one query() call is
     // observable without being noisy (info, not a warning).
@@ -749,7 +763,7 @@ async fn materialize_full(
         }
     }
 
-    let rows = fetch_all_rows(config, &result_id, total, qc).await?;
+    let rows = fetch_all_rows(config, &result_id, x_database_id, total, qc).await?;
 
     // Replace the bounded preview with the full row set. `truncated` /
     // `total_row_count` stay as the server reported them so the caller can still
@@ -766,11 +780,15 @@ async fn materialize_full(
 /// The grand total row count. `total_row_count` is null while a truncated result
 /// is still persisting, so fall back to the query-run record, which carries the
 /// authoritative count once the run succeeds; else unknown.
-async fn authoritative_total(config: &Configuration, preview: &QueryResponse) -> Option<i64> {
+async fn authoritative_total(
+    config: &Configuration,
+    preview: &QueryResponse,
+    x_database_id: &str,
+) -> Option<i64> {
     if let Some(t) = preview.total_row_count.flatten() {
         return Some(t);
     }
-    match query_runs_api::get_query_run(config, &preview.query_run_id).await {
+    match query_runs_api::get_query_run(config, &preview.query_run_id, x_database_id).await {
         Ok(run) => run.row_count.flatten(),
         Err(_) => None,
     }
@@ -786,6 +804,7 @@ async fn authoritative_total(config: &Configuration, preview: &QueryResponse) ->
 async fn fetch_all_rows(
     config: &Configuration,
     result_id: &str,
+    x_database_id: &str,
     total: Option<i64>,
     qc: &QueryConfig,
 ) -> Result<Vec<Vec<Value>>, QueryError> {
@@ -797,6 +816,7 @@ async fn fetch_all_rows(
         let page = results_api::get_result(
             config,
             result_id,
+            x_database_id,
             Some(checked_offset(offset, result_id)?),
             Some(page_size),
             Some(ResultsFormatQuery::Json),
@@ -922,7 +942,7 @@ mod tests {
     #[cfg(unix)]
     use crate::test_support::reset_then_ok_server;
     use serde_json::json;
-    use wiremock::matchers::{method, path, query_param};
+    use wiremock::matchers::{header, method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     /// Build a client pointed at `base_url` with a static bearer (no JWT mint)
@@ -1203,6 +1223,114 @@ mod tests {
         // truncated stays true; total backfilled / preserved.
         assert!(resp.truncated);
         assert_eq!(resp.total_row_count.flatten(), Some(3));
+    }
+
+    /// Regression (#84 / database-scoped results): a truncated result followed
+    /// via `query_in` must carry the `X-Database-Id` header on every follow-up
+    /// request — the readiness poll, the query-run total lookup, and each page
+    /// fetch. The GET mocks match *only* when the header is present, so a missing
+    /// header 404s the request and fails the query.
+    #[tokio::test]
+    async fn auto_follow_forwards_database_id_header() {
+        let server = MockServer::start().await;
+        // Truncated with a null total, so the follow-up also hits /v1/query-runs.
+        Mock::given(method("POST"))
+            .and(path("/v1/query"))
+            .and(header("X-Database-Id", "db_x"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(preview_json(
+                true,
+                Some("rslt1"),
+                None,
+            )))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/v1/results/rslt1"))
+            .and(query_param("limit", "0"))
+            .and(header("X-Database-Id", "db_x"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "result_id": "rslt1", "status": "ready"
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/v1/query-runs/qrun1"))
+            .and(header("X-Database-Id", "db_x"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "created_at": "2026-06-15T00:00:00Z",
+                "id": "qrun1",
+                "snapshot_id": "snap1",
+                "sql_hash": "h",
+                "sql_text": "SELECT 1 AS x",
+                "status": "succeeded",
+                "row_count": 1
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/v1/results/rslt1"))
+            .and(query_param("offset", "0"))
+            .and(query_param("limit", "2"))
+            .and(header("X-Database-Id", "db_x"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "result_id": "rslt1", "status": "ready", "rows": [[1]]
+            })))
+            .mount(&server)
+            .await;
+
+        let client = test_client(&server.uri(), fast_config());
+        let resp = client
+            .query_in(req(), "db_x")
+            .await
+            .expect("auto-follow should forward X-Database-Id and succeed");
+        assert_eq!(resp.rows.len(), 1);
+        assert_eq!(resp.total_row_count.flatten(), Some(1));
+    }
+
+    /// When no header is passed, the effective database for auto-follow falls
+    /// back to the request-body `database_id`: `query()` sends that as
+    /// `X-Database-Id` on the follow-up fetches. The follow-up GET mocks require
+    /// the header; the POST does not (the body carries the scope there).
+    #[tokio::test]
+    async fn auto_follow_uses_body_database_id_when_no_header() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(preview_json(
+                true,
+                Some("rslt1"),
+                Some(1),
+            )))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/v1/results/rslt1"))
+            .and(query_param("limit", "0"))
+            .and(header("X-Database-Id", "db_body"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "result_id": "rslt1", "status": "ready"
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/v1/results/rslt1"))
+            .and(query_param("offset", "0"))
+            .and(query_param("limit", "2"))
+            .and(header("X-Database-Id", "db_body"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "result_id": "rslt1", "status": "ready", "rows": [[1]]
+            })))
+            .mount(&server)
+            .await;
+
+        let client = test_client(&server.uri(), fast_config());
+        let mut request = req();
+        request.database_id = Some(Some("db_body".to_owned()));
+        let resp = client
+            .query(request)
+            .await
+            .expect("auto-follow should fall back to the body database_id");
+        assert_eq!(resp.rows.len(), 1);
     }
 
     #[tokio::test]

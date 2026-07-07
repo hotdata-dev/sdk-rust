@@ -64,16 +64,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // .base_url("https://api.hotdata.dev")  // optional
         .build()?;
 
-    // Submit a query. `query` transparently retries HTTP 429 (server overload)
+    // Queries, results, and query runs are scoped to a database (the required
+    // `X-Database-Id` header), so pick one first.
+    let database_id = "your_database_id";
+
+    // Submit a query. `query_in` transparently retries HTTP 429 (server overload)
     // and auto-follows a truncated large result to its full row set. Rows come
     // back inline, plus a result_id persisted for later retrieval.
     let response = client
-        .query(QueryRequest::new("SELECT 1 AS n".to_string()))
+        .query_in(QueryRequest::new("SELECT 1 AS n".to_string()), database_id)
         .await?;
 
     if let Some(result_id) = response.result_id.flatten() {
         // Poll the persisted result to `ready` without hand-rolling a loop.
-        let result = client.await_result(&result_id, PollConfig::default()).await?;
+        let result = client
+            .await_result(&result_id, database_id, PollConfig::default())
+            .await?;
         println!("result {} is {}", result.result_id, result.status);
     }
 
@@ -91,7 +97,8 @@ ergonomic, workspace-scoped handles so you never pass a `Configuration` around:
 let connections = client.connections().list().await?;
 let connection  = client.connections().get(&connections.connections[0].id).await?;
 let secrets  = client.secrets().list().await?;
-let runs     = client.query_runs().list(Some(50), None, None, None).await?;
+// Query runs are database-scoped: pass the database id first.
+let runs     = client.query_runs().list(database_id, Some(50), None, None, None).await?;
 ```
 
 Handles exist for every resource — `connections`, `connection_types`,
@@ -101,7 +108,9 @@ Handles exist for every resource — `connections`, `connection_types`,
 operations also have flat shortcuts directly on `Client` (`query` — with
 `query_in` to scope to a database, `query_preview` to skip auto-follow, and
 `query_with` for a per-call `QueryConfig` — plus `get_result`, `list_results`,
-`list_query_runs`, `list_workspaces`).
+`list_query_runs`, `list_workspaces`). The result and query-run operations take
+a `database_id` argument — they are scoped to a database via the required
+`X-Database-Id` header.
 
 For anything not yet wrapped, the full generated surface is one call away via
 `client.configuration()`:
@@ -120,12 +129,12 @@ them with the typed [`ResultStatus`] / [`QueryRunStatus`] enums via the
 ```rust
 use hotdata::prelude::*;
 
-let result = client.await_result(&result_id, PollConfig::default()).await?;
+let result = client.await_result(&result_id, database_id, PollConfig::default()).await?;
 if result.result_status().is_ready() {
     // ...
 }
 
-let run = client.query_runs().get(&query_run_id).await?;
+let run = client.query_runs().get(&query_run_id, database_id).await?;
 if run.run_status().is_terminal() { /* ... */ }
 ```
 
@@ -183,8 +192,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .workspace_id("your_workspace_id")
         .build()?;
 
+    // Results are database-scoped (the required `X-Database-Id` header).
+    let database_id = "your_database_id";
+
     // Buffered: decodes every batch into a Vec<RecordBatch>.
-    let result = client.get_result_arrow(&result_id, None, None).await?;
+    let result = client.get_result_arrow(&result_id, database_id, None, None).await?;
     println!("schema: {:?}", result.schema);
     println!("total rows: {:?}", result.total_row_count);
     for batch in &result.batches {
@@ -192,7 +204,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Streaming: yields batches lazily without holding them all at once.
-    let mut stream = client.stream_result_arrow(&result_id, None, None).await?;
+    let mut stream = client.stream_result_arrow(&result_id, database_id, None, None).await?;
     for batch in stream.by_ref() {
         let batch = batch?;
         // ...
@@ -202,7 +214,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-Both methods accept `offset` and `limit` for pagination, and both honor the transparent JWT exchange. They return `ArrowError::NotReady` if the result is still pending or processing — poll `client.get_result(result_id)` until its status is `ready` first. `ArrowResult` also surfaces the `X-Total-Row-Count` header (`total_row_count`) and the `rel="next"` pagination `Link` (`next_link`).
+Both methods accept `offset` and `limit` for pagination, and both honor the transparent JWT exchange. They return `ArrowError::NotReady` if the result is still pending or processing — poll `client.get_result(result_id, database_id)` until its status is `ready` first. `ArrowResult` also surfaces the `X-Total-Row-Count` header (`total_row_count`) and the `rel="next"` pagination `Link` (`next_link`).
 
 To run a query and get its result as Arrow in a single call — submit, await
 `ready`, and decode — use `query_to_arrow`:
@@ -211,6 +223,7 @@ To run a query and get its result as Arrow in a single call — submit, await
 let arrow = client
     .query_to_arrow(
         QueryRequest::new("SELECT * FROM big_table".to_string()),
+        database_id,
         PollConfig::default(),
         None, // offset
         None, // limit

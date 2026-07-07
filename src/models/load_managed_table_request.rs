@@ -11,9 +11,20 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// LoadManagedTableRequest : Request body for `POST /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads`.  Publishes a previously-uploaded file as the new contents of the named managed table. CSV and JSON uploads are converted to columnar storage on load; Parquet uploads are published directly. `mode` is fixed to `\"replace\"` today; the field is kept in the request body so future modes (e.g. append) are an additive change.
+/// LoadManagedTableRequest : Request body for the managed-table load endpoints — the connection-scoped `POST /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads` and the database-scoped equivalent.  Publishes a previously-uploaded file to the named table. CSV and JSON uploads are converted to columnar storage on load; Parquet uploads are published directly. `mode` selects whether the upload replaces the table's contents or is appended on top of them.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LoadManagedTableRequest {
+    /// When true, run the load as a background job and return a job ID to poll instead of blocking until it finishes. Recommended for large uploads, which can take longer than an HTTP request should stay open.
+    #[serde(rename = "async", skip_serializing_if = "Option::is_none")]
+    pub r#async: Option<bool>,
+    /// If set (requires `async` = true), wait up to this many milliseconds for the load to finish: if it completes in time the full result is returned (200), otherwise a 202 with a job ID to poll. Must be between 1000 and the server maximum; a value out of that range, or set without `async` = true, is rejected with 400.
+    #[serde(
+        rename = "async_after_ms",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub async_after_ms: Option<Option<i32>>,
     /// File format of the upload: `\"csv\"`, `\"json\"`, or `\"parquet\"`. Optional — when omitted, the format is auto-detected from the upload's `Content-Type` and, failing that, from the file contents. Provide it explicitly to override detection or when the contents are ambiguous. `\"json\"` expects newline-delimited JSON (one object per line), not a JSON array.
     #[serde(
         rename = "format",
@@ -22,7 +33,7 @@ pub struct LoadManagedTableRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub format: Option<Option<String>>,
-    /// Load mode. Only `\"replace\"` is supported in this release.
+    /// How the upload is applied: `\"replace\"` overwrites the table's contents, `\"append\"` inserts the uploaded rows on top of the existing data.
     #[serde(rename = "mode")]
     pub mode: String,
     /// ID of a previously-staged upload (see `POST /v1/files`). The upload is claimed atomically; concurrent loads against the same `upload_id` return 409.
@@ -31,9 +42,11 @@ pub struct LoadManagedTableRequest {
 }
 
 impl LoadManagedTableRequest {
-    /// Request body for `POST /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads`.  Publishes a previously-uploaded file as the new contents of the named managed table. CSV and JSON uploads are converted to columnar storage on load; Parquet uploads are published directly. `mode` is fixed to `\"replace\"` today; the field is kept in the request body so future modes (e.g. append) are an additive change.
+    /// Request body for the managed-table load endpoints — the connection-scoped `POST /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads` and the database-scoped equivalent.  Publishes a previously-uploaded file to the named table. CSV and JSON uploads are converted to columnar storage on load; Parquet uploads are published directly. `mode` selects whether the upload replaces the table's contents or is appended on top of them.
     pub fn new(mode: String, upload_id: String) -> LoadManagedTableRequest {
         LoadManagedTableRequest {
+            r#async: None,
+            async_after_ms: None,
             format: None,
             mode,
             upload_id,
