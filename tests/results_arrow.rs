@@ -80,7 +80,7 @@ async fn results_arrow() {
     );
     request.r#async = Some(true);
     request.async_after_ms = Some(Some(1000));
-    request.database_id = Some(Some(database_id));
+    request.database_id = Some(Some(database_id.clone()));
     // `submit_query` recovers the run id whether the query ran inline (HTTP 200)
     // or went async (HTTP 202); the enhanced `client.query` reports a 202 as
     // `QueryError::Async`, so the async submission path uses `submit_query`.
@@ -99,7 +99,7 @@ async fn results_arrow() {
     let deadline = Instant::now() + POLL_TIMEOUT;
     let mut run: Option<models::QueryRunInfo> = None;
     while Instant::now() < deadline {
-        let current = query_runs_api::get_query_run(config, &query_run_id)
+        let current = query_runs_api::get_query_run(config, &query_run_id, &database_id)
             .await
             .expect("get_query_run should succeed");
         let terminal = is_terminal(&current.status);
@@ -126,7 +126,7 @@ async fn results_arrow() {
     let mut ready = false;
     while Instant::now() < deadline {
         let result = client
-            .get_result(&result_id)
+            .get_result(&result_id, &database_id)
             .await
             .expect("get_result should succeed");
         if result.status == "ready" {
@@ -139,7 +139,7 @@ async fn results_arrow() {
 
     // Buffered: full set of RecordBatches.
     let buffered = client
-        .get_result_arrow(&result_id, None, None)
+        .get_result_arrow(&result_id, &database_id, None, None)
         .await
         .expect("get_result_arrow should succeed");
     assert_eq!(total_rows(&buffered.batches), 2, "expected 2 rows");
@@ -168,7 +168,7 @@ async fn results_arrow() {
 
     // Streaming: same data via the per-batch iterator.
     let stream = client
-        .stream_result_arrow(&result_id, None, None)
+        .stream_result_arrow(&result_id, &database_id, None, None)
         .await
         .expect("stream_result_arrow should succeed");
     let streamed: Vec<RecordBatch> = stream
@@ -184,7 +184,7 @@ async fn results_arrow() {
 
     // Pagination forwards correctly: offset=1, limit=1 -> just the second row.
     let sliced = client
-        .get_result_arrow(&result_id, Some(1), Some(1))
+        .get_result_arrow(&result_id, &database_id, Some(1), Some(1))
         .await
         .expect("get_result_arrow with offset/limit should succeed");
     assert_eq!(total_rows(&sliced.batches), 1);

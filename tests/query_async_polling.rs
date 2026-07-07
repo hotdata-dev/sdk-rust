@@ -39,7 +39,7 @@ async fn query_async_polling() {
     let mut request = models::QueryRequest::new("SELECT 1 AS x".to_string());
     request.r#async = Some(true);
     request.async_after_ms = Some(Some(1000));
-    request.database_id = Some(Some(database_id));
+    request.database_id = Some(Some(database_id.clone()));
     let outcome = client
         .submit_query(request, None)
         .await
@@ -55,7 +55,7 @@ async fn query_async_polling() {
     let deadline = Instant::now() + POLL_TIMEOUT;
     let mut run: Option<models::QueryRunInfo> = None;
     while Instant::now() < deadline {
-        let current = query_runs_api::get_query_run(config, &query_run_id)
+        let current = query_runs_api::get_query_run(config, &query_run_id, &database_id)
             .await
             .expect("get_query_run should succeed");
         let terminal = is_terminal(&current.status);
@@ -80,7 +80,7 @@ async fn query_async_polling() {
     );
     assert_eq!(run.row_count, Some(Some(1)));
 
-    let runs_listing = query_runs_api::list_query_runs(config, Some(50), None, None, None)
+    let runs_listing = query_runs_api::list_query_runs(config, &database_id, Some(50), None, None, None)
         .await
         .expect("list_query_runs should succeed");
     assert!(
@@ -90,7 +90,7 @@ async fn query_async_polling() {
 
     if let Some(Some(result_id)) = run.result_id {
         let result = client
-            .get_result(&result_id)
+            .get_result(&result_id, &database_id)
             .await
             .expect("get_result should succeed");
         assert_eq!(result.result_id, result_id);
@@ -106,7 +106,7 @@ async fn query_async_polling() {
 
         // ResultInfo (list_results) exposes the id as `id`, not `result_id`.
         let results_listing = client
-            .list_results(Some(50), None)
+            .list_results(&database_id, Some(50), None)
             .await
             .expect("list_results should succeed");
         assert!(

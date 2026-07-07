@@ -486,25 +486,36 @@ impl<'a> QueryRunsApi<'a> {
         Self { config }
     }
 
-    /// Fetch a query run by id.
+    /// Fetch a query run by id. `x_database_id` scopes the lookup to a database
+    /// (the required `X-Database-Id` header).
     pub async fn get(
         &self,
         id: &str,
+        x_database_id: &str,
     ) -> Result<models::QueryRunInfo, Error<apis::query_runs_api::GetQueryRunError>> {
-        apis::query_runs_api::get_query_run(self.config, id).await
+        apis::query_runs_api::get_query_run(self.config, id, x_database_id).await
     }
 
-    /// List recent query runs.
+    /// List recent query runs for the database named by `x_database_id` (the
+    /// required `X-Database-Id` header).
     pub async fn list(
         &self,
+        x_database_id: &str,
         limit: Option<i32>,
         cursor: Option<&str>,
         status: Option<&str>,
         saved_query_id: Option<&str>,
     ) -> Result<models::ListQueryRunsResponse, Error<apis::query_runs_api::ListQueryRunsError>>
     {
-        apis::query_runs_api::list_query_runs(self.config, limit, cursor, status, saved_query_id)
-            .await
+        apis::query_runs_api::list_query_runs(
+            self.config,
+            x_database_id,
+            limit,
+            cursor,
+            status,
+            saved_query_id,
+        )
+        .await
     }
 }
 
@@ -521,24 +532,28 @@ impl<'a> ResultsApi<'a> {
         Self { config }
     }
 
-    /// Fetch a persisted result by id (JSON form).
+    /// Fetch a persisted result by id (JSON form). `x_database_id` scopes the
+    /// lookup to a database (the required `X-Database-Id` header).
     pub async fn get(
         &self,
         id: &str,
+        x_database_id: &str,
         offset: Option<i32>,
         limit: Option<i32>,
         format: Option<models::ResultsFormatQuery>,
     ) -> Result<models::GetResultResponse, Error<apis::results_api::GetResultError>> {
-        apis::results_api::get_result(self.config, id, offset, limit, format).await
+        apis::results_api::get_result(self.config, id, x_database_id, offset, limit, format).await
     }
 
-    /// List persisted results.
+    /// List persisted results for the database named by `x_database_id` (the
+    /// required `X-Database-Id` header).
     pub async fn list(
         &self,
+        x_database_id: &str,
         limit: Option<i32>,
         offset: Option<i32>,
     ) -> Result<models::ListResultsResponse, Error<apis::results_api::ListResultsError>> {
-        apis::results_api::list_results(self.config, limit, offset).await
+        apis::results_api::list_results(self.config, x_database_id, limit, offset).await
     }
 }
 

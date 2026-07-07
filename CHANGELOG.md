@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - feat: support async table loads and append mode
+- **Breaking:** results and query runs are now scoped to a database via the
+  required `X-Database-Id` header. The ergonomic wrappers gain a `database_id`
+  argument to match: `Client::get_result`, `Client::list_results`,
+  `Client::list_query_runs`, `Client::await_result`, `Client::get_result_arrow`,
+  `Client::stream_result_arrow`, `Client::query_to_arrow`, and the
+  `results()` / `query_runs()` resource handles. `Client::query`'s truncation
+  auto-follow now forwards the query's database scope (the `X-Database-Id`
+  header, or the request-body `database_id` when no header is set) to the
+  follow-up result and query-run fetches.
 
 ## [0.7.0] - 2026-06-30
 

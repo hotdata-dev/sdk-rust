@@ -92,18 +92,36 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     // --- 3. Submit a query -----------------------------------------------
     //
+    // Queries, results, and query runs are all scoped to a database via the
+    // `X-Database-Id` header, so resolve one first. Prefer HOTDATA_DATABASE, else
+    // fall back to the first database in the workspace; if there are none, skip
+    // the query portion of the tour.
+    let database_id = match resolve_database_id(&client).await? {
+        Some(id) => id,
+        None => {
+            println!(
+                "No database available (set HOTDATA_DATABASE or create one). \
+                 Skipping the query portion of the tour."
+            );
+            return Ok(());
+        }
+    };
+    println!("Using database {database_id}");
+
     // POST /query returns rows inline *and* a result_id; persistence to the
     // result store then completes asynchronously.
     //
-    // `query` is the enhanced default: it retries HTTP 429 (`OVERLOADED`)
-    // transparently and, if the server truncates a large result, auto-follows it
-    // — paging the full row set into `response.rows` — bounded by the instance
-    // `QueryConfig` (default ceilings: 1M rows / 64 MiB). Exceed a ceiling and you
-    // get `QueryError::Result(ResultError::TooLarge { .. })` instead of an OOM.
+    // `query_in` is the database-scoped form of the enhanced default `query`: it
+    // retries HTTP 429 (`OVERLOADED`) transparently and, if the server truncates
+    // a large result, auto-follows it — paging the full row set into
+    // `response.rows` — bounded by the instance `QueryConfig` (default ceilings:
+    // 1M rows / 64 MiB). Exceed a ceiling and you get
+    // `QueryError::Result(ResultError::TooLarge { .. })` instead of an OOM.
     let response = client
-        .query(QueryRequest::new(
-            "select 1 as id, 'hello' as greeting".to_string(),
-        ))
+        .query_in(
+            QueryRequest::new("select 1 as id, 'hello' as greeting".to_string()),
+            &database_id,
+        )
         .await?;
 
     println!(
@@ -112,11 +130,15 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Tuning the auto-follow behavior per call: clone the instance config and
-    // override just what you need. Here we opt out of auto-follow entirely —
-    // `query_preview` is the one-call shortcut for "give me only the inline
-    // preview" (handy when you'll page the full result yourself, e.g. as Arrow).
+    // override just what you need. Here we opt out of auto-follow entirely, while
+    // still scoping the query to the database via `query_with`.
+    let preview_config = client.query_config().clone().with_auto_follow(false);
     let preview = client
-        .query_preview(QueryRequest::new("select 1 as id".to_string()))
+        .query_with(
+            QueryRequest::new("select 1 as id".to_string()),
+            Some(&database_id),
+            &preview_config,
+        )
         .await?;
     println!(
         "Preview: {} row(s){}",
@@ -151,24 +173,44 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     // timeout polled every second.
     println!("Awaiting result {result_id}...");
     let ready = client
-        .await_result(&result_id, PollConfig::default())
+        .await_result(&result_id, &database_id, PollConfig::default())
         .await?;
     println!("Result status: {}", ready.status);
 
     // --- 5. Fetch the result as Arrow (feature-gated) --------------------
-    fetch_arrow(&client, &result_id).await?;
+    fetch_arrow(&client, &database_id, &result_id).await?;
 
     // --- 6. One-call query -> Arrow (feature-gated) ----------------------
-    one_shot_arrow(&client).await?;
+    one_shot_arrow(&client, &database_id).await?;
 
     Ok(())
 }
 
+/// Resolve a database to scope the query tour to: `HOTDATA_DATABASE` if set,
+/// otherwise the first database visible in the workspace (`None` if there are
+/// none).
+async fn resolve_database_id(client: &Client) -> Result<Option<String>, Box<dyn std::error::Error>> {
+    if let Ok(id) = std::env::var("HOTDATA_DATABASE") {
+        if !id.is_empty() {
+            return Ok(Some(id));
+        }
+    }
+    let databases = client.databases().list().await?;
+    Ok(databases.databases.into_iter().next().map(|db| db.id))
+}
+
 /// Fetch an already-ready result as Arrow record batches.
 #[cfg(feature = "arrow")]
-async fn fetch_arrow(client: &Client, result_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+async fn fetch_arrow(
+    client: &Client,
+    database_id: &str,
+    result_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("Fetching result {result_id} as Arrow...");
-    match client.get_result_arrow(result_id, None, None).await {
+    match client
+        .get_result_arrow(result_id, database_id, None, None)
+        .await
+    {
         Ok(arrow) => print_arrow(&arrow),
         // The Arrow error enum maps the result endpoint's status codes to named
         // variants, so callers react without string-matching on HTTP codes.
@@ -183,7 +225,10 @@ async fn fetch_arrow(client: &Client, result_id: &str) -> Result<(), Box<dyn std
 /// Submit a fresh query and get its result as Arrow in a single call —
 /// `query_to_arrow` runs the query, awaits `ready`, and decodes the stream.
 #[cfg(feature = "arrow")]
-async fn one_shot_arrow(client: &Client) -> Result<(), Box<dyn std::error::Error>> {
+async fn one_shot_arrow(
+    client: &Client,
+    database_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Duration;
 
     println!("One-call query_to_arrow...");
@@ -194,6 +239,7 @@ async fn one_shot_arrow(client: &Client) -> Result<(), Box<dyn std::error::Error
     let arrow = client
         .query_to_arrow(
             QueryRequest::new("select 42 as answer".to_string()),
+            database_id,
             poll,
             None,
             None,

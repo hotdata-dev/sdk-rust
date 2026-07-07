@@ -680,32 +680,46 @@ impl Client {
         }
     }
 
-    /// List recent query runs.
+    /// List recent query runs for the database named by `database_id` (the
+    /// required `X-Database-Id` header — query runs are scoped to a database).
     pub async fn list_query_runs(
         &self,
+        database_id: &str,
         limit: Option<i32>,
         cursor: Option<&str>,
     ) -> Result<models::ListQueryRunsResponse, Error<apis::query_runs_api::ListQueryRunsError>>
     {
-        apis::query_runs_api::list_query_runs(&self.configuration, limit, cursor, None, None).await
+        apis::query_runs_api::list_query_runs(
+            &self.configuration,
+            database_id,
+            limit,
+            cursor,
+            None,
+            None,
+        )
+        .await
     }
 
-    /// List persisted results.
+    /// List persisted results for the database named by `database_id` (the
+    /// required `X-Database-Id` header — results are scoped to a database).
     pub async fn list_results(
         &self,
+        database_id: &str,
         limit: Option<i32>,
         offset: Option<i32>,
     ) -> Result<models::ListResultsResponse, Error<apis::results_api::ListResultsError>> {
-        apis::results_api::list_results(&self.configuration, limit, offset).await
+        apis::results_api::list_results(&self.configuration, database_id, limit, offset).await
     }
 
-    /// Fetch a persisted result by id (JSON form). For Arrow IPC decoding use
+    /// Fetch a persisted result by id (JSON form), scoped to `database_id` (the
+    /// required `X-Database-Id` header). For Arrow IPC decoding use
     /// [`Client::get_result_arrow`] (requires the `arrow` feature).
     pub async fn get_result(
         &self,
         id: &str,
+        database_id: &str,
     ) -> Result<models::GetResultResponse, Error<apis::results_api::GetResultError>> {
-        apis::results_api::get_result(&self.configuration, id, None, None, None).await
+        apis::results_api::get_result(&self.configuration, id, database_id, None, None, None).await
     }
 
     /// List workspaces visible to the authenticated principal.
@@ -726,10 +740,11 @@ impl Client {
     pub async fn get_result_arrow(
         &self,
         id: &str,
+        database_id: &str,
         offset: Option<i64>,
         limit: Option<i64>,
     ) -> Result<crate::arrow::ArrowResult, crate::arrow::ArrowError> {
-        crate::arrow::get_result_arrow(&self.configuration, id, offset, limit).await
+        crate::arrow::get_result_arrow(&self.configuration, id, database_id, offset, limit).await
     }
 
     /// Fetch a result as Arrow IPC and lazily iterate over its record batches.
@@ -739,10 +754,11 @@ impl Client {
     pub async fn stream_result_arrow(
         &self,
         id: &str,
+        database_id: &str,
         offset: Option<i64>,
         limit: Option<i64>,
     ) -> Result<crate::arrow::ArrowBatchStream, crate::arrow::ArrowError> {
-        crate::arrow::stream_result_arrow(&self.configuration, id, offset, limit).await
+        crate::arrow::stream_result_arrow(&self.configuration, id, database_id, offset, limit).await
     }
 
     // --- Resource handles -----------------------------------------------------
@@ -845,15 +861,19 @@ impl Client {
     /// A `failed` status returns [`AwaitResultError::Failed`]; exceeding
     /// `poll.timeout` returns [`AwaitResultError::Timeout`]. Use
     /// `PollConfig::default()` for sensible defaults (120s timeout, 1s interval).
+    ///
+    /// `database_id` scopes the result lookup to a database (the required
+    /// `X-Database-Id` header) — pass the same database the query ran in.
     pub async fn await_result(
         &self,
         result_id: &str,
+        database_id: &str,
         poll: PollConfig,
     ) -> Result<models::GetResultResponse, AwaitResultError> {
         let deadline = std::time::Instant::now() + poll.timeout;
         loop {
             let result = self
-                .get_result(result_id)
+                .get_result(result_id, database_id)
                 .await
                 .map_err(AwaitResultError::Api)?;
             match crate::status::ResultStatus::parse(&result.status) {
@@ -893,6 +913,7 @@ impl Client {
     pub async fn query_to_arrow(
         &self,
         request: models::QueryRequest,
+        database_id: &str,
         poll: PollConfig,
         offset: Option<i64>,
         limit: Option<i64>,
@@ -900,8 +921,9 @@ impl Client {
         // Use the raw generated query (not the enhanced `Client::query`): the
         // Arrow path polls and fetches the persisted result itself, so it must
         // not also trigger truncation auto-follow, which would materialize the
-        // full result as JSON before we re-fetch it as Arrow.
-        let submitted = apis::query_api::query(&self.configuration, request, None)
+        // full result as JSON before we re-fetch it as Arrow. The query and the
+        // result fetch share `database_id` (the required `X-Database-Id` scope).
+        let submitted = apis::query_api::query(&self.configuration, request, Some(database_id))
             .await
             .map_err(QueryToArrowError::Query)?;
         let result_id =
@@ -919,7 +941,10 @@ impl Client {
         // second time as Arrow.
         let deadline = std::time::Instant::now() + poll.timeout;
         loop {
-            match self.get_result_arrow(&result_id, offset, limit).await {
+            match self
+                .get_result_arrow(&result_id, database_id, offset, limit)
+                .await
+            {
                 Ok(result) => return Ok(result),
                 Err(crate::arrow::ArrowError::NotReady {
                     status,
