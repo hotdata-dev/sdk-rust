@@ -19,6 +19,7 @@ pub enum JobResult {
     TableRefreshResult(Box<models::TableRefreshResult>),
     ConnectionRefreshResult(Box<models::ConnectionRefreshResult>),
     IndexInfoResponse(Box<models::IndexInfoResponse>),
+    LoadManagedTableResponse(Box<models::LoadManagedTableResponse>),
 }
 
 impl Default for JobResult {

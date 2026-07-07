@@ -608,7 +608,7 @@ pub async fn list_databases(
     }
 }
 
-/// Publish a previously-uploaded file as the new contents of a table on the database's default catalog. The database-scoped equivalent of the connection-scoped managed-table load — addressed by `database_id`, so no `default_connection_id` is needed. CSV, JSON, and Parquet uploads are supported; the format is auto-detected or set via `format`. Only `mode = \"replace\"` is supported. Concurrent loads against the same upload return 409.
+/// Publish a previously-uploaded file as the new contents of a table on the database's default catalog. The database-scoped equivalent of the connection-scoped managed-table load — addressed by `database_id`, so no `default_connection_id` is needed. CSV, JSON, and Parquet uploads are supported; the format is auto-detected or set via `format`. If the target table (or its schema) has not been declared yet, it is created automatically as part of the load — declaring tables up front is optional. `mode` selects how the upload is applied: `replace` overwrites the table's contents, `append` inserts the uploaded rows on top of the existing data. Concurrent loads against the same upload return 409. Set `async` to run the load in the background and get back a job ID to poll; add `async_after_ms` to wait briefly for it to finish before falling back to a job ID.
 pub async fn load_database_table(
     configuration: &configuration::Configuration,
     database_id: &str,

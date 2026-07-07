@@ -17,6 +17,14 @@ pub struct RefreshRequest {
     /// When true, submit the refresh as a background job and return immediately with a job ID for status polling. Only supported for data refresh operations.
     #[serde(rename = "async", skip_serializing_if = "Option::is_none")]
     pub r#async: Option<bool>,
+    /// If set (requires `async` = true), wait up to this many milliseconds for the refresh to finish: if it completes in time the full result is returned, otherwise a `202` with a job ID to poll. Must be between 1000 and the server maximum; a value out of that range, or set without `async` = true, is rejected with 400. Only applies to data refresh.
+    #[serde(
+        rename = "async_after_ms",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub async_after_ms: Option<Option<i32>>,
     #[serde(
         rename = "connection_id",
         default,
@@ -50,6 +58,7 @@ impl RefreshRequest {
     pub fn new() -> RefreshRequest {
         RefreshRequest {
             r#async: None,
+            async_after_ms: None,
             connection_id: None,
             data: None,
             include_uncached: None,

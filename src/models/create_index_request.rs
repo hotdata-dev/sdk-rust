@@ -17,6 +17,14 @@ pub struct CreateIndexRequest {
     /// When true, create the index as a background job and return a job ID for polling.
     #[serde(rename = "async", skip_serializing_if = "Option::is_none")]
     pub r#async: Option<bool>,
+    /// If set (requires `async` = true), wait up to this many milliseconds for the index build to finish: if it completes in time the index is returned (201), otherwise a 202 with a job ID to poll. Must be between 1000 and the server maximum; a value out of that range, or set without `async` = true, is rejected with 400.
+    #[serde(
+        rename = "async_after_ms",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub async_after_ms: Option<Option<i32>>,
     /// Columns to index. Required for all index types.
     #[serde(rename = "columns")]
     pub columns: Vec<String>,
@@ -72,6 +80,7 @@ impl CreateIndexRequest {
     pub fn new(columns: Vec<String>, index_name: String) -> CreateIndexRequest {
         CreateIndexRequest {
             r#async: None,
+            async_after_ms: None,
             columns,
             description: None,
             dimensions: None,

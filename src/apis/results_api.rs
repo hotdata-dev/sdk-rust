@@ -27,6 +27,8 @@ pub enum GetResultError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ListResultsError {
+    Status400(models::ApiErrorResponse),
+    Status404(models::ApiErrorResponse),
     UnknownValue(serde_json::Value),
 }
 
@@ -34,12 +36,14 @@ pub enum ListResultsError {
 pub async fn get_result(
     configuration: &configuration::Configuration,
     id: &str,
+    x_database_id: &str,
     offset: Option<i32>,
     limit: Option<i32>,
     format: Option<models::ResultsFormatQuery>,
 ) -> Result<models::GetResultResponse, Error<GetResultError>> {
     // add a prefix to parameters to efficiently prevent name collisions
     let p_path_id = id;
+    let p_header_x_database_id = x_database_id;
     let p_query_offset = offset;
     let p_query_limit = limit;
     let p_query_format = format;
@@ -63,6 +67,7 @@ pub async fn get_result(
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
+    req_builder = req_builder.header("X-Database-Id", p_header_x_database_id.to_string());
     if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
         let key = apikey.key.clone();
         let value = match apikey.prefix {
@@ -120,12 +125,15 @@ pub async fn get_result(
     }
 }
 
+/// List stored results for the database named by the required X-Database-Id header.
 pub async fn list_results(
     configuration: &configuration::Configuration,
+    x_database_id: &str,
     limit: Option<i32>,
     offset: Option<i32>,
 ) -> Result<models::ListResultsResponse, Error<ListResultsError>> {
     // add a prefix to parameters to efficiently prevent name collisions
+    let p_header_x_database_id = x_database_id;
     let p_query_limit = limit;
     let p_query_offset = offset;
 
@@ -141,6 +149,7 @@ pub async fn list_results(
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
+    req_builder = req_builder.header("X-Database-Id", p_header_x_database_id.to_string());
     if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
         let key = apikey.key.clone();
         let value = match apikey.prefix {

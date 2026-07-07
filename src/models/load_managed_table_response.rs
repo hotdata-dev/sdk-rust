@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// LoadManagedTableResponse : Response body for `POST /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads`.
+/// LoadManagedTableResponse : Result of a managed-table load: row count after the load plus the published table schema. Returned inline (`200`) for a synchronous load, and as the `GET /v1/jobs/{id}` result payload for a completed background load.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LoadManagedTableResponse {
     /// Schema of the loaded table, as JSON.
@@ -19,7 +19,7 @@ pub struct LoadManagedTableResponse {
     pub arrow_schema_json: String,
     #[serde(rename = "connection_id")]
     pub connection_id: String,
-    /// Total rows in the published parquet file.
+    /// Total number of rows in the table after the load.
     #[serde(rename = "row_count")]
     pub row_count: i64,
     #[serde(rename = "schema_name")]
@@ -29,7 +29,7 @@ pub struct LoadManagedTableResponse {
 }
 
 impl LoadManagedTableResponse {
-    /// Response body for `POST /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads`.
+    /// Result of a managed-table load: row count after the load plus the published table schema. Returned inline (`200`) for a synchronous load, and as the `GET /v1/jobs/{id}` result payload for a completed background load.
     pub fn new(
         arrow_schema_json: String,
         connection_id: String,

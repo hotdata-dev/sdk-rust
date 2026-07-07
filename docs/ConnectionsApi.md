@@ -298,7 +298,7 @@ This endpoint does not need any parameter.
 > models::LoadManagedTableResponse load_managed_table(connection_id, schema, table, load_managed_table_request)
 Load managed table from upload
 
-Publish a previously-uploaded file as the new contents of a managed table. CSV, JSON, and Parquet uploads are supported; the format is auto-detected from the upload's `Content-Type` and file contents, or set explicitly via the `format` field. Only `mode = \"replace\"` is supported. Concurrent loads against the same upload return 409.
+Publish a previously-uploaded file as the new contents of a managed table. CSV, JSON, and Parquet uploads are supported; the format is auto-detected from the upload's `Content-Type` and file contents, or set explicitly via the `format` field. If the target table (or its schema) has not been declared yet, it is created automatically as part of the load — declaring tables up front is optional. `mode` selects how the upload is applied: `replace` overwrites the table's contents, `append` inserts the uploaded rows on top of the existing data. Concurrent loads against the same upload return 409. Set `async` to run the load in the background and get back a job ID to poll; add `async_after_ms` to wait briefly for it to finish before falling back to a job ID.
 
 ### Parameters
 
