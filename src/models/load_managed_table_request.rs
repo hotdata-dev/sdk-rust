@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// LoadManagedTableRequest : Request body for the managed-table load endpoints — the connection-scoped `POST /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads` and the database-scoped equivalent.  Publishes a previously-uploaded file to the named table. CSV and JSON uploads are converted to columnar storage on load; Parquet uploads are published directly. `mode` selects whether the upload replaces the table's contents or is appended on top of them.
+/// LoadManagedTableRequest : Request body for the managed-table load endpoints — the connection-scoped `POST /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads` and the database-scoped equivalent.  Publishes data to the named table from one of two sources: a previously uploaded file (`upload_id`) or a persisted query result (`result_id`). Provide exactly one. CSV and JSON uploads are converted to columnar storage on load; Parquet uploads and query results are published directly. `mode` selects whether the data replaces the table's contents or is appended on top of them.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LoadManagedTableRequest {
     /// When true, run the load as a background job and return a job ID to poll instead of blocking until it finishes. Recommended for large uploads, which can take longer than an HTTP request should stay open.
@@ -25,7 +25,7 @@ pub struct LoadManagedTableRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub async_after_ms: Option<Option<i32>>,
-    /// File format of the upload: `\"csv\"`, `\"json\"`, or `\"parquet\"`. Optional — when omitted, the format is auto-detected from the upload's `Content-Type` and, failing that, from the file contents. Provide it explicitly to override detection or when the contents are ambiguous. `\"json\"` expects newline-delimited JSON (one object per line), not a JSON array.
+    /// File format of the upload: `\"csv\"`, `\"json\"`, or `\"parquet\"`. Optional — when omitted, the format is auto-detected from the upload's `Content-Type` and, failing that, from the file contents. Provide it explicitly to override detection or when the contents are ambiguous. `\"json\"` expects newline-delimited JSON (one object per line), not a JSON array. Only applies to `upload_id`; query results are always parquet.
     #[serde(
         rename = "format",
         default,
@@ -33,23 +33,37 @@ pub struct LoadManagedTableRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub format: Option<Option<String>>,
-    /// How the upload is applied: `\"replace\"` overwrites the table's contents, `\"append\"` inserts the uploaded rows on top of the existing data.
+    /// How the data is applied: `\"replace\"` overwrites the table's contents, `\"append\"` inserts the new rows on top of the existing data.
     #[serde(rename = "mode")]
     pub mode: String,
-    /// ID of a previously-staged upload (see `POST /v1/files`). The upload is claimed atomically; concurrent loads against the same `upload_id` return 409.
-    #[serde(rename = "upload_id")]
-    pub upload_id: String,
+    /// ID of a persisted query result (see `GET /v1/results/{result_id}`) to publish as the table's contents. The result is copied into the table, so the table keeps its data even after the result expires. A result can be loaded into any number of tables. Provide either this or `upload_id`, not both.
+    #[serde(
+        rename = "result_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub result_id: Option<Option<String>>,
+    /// ID of a previously-staged upload (see `POST /v1/files`). The upload is claimed atomically; concurrent loads against the same `upload_id` return 409. Provide either this or `result_id`, not both.
+    #[serde(
+        rename = "upload_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub upload_id: Option<Option<String>>,
 }
 
 impl LoadManagedTableRequest {
-    /// Request body for the managed-table load endpoints — the connection-scoped `POST /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads` and the database-scoped equivalent.  Publishes a previously-uploaded file to the named table. CSV and JSON uploads are converted to columnar storage on load; Parquet uploads are published directly. `mode` selects whether the upload replaces the table's contents or is appended on top of them.
-    pub fn new(mode: String, upload_id: String) -> LoadManagedTableRequest {
+    /// Request body for the managed-table load endpoints — the connection-scoped `POST /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads` and the database-scoped equivalent.  Publishes data to the named table from one of two sources: a previously uploaded file (`upload_id`) or a persisted query result (`result_id`). Provide exactly one. CSV and JSON uploads are converted to columnar storage on load; Parquet uploads and query results are published directly. `mode` selects whether the data replaces the table's contents or is appended on top of them.
+    pub fn new(mode: String) -> LoadManagedTableRequest {
         LoadManagedTableRequest {
             r#async: None,
             async_after_ms: None,
             format: None,
             mode,
-            upload_id,
+            result_id: None,
+            upload_id: None,
         }
     }
 }

@@ -66,7 +66,10 @@ async fn managed_tables_lifecycle() {
         &connection_id,
         schema_name,
         table_name,
-        models::LoadManagedTableRequest::new("replace".to_string(), upload.id.clone()),
+        models::LoadManagedTableRequest {
+            upload_id: Some(Some(upload.id.clone())),
+            ..models::LoadManagedTableRequest::new("replace".to_string())
+        },
     )
     .await
     .expect("load_managed_table should succeed");
