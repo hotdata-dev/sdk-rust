@@ -16,6 +16,14 @@ use serde::{Deserialize, Serialize};
 pub struct DatabaseDetailResponse {
     #[serde(rename = "attachments")]
     pub attachments: Vec<models::DatabaseAttachmentInfo>,
+    /// When the database was created.
+    #[serde(
+        rename = "created_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub created_at: Option<Option<String>>,
     /// Name the database's default catalog answers to inside its query scope (`default` unless overridden at create time).
     #[serde(rename = "default_catalog")]
     pub default_catalog: String,
@@ -50,6 +58,7 @@ impl DatabaseDetailResponse {
     ) -> DatabaseDetailResponse {
         DatabaseDetailResponse {
             attachments,
+            created_at: None,
             default_catalog,
             default_connection_id,
             expires_at: None,
