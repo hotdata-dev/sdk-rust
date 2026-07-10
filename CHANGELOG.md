@@ -7,9 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [0.8.1] - 2026-07-09
+
 ### Changed
 
 - feat(tables): support loading from query results
+- feat(databases): expose created_at on list and detail endpoints
 
 ## [0.8.0] - 2026-07-07
 
