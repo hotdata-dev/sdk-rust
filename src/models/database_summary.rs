@@ -14,6 +14,14 @@ use serde::{Deserialize, Serialize};
 /// DatabaseSummary : Summary item in GET /databases
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DatabaseSummary {
+    /// When the database was created.
+    #[serde(
+        rename = "created_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub created_at: Option<Option<String>>,
     /// Name the database's default catalog answers to inside its query scope.
     #[serde(rename = "default_catalog")]
     pub default_catalog: String,
@@ -39,6 +47,7 @@ impl DatabaseSummary {
     /// Summary item in GET /databases
     pub fn new(default_catalog: String, id: String) -> DatabaseSummary {
         DatabaseSummary {
+            created_at: None,
             default_catalog,
             expires_at: None,
             id,

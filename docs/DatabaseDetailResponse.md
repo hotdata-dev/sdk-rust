@@ -5,6 +5,7 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **attachments** | [**Vec<models::DatabaseAttachmentInfo>**](DatabaseAttachmentInfo.md) |  | 
+**created_at** | Option<**String**> | When the database was created. | [optional]
 **default_catalog** | **String** | Name the database's default catalog answers to inside its query scope (`default` unless overridden at create time). | 
 **default_connection_id** | **String** |  | 
 **expires_at** | Option<**String**> | When this database expires. | [optional]

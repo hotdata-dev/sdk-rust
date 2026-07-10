@@ -12,7 +12,7 @@ Method | HTTP request | Description
 [**detach_database_catalog**](DatabasesApi.md#detach_database_catalog) | **DELETE** /v1/databases/{database_id}/catalogs/{connection_id} | Detach catalog from database
 [**get_database**](DatabasesApi.md#get_database) | **GET** /v1/databases/{database_id} | Get database
 [**list_databases**](DatabasesApi.md#list_databases) | **GET** /v1/databases | List databases
-[**load_database_table**](DatabasesApi.md#load_database_table) | **POST** /v1/databases/{database_id}/schemas/{schema}/tables/{table}/loads | Load database table from upload
+[**load_database_table**](DatabasesApi.md#load_database_table) | **POST** /v1/databases/{database_id}/schemas/{schema}/tables/{table}/loads | Load database table from upload or query result
 
 
 
@@ -257,9 +257,9 @@ This endpoint does not need any parameter.
 ## load_database_table
 
 > models::LoadManagedTableResponse load_database_table(database_id, schema, table, load_managed_table_request)
-Load database table from upload
+Load database table from upload or query result
 
-Publish a previously-uploaded file as the new contents of a table on the database's default catalog. The database-scoped equivalent of the connection-scoped managed-table load — addressed by `database_id`, so no `default_connection_id` is needed. CSV, JSON, and Parquet uploads are supported; the format is auto-detected or set via `format`. If the target table (or its schema) has not been declared yet, it is created automatically as part of the load — declaring tables up front is optional. `mode` selects how the upload is applied: `replace` overwrites the table's contents, `append` inserts the uploaded rows on top of the existing data. Concurrent loads against the same upload return 409. Set `async` to run the load in the background and get back a job ID to poll; add `async_after_ms` to wait briefly for it to finish before falling back to a job ID.
+Publish data as the new contents of a table on the database's default catalog, from one of two sources — provide exactly one. The database-scoped equivalent of the connection-scoped managed-table load — addressed by `database_id`, so no `default_connection_id` is needed. With `upload_id`, a previously-uploaded file is published: CSV, JSON, and Parquet are supported; the format is auto-detected or set via `format`. With `result_id`, a persisted query result is copied into the table, so the table keeps its data even after the result expires. If the target table (or its schema) has not been declared yet, it is created automatically as part of the load — declaring tables up front is optional. `mode` selects how the data is applied: `replace` overwrites the table's contents, `append` inserts the new rows on top of the existing data. Concurrent loads against the same upload return 409. For an upload, set `async` to run the load in the background and get back a job ID to poll; add `async_after_ms` to wait briefly for it to finish before falling back to a job ID. A `result_id` load runs synchronously.
 
 ### Parameters
 
