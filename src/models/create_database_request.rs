@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 /// CreateDatabaseRequest : Request body for POST /databases
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CreateDatabaseRequest {
-    /// Optional name the database's auto-created default catalog answers to inside its query scope. Must be a valid SQL identifier (`[a-z0-9_]`, not starting with a digit) and may not collide with the reserved catalog names `hotdata`, `datasets`, or `information_schema`. Defaults to `default` when omitted, so `default.main.<table>` keeps working.
+    /// Optional name the database's auto-created default catalog answers to inside its query scope. Must be a valid SQL identifier (`[a-z0-9_]`, not starting with a digit) and may not collide with the reserved catalog names `hotdata` or `information_schema`. Defaults to `default` when omitted, so `default.main.<table>` keeps working.
     #[serde(
         rename = "default_catalog",
         default,
@@ -22,6 +22,14 @@ pub struct CreateDatabaseRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub default_catalog: Option<Option<String>>,
+    /// Optional schema that unqualified table names resolve to inside this database's query scope. Must be a valid SQL identifier (`[a-z0-9_]`, not starting with a digit). When omitted, a database that declares exactly one schema adopts that schema as its default; otherwise unqualified names resolve to `main`. Fully-qualified names (`<catalog>.<schema>.<table>`) are unaffected, and a per-query `default_schema` still takes precedence.
+    #[serde(
+        rename = "default_schema",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub default_schema: Option<Option<String>>,
     /// When this database expires. Accepts either an RFC 3339 timestamp (e.g. `\"2026-06-01T00:00:00Z\"`) or a relative duration suffixed with `h` (hours), `m` (minutes), or `d` (days) — for example `\"24h\"`, `\"48h\"`, or `\"7d\"`. Omitted (or empty) means the database never expires. Expiry is best-effort: the database will not be deleted before `expires_at`, but cleanup may run later than the exact timestamp.
     #[serde(
         rename = "expires_at",
@@ -48,6 +56,7 @@ impl CreateDatabaseRequest {
     pub fn new() -> CreateDatabaseRequest {
         CreateDatabaseRequest {
             default_catalog: None,
+            default_schema: None,
             expires_at: None,
             name: None,
             schemas: None,

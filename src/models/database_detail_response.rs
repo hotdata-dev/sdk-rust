@@ -29,6 +29,9 @@ pub struct DatabaseDetailResponse {
     pub default_catalog: String,
     #[serde(rename = "default_connection_id")]
     pub default_connection_id: String,
+    /// Schema that unqualified table names resolve to inside this database's query scope. `main` unless the database declares a single schema or a `default_schema` was set at create time.
+    #[serde(rename = "default_schema")]
+    pub default_schema: String,
     /// When this database expires.
     #[serde(
         rename = "expires_at",
@@ -54,6 +57,7 @@ impl DatabaseDetailResponse {
         attachments: Vec<models::DatabaseAttachmentInfo>,
         default_catalog: String,
         default_connection_id: String,
+        default_schema: String,
         id: String,
     ) -> DatabaseDetailResponse {
         DatabaseDetailResponse {
@@ -61,6 +65,7 @@ impl DatabaseDetailResponse {
             created_at: None,
             default_catalog,
             default_connection_id,
+            default_schema,
             expires_at: None,
             id,
             name: None,

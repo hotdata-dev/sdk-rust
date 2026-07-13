@@ -25,6 +25,9 @@ pub struct DatabaseSummary {
     /// Name the database's default catalog answers to inside its query scope.
     #[serde(rename = "default_catalog")]
     pub default_catalog: String,
+    /// Schema that unqualified table names resolve to inside this database's query scope. `main` unless the database declares a single schema or a `default_schema` was set at create time.
+    #[serde(rename = "default_schema")]
+    pub default_schema: String,
     #[serde(
         rename = "expires_at",
         default,
@@ -45,10 +48,11 @@ pub struct DatabaseSummary {
 
 impl DatabaseSummary {
     /// Summary item in GET /databases
-    pub fn new(default_catalog: String, id: String) -> DatabaseSummary {
+    pub fn new(default_catalog: String, default_schema: String, id: String) -> DatabaseSummary {
         DatabaseSummary {
             created_at: None,
             default_catalog,
+            default_schema,
             expires_at: None,
             id,
             name: None,

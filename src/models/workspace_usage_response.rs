@@ -23,7 +23,7 @@ pub struct WorkspaceUsageResponse {
     /// The period start used for this response (echoed back for the caller to verify).
     #[serde(rename = "since")]
     pub since: String,
-    /// The workspace's current stored-data footprint in bytes, measured at request time: managed-database and dataset data, plus un-consumed uploads, connection caches, and search-index artifacts.
+    /// The workspace's current stored-data footprint in bytes, measured at request time: managed-database data, plus un-consumed uploads, connection caches, and search-index artifacts.
     #[serde(rename = "storage_bytes")]
     pub storage_bytes: i64,
     /// When `storage_bytes` was measured (the time this response was produced).
