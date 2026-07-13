@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- feat(databases): add default_schema field to database objects
 
 ## [0.8.1] - 2026-07-09
 
