@@ -14,6 +14,9 @@ use serde::{Deserialize, Serialize};
 /// AddManagedTableRequest : Request body for adding a table to an existing schema: `POST /v1/connections/{id}/schemas/{schema}/tables` and `POST /v1/databases/{id}/schemas/{schema}/tables`.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AddManagedTableRequest {
+    /// Columns that uniquely identify a row, enabling the key-based load modes (`delete`, `update`, `upsert`) on this table: those loads match rows by these columns' values. Omit (the default) to declare no key; the table can still be loaded with `replace` and `append`, but key-based modes are then rejected.
+    #[serde(rename = "key", skip_serializing_if = "Option::is_none")]
+    pub key: Option<Vec<String>>,
     #[serde(rename = "name")]
     pub name: String,
 }
@@ -21,6 +24,6 @@ pub struct AddManagedTableRequest {
 impl AddManagedTableRequest {
     /// Request body for adding a table to an existing schema: `POST /v1/connections/{id}/schemas/{schema}/tables` and `POST /v1/databases/{id}/schemas/{schema}/tables`.
     pub fn new(name: String) -> AddManagedTableRequest {
-        AddManagedTableRequest { name }
+        AddManagedTableRequest { key: None, name }
     }
 }
