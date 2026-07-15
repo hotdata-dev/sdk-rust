@@ -102,6 +102,8 @@ pub mod finalize_upload_request;
 pub use self::finalize_upload_request::FinalizeUploadRequest;
 pub mod finalize_upload_response;
 pub use self::finalize_upload_response::FinalizeUploadResponse;
+pub mod fork_database_request;
+pub use self::fork_database_request::ForkDatabaseRequest;
 pub mod get_connection_response;
 pub use self::get_connection_response::GetConnectionResponse;
 pub mod get_database_context_response;

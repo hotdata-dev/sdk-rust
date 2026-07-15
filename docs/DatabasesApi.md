@@ -10,6 +10,7 @@ Method | HTTP request | Description
 [**create_database**](DatabasesApi.md#create_database) | **POST** /v1/databases | Create database
 [**delete_database**](DatabasesApi.md#delete_database) | **DELETE** /v1/databases/{database_id} | Delete database
 [**detach_database_catalog**](DatabasesApi.md#detach_database_catalog) | **DELETE** /v1/databases/{database_id}/catalogs/{connection_id} | Detach catalog from database
+[**fork_database**](DatabasesApi.md#fork_database) | **POST** /v1/databases/{database_id}/fork | Fork database
 [**get_database**](DatabasesApi.md#get_database) | **GET** /v1/databases/{database_id} | Get database
 [**list_databases**](DatabasesApi.md#list_databases) | **GET** /v1/databases | List databases
 [**load_database_table**](DatabasesApi.md#load_database_table) | **POST** /v1/databases/{database_id}/schemas/{schema}/tables/{table}/loads | Load database table from upload or query result
@@ -194,6 +195,37 @@ Name | Type | Description  | Required | Notes
 ### HTTP request headers
 
 - **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## fork_database
+
+> models::CreateDatabaseResponse fork_database(database_id, fork_database_request)
+Fork database
+
+Create a new database that is an independent fork of an existing one. The fork has its own default catalog and contains the same schemas, tables, and data as the source; the source is left unchanged. External catalogs attached to the source are re-attached to the fork. Optional `name` sets the fork's display label (defaults to the source's). Optional `expires_at` sets when the fork expires — accepts an RFC 3339 timestamp or a relative duration suffixed with `h` (hours), `m` (minutes), or `d` (days), e.g. `24h`, `90m`, `7d`. When omitted, a still-future expiry on the source is carried over; otherwise the fork never expires. Any indexes on the source's tables are not carried over.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**database_id** | **String** | Source database ID | [required] |
+**fork_database_request** | [**ForkDatabaseRequest**](ForkDatabaseRequest.md) |  | [required] |
+
+### Return type
+
+[**models::CreateDatabaseResponse**](CreateDatabaseResponse.md)
+
+### Authorization
+
+[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

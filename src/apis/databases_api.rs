@@ -69,6 +69,15 @@ pub enum DetachDatabaseCatalogError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`fork_database`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ForkDatabaseError {
+    Status400(models::ApiErrorResponse),
+    Status404(models::ApiErrorResponse),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`get_database`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -475,6 +484,78 @@ pub async fn detach_database_catalog(
         let content = resp.text().await?;
         crate::http_log::log_response_body(&content);
         let entity: Option<DetachDatabaseCatalogError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Create a new database that is an independent fork of an existing one. The fork has its own default catalog and contains the same schemas, tables, and data as the source; the source is left unchanged. External catalogs attached to the source are re-attached to the fork. Optional `name` sets the fork's display label (defaults to the source's). Optional `expires_at` sets when the fork expires — accepts an RFC 3339 timestamp or a relative duration suffixed with `h` (hours), `m` (minutes), or `d` (days), e.g. `24h`, `90m`, `7d`. When omitted, a still-future expiry on the source is carried over; otherwise the fork never expires. Any indexes on the source's tables are not carried over.
+pub async fn fork_database(
+    configuration: &configuration::Configuration,
+    database_id: &str,
+    fork_database_request: models::ForkDatabaseRequest,
+) -> Result<models::CreateDatabaseResponse, Error<ForkDatabaseError>> {
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_path_database_id = database_id;
+    let p_body_fork_database_request = fork_database_request;
+
+    let uri_str = format!(
+        "{}/v1/databases/{database_id}/fork",
+        configuration.base_path,
+        database_id = crate::apis::urlencode(p_path_database_id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
+        let key = apikey.key.clone();
+        let value = match apikey.prefix {
+            Some(ref prefix) => format!("{} {}", prefix, key),
+            None => key,
+        };
+        req_builder = req_builder.header("X-Workspace-Id", value);
+    };
+    if let Some(token) = configuration.resolve_bearer_token().await {
+        req_builder = req_builder.bearer_auth(token);
+    };
+    req_builder = req_builder.json(&p_body_fork_database_request);
+
+    let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
+    // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
+    // shedding) is retried per `configuration.retry` on every generated op, not
+    // just the hand-written query path. See crate::http::execute_retrying.
+    let resp =
+        crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
+
+    let status = resp.status();
+    crate::http_log::log_response_status(status);
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::CreateDatabaseResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::CreateDatabaseResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        let entity: Option<ForkDatabaseError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

@@ -56,6 +56,7 @@ docs/ExecuteSavedQueryRequest.md
 docs/FinalizeUploadPart.md
 docs/FinalizeUploadRequest.md
 docs/FinalizeUploadResponse.md
+docs/ForkDatabaseRequest.md
 docs/GetConnectionResponse.md
 docs/GetDatabaseContextResponse.md
 docs/GetResultResponse.md
@@ -207,6 +208,7 @@ src/models/execute_saved_query_request.rs
 src/models/finalize_upload_part.rs
 src/models/finalize_upload_request.rs
 src/models/finalize_upload_response.rs
+src/models/fork_database_request.rs
 src/models/get_connection_response.rs
 src/models/get_database_context_response.rs
 src/models/get_result_response.rs
