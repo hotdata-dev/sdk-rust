@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- chore(api): exclude datasets from public OpenAPI spec + docs cleanup
 
 ## [0.8.1] - 2026-07-09
 

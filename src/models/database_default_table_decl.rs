@@ -14,6 +14,9 @@ use serde::{Deserialize, Serialize};
 /// DatabaseDefaultTableDecl : One table declaration inside a default-catalog schema, supplied at database-create time.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DatabaseDefaultTableDecl {
+    /// Columns that uniquely identify a row, enabling the key-based load modes (`delete`, `update`, `upsert`) on this table: those loads match rows by these columns' values. Omit (the default) to declare no key; the table can still be loaded with `replace` and `append`, but key-based modes are then rejected.
+    #[serde(rename = "key", skip_serializing_if = "Option::is_none")]
+    pub key: Option<Vec<String>>,
     #[serde(rename = "name")]
     pub name: String,
 }
@@ -21,6 +24,6 @@ pub struct DatabaseDefaultTableDecl {
 impl DatabaseDefaultTableDecl {
     /// One table declaration inside a default-catalog schema, supplied at database-create time.
     pub fn new(name: String) -> DatabaseDefaultTableDecl {
-        DatabaseDefaultTableDecl { name }
+        DatabaseDefaultTableDecl { key: None, name }
     }
 }
