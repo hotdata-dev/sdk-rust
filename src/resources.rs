@@ -237,6 +237,15 @@ impl<'a> DatabasesApi<'a> {
         apis::databases_api::create_database(self.config, request).await
     }
 
+    /// Fork a database into a new, independent database.
+    pub async fn fork(
+        &self,
+        database_id: &str,
+        request: models::ForkDatabaseRequest,
+    ) -> Result<models::CreateDatabaseResponse, Error<apis::databases_api::ForkDatabaseError>> {
+        apis::databases_api::fork_database(self.config, database_id, request).await
+    }
+
     /// Fetch a database by id.
     pub async fn get(
         &self,
