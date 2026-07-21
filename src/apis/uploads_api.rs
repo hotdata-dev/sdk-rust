@@ -12,8 +12,6 @@ use super::{configuration, ContentType, Error};
 use crate::{apis::ResponseContent, models};
 use reqwest;
 use serde::{de::Error as _, Deserialize, Serialize};
-use tokio::fs::File as TokioFile;
-use tokio_util::codec::{BytesCodec, FramedRead};
 
 /// struct for typed errors of method [`create_upload_session_handler`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,13 +40,6 @@ pub enum FinalizeUploadHandlerError {
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`list_uploads`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum ListUploadsError {
-    UnknownValue(serde_json::Value),
-}
-
 /// struct for typed errors of method [`mint_upload_parts_handler`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -59,15 +50,7 @@ pub enum MintUploadPartsHandlerError {
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`upload_file`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum UploadFileError {
-    Status400(models::ApiErrorResponse),
-    UnknownValue(serde_json::Value),
-}
-
-/// Create an upload session for a file you will send directly to storage. The response is one of three shapes. For a small file (`mode: single`) it contains a short-lived `url` to `PUT` the whole file to. For a large file with a known size (`mode: multipart`) it contains `part_urls` and `part_size`: split the file into `part_size`-byte chunks (the last is the remainder) and `PUT` chunk *i* (1-based) to `part_urls[i - 1]`, keeping each response's `ETag`. Slice by `part_size`, not by an even division across `part_urls.len()` (which can make a non-final part too small). For a file whose size you do not know up front, omit `declared_size_bytes`: the response is `mode: multipart` with a `part_size` but NO `part_urls`. As you stream, call `POST /v1/uploads/{upload_id}/parts` with a batch of `part_numbers` to mint per-part `PUT` URLs, `PUT` each part and keep its `ETag`, then finalize as for any multipart upload. In all cases the response also includes a one-time `finalize_token`. After uploading, call the finalize endpoint with the token (and, for multipart, the `{part_number, e_tag}` list) to make the upload usable as managed-table contents. The returned upload ID can then be passed to the managed-table load endpoint.  You may hint a preferred part size with `part_size`; the service clamps it to the allowed range and ignores it for single-`PUT` uploads.  If the response status is `501` with error code `PRESIGN_UNSUPPORTED`, the configured storage backend cannot issue upload URLs; send the file to the `POST /v1/files` endpoint instead.
+/// Create an upload session for a file you will send directly to storage. The response is one of three shapes. For a small file (`mode: single`) it contains a short-lived `url` to `PUT` the whole file to. For a large file with a known size (`mode: multipart`) it contains `part_urls` and `part_size`: split the file into `part_size`-byte chunks (the last is the remainder) and `PUT` chunk *i* (1-based) to `part_urls[i - 1]`, keeping each response's `ETag`. Slice by `part_size`, not by an even division across `part_urls.len()` (which can make a non-final part too small). For a file whose size you do not know up front, omit `declared_size_bytes`: the response is `mode: multipart` with a `part_size` but NO `part_urls`. As you stream, call `POST /v1/uploads/{upload_id}/parts` with a batch of `part_numbers` to mint per-part `PUT` URLs, `PUT` each part and keep its `ETag`, then finalize as for any multipart upload. In all cases the response also includes a one-time `finalize_token`. After uploading, call the finalize endpoint with the token (and, for multipart, the `{part_number, e_tag}` list) to make the upload usable as managed-table contents. The returned upload ID can then be passed to the managed-table load endpoint.  You may hint a preferred part size with `part_size`; the service clamps it to the allowed range and ignores it for single-`PUT` uploads.  If the response status is `501` with error code `PRESIGN_UNSUPPORTED`, the configured storage backend cannot issue upload URLs (for example a local-filesystem development backend).
 pub async fn create_upload_session_handler(
     configuration: &configuration::Configuration,
     create_upload_request: models::CreateUploadRequest,
@@ -133,7 +116,7 @@ pub async fn create_upload_session_handler(
     }
 }
 
-/// Create upload sessions for several files in one request. Each file is planned independently and the response returns one session per requested file, in the same order. Each session is finalized separately via the finalize endpoint, so you can upload and finalize files at your own pace.  If the response status is `501` with error code `PRESIGN_UNSUPPORTED`, the configured storage backend cannot issue upload URLs; send each file to the `POST /v1/files` endpoint instead.
+/// Create upload sessions for several files in one request. Each file is planned independently and the response returns one session per requested file, in the same order. Each session is finalized separately via the finalize endpoint, so you can upload and finalize files at your own pace.  If the response status is `501` with error code `PRESIGN_UNSUPPORTED`, the configured storage backend cannot issue upload URLs (for example a local-filesystem development backend).
 pub async fn create_upload_sessions_batch_handler(
     configuration: &configuration::Configuration,
     batch_create_upload_request: models::BatchCreateUploadRequest,
@@ -278,71 +261,6 @@ pub async fn finalize_upload_handler(
     }
 }
 
-pub async fn list_uploads(
-    configuration: &configuration::Configuration,
-    status: Option<&str>,
-) -> Result<models::ListUploadsResponse, Error<ListUploadsError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_query_status = status;
-
-    let uri_str = format!("{}/v1/files", configuration.base_path);
-    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
-
-    if let Some(ref param_value) = p_query_status {
-        req_builder = req_builder.query(&[("status", &param_value.to_string())]);
-    }
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
-        let key = apikey.key.clone();
-        let value = match apikey.prefix {
-            Some(ref prefix) => format!("{} {}", prefix, key),
-            None => key,
-        };
-        req_builder = req_builder.header("X-Workspace-Id", value);
-    };
-    if let Some(token) = configuration.resolve_bearer_token().await {
-        req_builder = req_builder.bearer_auth(token);
-    };
-
-    let req = req_builder.build()?;
-    crate::http_log::log_request(&req);
-    // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
-    // shedding) is retried per `configuration.retry` on every generated op, not
-    // just the hand-written query path. See crate::http::execute_retrying.
-    let resp =
-        crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
-
-    let status = resp.status();
-    crate::http_log::log_response_status(status);
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
-
-    if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        crate::http_log::log_response_body(&content);
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ListUploadsResponse`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ListUploadsResponse`")))),
-        }
-    } else {
-        let content = resp.text().await?;
-        crate::http_log::log_response_body(&content);
-        let entity: Option<ListUploadsError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent {
-            status,
-            content,
-            entity,
-        }))
-    }
-}
-
 /// Mint short-lived presigned URLs for specific parts of a multi-part upload. This is required for a streaming (unknown-size) upload — created by omitting the declared size — which mints no part URLs up front. It also works for a known-size multi-part upload: use it to re-mint a part whose URL expired before you uploaded that part. Supply the `finalize_token` returned when the session was created, in the `X-Upload-Finalize-Token` header, and the 1-based `part_numbers` you want URLs for. `PUT` each part's bytes to its URL, keep each response's `ETag`, then pass the `{part_number, e_tag}` list to finalize. You may mint parts in batches as you upload, and re-mint a part number whose URL expired before you finished uploading it.
 pub async fn mint_upload_parts_handler(
     configuration: &configuration::Configuration,
@@ -413,74 +331,6 @@ pub async fn mint_upload_parts_handler(
         let content = resp.text().await?;
         crate::http_log::log_response_body(&content);
         let entity: Option<MintUploadPartsHandlerError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent {
-            status,
-            content,
-            entity,
-        }))
-    }
-}
-
-/// Upload a Parquet file to publish as the contents of a managed table. Send the raw file bytes as the request body with an appropriate Content-Type header (e.g., `application/parquet`). The body is streamed to disk, so files up to 20GB are supported. The returned upload ID can be passed to the managed-table load endpoint.
-pub async fn upload_file(
-    configuration: &configuration::Configuration,
-    body: std::path::PathBuf,
-) -> Result<models::UploadResponse, Error<UploadFileError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_body_body = body;
-
-    let uri_str = format!("{}/v1/files", configuration.base_path);
-    let mut req_builder = configuration
-        .client
-        .request(reqwest::Method::POST, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
-        let key = apikey.key.clone();
-        let value = match apikey.prefix {
-            Some(ref prefix) => format!("{} {}", prefix, key),
-            None => key,
-        };
-        req_builder = req_builder.header("X-Workspace-Id", value);
-    };
-    if let Some(token) = configuration.resolve_bearer_token().await {
-        req_builder = req_builder.bearer_auth(token);
-    };
-    let file = TokioFile::open(p_body_body).await?;
-    let stream = FramedRead::new(file, BytesCodec::new());
-    req_builder = req_builder.body(reqwest::Body::wrap_stream(stream));
-
-    let req = req_builder.build()?;
-    crate::http_log::log_request(&req);
-    // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
-    // shedding) is retried per `configuration.retry` on every generated op, not
-    // just the hand-written query path. See crate::http::execute_retrying.
-    let resp =
-        crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
-
-    let status = resp.status();
-    crate::http_log::log_response_status(status);
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
-
-    if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        crate::http_log::log_response_body(&content);
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::UploadResponse`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::UploadResponse`")))),
-        }
-    } else {
-        let content = resp.text().await?;
-        crate::http_log::log_response_body(&content);
-        let entity: Option<UploadFileError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
