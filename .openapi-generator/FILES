@@ -85,7 +85,6 @@ docs/ListResultsResponse.md
 docs/ListSavedQueriesResponse.md
 docs/ListSavedQueryVersionsResponse.md
 docs/ListSecretsResponse.md
-docs/ListUploadsResponse.md
 docs/ListWorkspacesResponse.md
 docs/LoadManagedTableRequest.md
 docs/LoadManagedTableResponse.md
@@ -126,8 +125,6 @@ docs/UpdateEmbeddingProviderResponse.md
 docs/UpdateSavedQueryRequest.md
 docs/UpdateSecretRequest.md
 docs/UpdateSecretResponse.md
-docs/UploadInfo.md
-docs/UploadResponse.md
 docs/UploadSessionResponse.md
 docs/UploadsApi.md
 docs/UpsertDatabaseContextRequest.md
@@ -234,7 +231,6 @@ src/models/list_results_response.rs
 src/models/list_saved_queries_response.rs
 src/models/list_saved_query_versions_response.rs
 src/models/list_secrets_response.rs
-src/models/list_uploads_response.rs
 src/models/list_workspaces_response.rs
 src/models/load_managed_table_request.rs
 src/models/load_managed_table_response.rs
@@ -270,8 +266,6 @@ src/models/update_embedding_provider_response.rs
 src/models/update_saved_query_request.rs
 src/models/update_secret_request.rs
 src/models/update_secret_response.rs
-src/models/upload_info.rs
-src/models/upload_response.rs
 src/models/upload_session_response.rs
 src/models/upsert_database_context_request.rs
 src/models/upsert_database_context_response.rs

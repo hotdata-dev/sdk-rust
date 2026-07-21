@@ -33,6 +33,14 @@ pub struct LoadManagedTableRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub format: Option<Option<String>>,
+    /// Key columns identifying rows for `\"delete\"`, `\"update\"`, and `\"upsert\"` loads — the columns whose values decide which existing row an incoming row removes, updates, or replaces. Omit to use the key the table was created with. Keep the key consistent across loads of the same table: changing it re-targets which rows are matched. Ignored for `\"replace\"` and `\"append\"`.
+    #[serde(
+        rename = "key",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub key: Option<Option<Vec<String>>>,
     /// How the data is applied: `\"replace\"` overwrites the table's contents, `\"append\"` inserts the new rows on top of the existing data.
     #[serde(rename = "mode")]
     pub mode: String,
@@ -44,7 +52,7 @@ pub struct LoadManagedTableRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub result_id: Option<Option<String>>,
-    /// ID of a previously-staged upload (see `POST /v1/files`). The upload is claimed atomically; concurrent loads against the same `upload_id` return 409. Provide either this or `result_id`, not both.
+    /// ID of a previously-staged upload (see `POST /v1/uploads`). The upload is claimed atomically; concurrent loads against the same `upload_id` return 409. Provide either this or `result_id`, not both.
     #[serde(
         rename = "upload_id",
         default,
@@ -61,6 +69,7 @@ impl LoadManagedTableRequest {
             r#async: None,
             async_after_ms: None,
             format: None,
+            key: None,
             mode,
             result_id: None,
             upload_id: None,
