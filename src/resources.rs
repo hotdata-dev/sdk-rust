@@ -738,23 +738,6 @@ impl<'a> UploadsApi<'a> {
     ) -> Result<models::FinalizeUploadResponse, crate::uploads::UploadError> {
         crate::uploads::upload_file(self.config, path.as_ref(), opts).await
     }
-
-    /// Stream a file to the legacy raw-body `POST /v1/files` proxy. Prefer
-    /// [`upload_file`](Self::upload_file), the presigned direct-to-storage path.
-    pub async fn upload(
-        &self,
-        body: std::path::PathBuf,
-    ) -> Result<models::UploadResponse, Error<apis::uploads_api::UploadFileError>> {
-        apis::uploads_api::upload_file(self.config, body).await
-    }
-
-    /// List uploads, optionally filtered by status.
-    pub async fn list(
-        &self,
-        status: Option<&str>,
-    ) -> Result<models::ListUploadsResponse, Error<apis::uploads_api::ListUploadsError>> {
-        apis::uploads_api::list_uploads(self.config, status).await
-    }
 }
 
 /// Workspaces resource handle. Wraps [`apis::workspaces_api`](crate::apis::workspaces_api).

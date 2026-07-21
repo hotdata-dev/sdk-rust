@@ -4,7 +4,7 @@
 //! through this module: the generated free functions in `apis::*` (via the
 //! `api.mustache` template), and the hand-written ergonomic layer —
 //! [`Client::submit_query`](crate::client::Client::submit_query),
-//! [`Client::upload_stream`](crate::client::Client::upload_stream), the Arrow
+//! [`Client::upload_file`](crate::client::Client::upload_file), the Arrow
 //! result fetch in [`crate::arrow`], and the API-token -> JWT mint in
 //! [`crate::auth`]. Each emits `log::debug!` records on the [`TARGET`]
 //! (`hotdata::http`) target so a host can switch them on with any `log` backend

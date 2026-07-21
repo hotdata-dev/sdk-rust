@@ -199,7 +199,7 @@ pub enum UploadError {
     Io(std::io::Error),
     /// Opening the upload session (`POST /v1/uploads`) failed. A `501`
     /// `PRESIGN_UNSUPPORTED` lands here too — the presigned path is a hard
-    /// requirement and never falls back to the legacy `POST /v1/files` proxy.
+    /// requirement, so a backend that cannot presign is a hard error.
     CreateSession(Error<apis::uploads_api::CreateUploadSessionHandlerError>),
     /// A storage `PUT` (or the request building / transport around it) failed.
     Storage(reqwest::Error),
@@ -300,7 +300,7 @@ impl From<std::io::Error> for UploadError {
 /// This is the orchestration behind [`Client::upload_file`](crate::Client::upload_file);
 /// see that method for the public contract. It stats `path` for the declared
 /// size, opens a session, drives the single-`PUT` or multipart path, and
-/// finalizes — never touching the legacy `POST /v1/files` proxy.
+/// finalizes.
 pub(crate) async fn upload_file(
     configuration: &Configuration,
     path: &Path,
@@ -502,8 +502,7 @@ fn progress_stream(
 /// A [`Stream`](futures_core::Stream) of `Bytes` chunks read from a file that
 /// reports cumulative byte progress as each chunk is yielded. Hand-rolled over
 /// `futures_core` (the crate's only direct futures dep) rather than pulling in
-/// `futures_util`, mirroring how [`Client::upload_stream`](crate::Client::upload_stream)
-/// stays on `futures_core::Stream`.
+/// `futures_util`, staying on `futures_core::Stream`.
 struct ProgressStream {
     inner: tokio_util::codec::FramedRead<tokio::fs::File, tokio_util::codec::BytesCodec>,
     done: u64,

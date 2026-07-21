@@ -13,8 +13,9 @@
 
 mod common;
 
-use hotdata::apis::{connections_api, databases_api, uploads_api};
+use hotdata::apis::{connections_api, databases_api};
 use hotdata::models;
+use hotdata::uploads::UploadOptions;
 use std::path::Path;
 
 #[tokio::test]
@@ -53,13 +54,15 @@ async fn managed_tables_lifecycle() {
     .expect("add_managed_table should succeed");
     assert_eq!(table.table, table_name);
 
-    // Upload the committed 3-row parquet fixture, then load it into the table.
+    // Upload the committed 3-row parquet fixture via the presigned direct-to-
+    // storage flow, then load the finalized upload into the table.
     let fixture =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sdkci_managed.parquet");
-    let upload = uploads_api::upload_file(config, fixture)
+    let upload = client
+        .upload_file(&fixture, UploadOptions::default())
         .await
         .expect("upload_file should succeed");
-    assert!(!upload.id.is_empty(), "upload must return an id");
+    assert!(!upload.upload_id.is_empty(), "upload must return an id");
 
     let loaded = connections_api::load_managed_table(
         config,
@@ -67,7 +70,7 @@ async fn managed_tables_lifecycle() {
         schema_name,
         table_name,
         models::LoadManagedTableRequest {
-            upload_id: Some(Some(upload.id.clone())),
+            upload_id: Some(Some(upload.upload_id.clone())),
             ..models::LoadManagedTableRequest::new("replace".to_string())
         },
     )

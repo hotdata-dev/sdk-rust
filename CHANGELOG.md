@@ -7,9 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
+### Removed
 
-- chore: remove files endpoints in favor of uploads
+- **Breaking:** the `POST /v1/files` and `GET /v1/files` endpoints are gone in
+  favor of the presigned uploads flow. This drops the generated `upload_file` /
+  `list_uploads` ops, the `UploadResponse` / `UploadInfo` / `ListUploadsResponse`
+  models, and the ergonomic `Client::upload_stream`, `uploads().upload`, and
+  `uploads().list` wrappers. Use `Client::upload_file` (presigned
+  direct-to-storage) instead.
+
+### Added
+
+- `LoadManagedTableRequest` gains an optional `key` field naming the key columns
+  for `delete` / `update` / `upsert` loads.
 
 ## [0.9.1] - 2026-07-15
 

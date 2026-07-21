@@ -233,7 +233,7 @@ let arrow = client
 
 ## Debug logging
 
-Every HTTP call the SDK makes — generated operations and the hand-written `submit_query`, `upload_stream`, Arrow fetch, and JWT mint — emits `log::debug!` records on the `hotdata::http` target: the request (`>>> METHOD url`, headers, body) and the response (`<<< status`, body). `Authorization` bearer tokens and sensitive body fields (`api_token`, `secret`, `password`, …) are masked before logging.
+Every HTTP call the SDK makes — generated operations and the hand-written `submit_query`, `upload_file`, Arrow fetch, and JWT mint — emits `log::debug!` records on the `hotdata::http` target: the request (`>>> METHOD url`, headers, body) and the response (`<<< status`, body). `Authorization` bearer tokens and sensitive body fields (`api_token`, `secret`, `password`, …) are masked before logging.
 
 The SDK installs no logger and prints nothing on its own. To see the records, wire any [`log`](https://docs.rs/log) backend and enable the `hotdata::http` target at debug level. For example with [`env_logger`](https://docs.rs/env_logger):
 
