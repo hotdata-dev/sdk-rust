@@ -11,16 +11,44 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// ListDatabasesResponse : Response body for GET /databases
+/// ListDatabasesResponse : Response body for GET /databases. Results are returned one page at a time, newest first. When `has_more` is true, pass `next_cursor` back as the `cursor` query parameter to fetch the following page.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ListDatabasesResponse {
+    /// Number of databases returned in this page.
+    #[serde(rename = "count")]
+    pub count: i32,
     #[serde(rename = "databases")]
     pub databases: Vec<models::DatabaseSummary>,
+    /// Whether more databases exist beyond this page.
+    #[serde(rename = "has_more")]
+    pub has_more: bool,
+    /// Page size applied to this response (after clamping to the maximum).
+    #[serde(rename = "limit")]
+    pub limit: i32,
+    /// Opaque cursor for the next page; present only when `has_more` is true.
+    #[serde(
+        rename = "next_cursor",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub next_cursor: Option<Option<String>>,
 }
 
 impl ListDatabasesResponse {
-    /// Response body for GET /databases
-    pub fn new(databases: Vec<models::DatabaseSummary>) -> ListDatabasesResponse {
-        ListDatabasesResponse { databases }
+    /// Response body for GET /databases. Results are returned one page at a time, newest first. When `has_more` is true, pass `next_cursor` back as the `cursor` query parameter to fetch the following page.
+    pub fn new(
+        count: i32,
+        databases: Vec<models::DatabaseSummary>,
+        has_more: bool,
+        limit: i32,
+    ) -> ListDatabasesResponse {
+        ListDatabasesResponse {
+            count,
+            databases,
+            has_more,
+            limit,
+            next_cursor: None,
+        }
     }
 }

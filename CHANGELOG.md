@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- feat(databases): add pagination support to list endpoint
+
 ### Removed
 
 - **Breaking:** the `POST /v1/files` and `GET /v1/files` endpoints are gone in
