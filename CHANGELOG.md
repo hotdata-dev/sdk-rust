@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-07-23
+
 ### Changed
 
-- chore(databases): make pagination fields nullable
+- **Breaking:** `list_databases` and `Databases::list` now take `limit` and
+  `cursor` pagination parameters; existing callers must pass `None, None`.
+- Pagination metadata on `ListDatabasesResponse` (`count`, `limit`, `has_more`)
+  is now nullable so the client tolerates responses from a server that predates
+  these fields (rolling deploy / version skew).
 
 ### Removed
 
