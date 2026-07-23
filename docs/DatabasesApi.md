@@ -263,12 +263,18 @@ Name | Type | Description  | Required | Notes
 
 ## list_databases
 
-> models::ListDatabasesResponse list_databases()
+> models::ListDatabasesResponse list_databases(limit, cursor)
 List databases
+
+List databases in the workspace, newest first, one page at a time. When no `limit` is given a default page size is applied, so a single call returns at most one page rather than every database. If the response's `has_more` is true, pass its `next_cursor` value back as the `cursor` query parameter to fetch the next page.
 
 ### Parameters
 
-This endpoint does not need any parameter.
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**limit** | Option<**i32**> | Maximum number of databases to return in this page (1–100). Values outside the range are clamped. |  |
+**cursor** | Option<**String**> | Opaque pagination cursor from a previous response's `next_cursor`. |  |
 
 ### Return type
 
