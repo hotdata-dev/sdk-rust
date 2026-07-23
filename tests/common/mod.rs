@@ -184,7 +184,7 @@ pub async fn shared_database_id(client: &Client) -> String {
     use hotdata::apis::databases_api;
     let config = client.configuration();
 
-    let listing = databases_api::list_databases(config)
+    let listing = databases_api::list_databases(config, None, None)
         .await
         .expect("list_databases should succeed");
     if let Some(db) = listing

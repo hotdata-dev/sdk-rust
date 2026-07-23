@@ -254,11 +254,14 @@ impl<'a> DatabasesApi<'a> {
         apis::databases_api::get_database(self.config, database_id).await
     }
 
-    /// List databases.
+    /// List databases, newest first, one keyset page at a time. Pass `cursor`
+    /// (from a previous response's `next_cursor`) to fetch the next page.
     pub async fn list(
         &self,
+        limit: Option<i32>,
+        cursor: Option<&str>,
     ) -> Result<models::ListDatabasesResponse, Error<apis::databases_api::ListDatabasesError>> {
-        apis::databases_api::list_databases(self.config).await
+        apis::databases_api::list_databases(self.config, limit, cursor).await
     }
 
     /// Delete a database by id.

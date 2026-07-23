@@ -23,7 +23,7 @@ async fn databases_lifecycle() {
         .expect("get_database should succeed");
     assert_eq!(fetched.id, database_id);
 
-    let listing = databases_api::list_databases(config)
+    let listing = databases_api::list_databases(config, None, None)
         .await
         .expect("list_databases should succeed");
     assert!(
