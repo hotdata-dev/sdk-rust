@@ -54,14 +54,6 @@ pub async fn query(
         };
         req_builder = req_builder.header("X-Workspace-Id", value);
     };
-    if let Some(apikey) = configuration.api_keys.get("X-Session-Id") {
-        let key = apikey.key.clone();
-        let value = match apikey.prefix {
-            Some(ref prefix) => format!("{} {}", prefix, key),
-            None => key,
-        };
-        req_builder = req_builder.header("X-Session-Id", value);
-    };
     if let Some(token) = configuration.resolve_bearer_token().await {
         req_builder = req_builder.bearer_auth(token);
     };
