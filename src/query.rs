@@ -470,8 +470,8 @@ struct RawResponse {
 /// truncation per `qc`.
 ///
 /// Mirrors `hotdata.query.QueryApi.query` from the Python SDK. The request is
-/// built wire-identically to the generated `query` op (same workspace/session
-/// scope headers, bearer auth, `base_path`/`/v1` join, JSON body); building it
+/// built wire-identically to the generated `query` op (same workspace scope
+/// header, bearer auth, `base_path`/`/v1` join, JSON body); building it
 /// here rather than calling the generated op lets the retry path read the
 /// `Retry-After` header (the generated op discards response headers).
 pub(crate) async fn execute_query(
