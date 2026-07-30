@@ -106,7 +106,7 @@ pub struct QueryRunInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub trace_id: Option<Option<String>>,
-    /// Caller identity derived from the Authorization Bearer token (SHA-256 hash). Format: `user_{first_10_hex_chars}`.
+    /// Who ran this query: the account id from the access token the request was made with. Use it to group a caller's query history.  Requests made with a credential that identifies no account instead record an opaque `user_`-prefixed identifier, which is stable for that credential but cannot be resolved to an account.
     #[serde(
         rename = "user_public_id",
         default,

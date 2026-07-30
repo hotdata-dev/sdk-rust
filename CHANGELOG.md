@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `QueryRunInfo::user_public_id` now reports the caller's stable account id (the
+  access token's subject) instead of a fingerprint of the bearer token, which
+  churned every few minutes as short-lived JWTs were reminted. Grouping a
+  caller's query history by this field now holds across token refreshes. A
+  request that carries no verified subject still records an opaque
+  `user_`-prefixed fingerprint — stable for that credential, but not resolvable
+  to an account. This is a server-side change; the SDK only carries the field.
 - feat(databases): add search parameter to list endpoint
 
 ## [0.10.0] - 2026-07-23

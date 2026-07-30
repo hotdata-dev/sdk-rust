@@ -21,7 +21,7 @@ Name | Type | Description | Notes
 **sql_text** | **String** |  | 
 **status** | **String** |  | 
 **trace_id** | Option<**String**> |  | [optional]
-**user_public_id** | Option<**String**> | Caller identity derived from the Authorization Bearer token (SHA-256 hash). Format: `user_{first_10_hex_chars}`. | [optional]
+**user_public_id** | Option<**String**> | Who ran this query: the account id from the access token the request was made with. Use it to group a caller's query history.  Requests made with a credential that identifies no account instead record an opaque `user_`-prefixed identifier, which is stable for that credential but cannot be resolved to an account. | [optional]
 **warning_message** | Option<**String**> |  | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
