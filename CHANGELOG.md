@@ -59,13 +59,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** databases now report the schema that unqualified table names
+  resolve to, as a required `default_schema` field on `DatabaseSummary`,
+  `DatabaseDetailResponse`, and `CreateDatabaseResponse`. Because the field is
+  required, each type's `new()` gained a `default_schema` parameter:
+  `DatabaseSummary::new(default_catalog, default_schema, id)`,
+  `DatabaseDetailResponse::new(attachments, default_catalog,
+  default_connection_id, default_schema, id)`, and
+  `CreateDatabaseResponse::new(default_catalog, default_connection_id,
+  default_schema, id)`. Callers that construct these types (or match on them
+  exhaustively) must supply it; callers that only read them are unaffected.
 - feat(databases): add fork endpoint
 - chore(api): exclude datasets from public OpenAPI spec + docs cleanup
+
+### Added
+
+- `CreateDatabaseRequest` gains an optional `default_schema` field, naming the
+  schema unqualified table names resolve to inside the new database's query
+  scope. When omitted, a database declaring exactly one schema adopts that
+  schema; otherwise unqualified names resolve to `main`.
+- `AddManagedTableDecl`, `AddManagedTableRequest`, and
+  `DatabaseDefaultTableDecl` gain an optional `key` field naming the columns that
+  uniquely identify a row. Declaring a key enables the key-based load modes
+  (`delete`, `update`, `upsert`) on that table, which match rows by those
+  columns; a table declared without one accepts only `replace` and `append`.
 
 ## [0.8.1] - 2026-07-09
 
 ### Changed
 
+- **Breaking:** `LoadManagedTableRequest` can now load from a persisted query
+  result as well as an upload, so `upload_id` became optional and moved out of
+  the constructor: `new(mode, upload_id)` is now `new(mode)`. Set `upload_id` or
+  `result_id` on the returned value — exactly one is required. Note this shipped
+  in a patch release, which Cargo treats as compatible with 0.8.0 for a `0.x`
+  crate, so it could surface on `cargo update` rather than an explicit upgrade.
 - feat(tables): support loading from query results
 - feat(databases): expose created_at on list and detail endpoints
 
