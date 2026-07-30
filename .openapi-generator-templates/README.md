@@ -3,9 +3,8 @@
 Fixes a limitation in openapi-generator's rust/reqwest target: the stock
 templates model `Configuration.api_key` as a single `Option<ApiKey>` and
 emit the same value for every `apiKey` security scheme on an operation.
-For the Hotdata API — which declares distinct `X-Workspace-Id`,
-`X-Sandbox-Id`, and `X-Session-Id` schemes — that means a sandbox id
-would be sent as the workspace id and vice versa.
+For an API that declares more than one `apiKey` header scheme, that means
+one scheme's value would be sent under another scheme's header name.
 
 These templates replace that field with `api_keys: HashMap<String, ApiKey>`
 keyed by header name, and change the per-operation header-emission code

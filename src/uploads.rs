@@ -30,7 +30,7 @@
 //! (or in the server-provided `headers` map). Object stores (S3 and compatible)
 //! reject a `PUT` with `403 SignatureDoesNotMatch` if it carries extra
 //! signed-ish headers, so [`put_to_storage`] sends a *bare* request: NONE of the
-//! SDK's bearer / workspace / session headers, only an explicit `Content-Length`
+//! SDK's bearer / workspace headers, only an explicit `Content-Length`
 //! and whatever the server placed in `headers` (currently always empty). It also
 //! refuses to let reqwest auto-append a charset to a `Content-Type` — a type is
 //! sent only when the server's `headers` map asks for one.
@@ -1050,7 +1050,7 @@ fn part_put_timeout(content_length: u64) -> Duration {
 
 /// `PUT` a body to a presigned storage URL with strict header isolation.
 ///
-/// Attaches NONE of the SDK's auth/workspace/session/user-agent headers — a
+/// Attaches NONE of the SDK's auth/workspace/user-agent headers — a
 /// presigned URL already carries its authorization, and an extra signed-ish
 /// header makes S3-compatible storage return `403`. Only an explicit
 /// `Content-Length` and the server-provided `headers` map (replayed verbatim;
