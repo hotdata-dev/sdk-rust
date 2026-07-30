@@ -42,9 +42,6 @@ pub const DEFAULT_BASE_URL: &str = "https://api.hotdata.dev";
 /// `Configuration::api_keys` so the generated apiKey-auth blocks emit it.
 pub const WORKSPACE_ID_HEADER: &str = "X-Workspace-Id";
 
-/// Header name used to scope requests to a session (optional).
-pub const SESSION_ID_HEADER: &str = "X-Session-Id";
-
 /// Environment variable holding the API token used for transparent JWT exchange.
 /// Mirrors the Python SDK's `HOTDATA_API_KEY`.
 pub const ENV_API_KEY: &str = "HOTDATA_API_KEY";
@@ -99,7 +96,6 @@ impl std::error::Error for ClientError {}
 pub struct ClientBuilder {
     api_token: Option<String>,
     workspace_id: Option<String>,
-    session_id: Option<String>,
     base_url: Option<String>,
     user_agent: Option<String>,
     client_id: Option<String>,
@@ -120,13 +116,6 @@ impl ClientBuilder {
     /// every request.
     pub fn workspace_id(mut self, workspace_id: impl Into<String>) -> Self {
         self.workspace_id = Some(workspace_id.into());
-        self
-    }
-
-    /// Set an optional session id. Installed as the `X-Session-Id` header when
-    /// present.
-    pub fn session_id(mut self, session_id: impl Into<String>) -> Self {
-        self.session_id = Some(session_id.into());
         self
     }
 
@@ -217,8 +206,8 @@ impl ClientBuilder {
             ..Configuration::default()
         };
 
-        // Scope every request to the workspace (and optionally the session) via
-        // the generated apiKey-header auth blocks.
+        // Scope every request to the workspace via the generated apiKey-header
+        // auth blocks.
         configuration.api_keys.insert(
             WORKSPACE_ID_HEADER.to_owned(),
             ApiKey {
@@ -226,19 +215,6 @@ impl ClientBuilder {
                 key: workspace_id,
             },
         );
-        if let Some(session_id) = self
-            .session_id
-            .clone()
-            .or_else(|| non_empty_env("HOTDATA_SESSION_ID"))
-        {
-            configuration.api_keys.insert(
-                SESSION_ID_HEADER.to_owned(),
-                ApiKey {
-                    prefix: None,
-                    key: session_id,
-                },
-            );
-        }
 
         // Install the transparent api_token -> JWT exchange. The TokenManager
         // reuses the same reqwest client (so TLS/proxy/timeout settings are
@@ -434,9 +410,9 @@ impl Client {
     /// `database_id` selects the database via the `X-Database-Id` header (the
     /// spec lets database scope come from that header OR the `database_id` body
     /// field; pass `None` to use the body field or rely on the default). The
-    /// request is built wire-identically to the generated op (same workspace /
-    /// session scope headers, same bearer auth, same `base_path`/`/v1` join,
-    /// same JSON body) plus the `202` handling.
+    /// request is built wire-identically to the generated op (same workspace
+    /// scope header, same bearer auth, same `base_path`/`/v1` join, same JSON
+    /// body) plus the `202` handling.
     pub async fn submit_query(
         &self,
         request: models::QueryRequest,
@@ -464,14 +440,6 @@ impl Client {
                 None => key,
             };
             req_builder = req_builder.header("X-Workspace-Id", value);
-        };
-        if let Some(apikey) = configuration.api_keys.get("X-Session-Id") {
-            let key = apikey.key.clone();
-            let value = match apikey.prefix {
-                Some(ref prefix) => format!("{} {}", prefix, key),
-                None => key,
-            };
-            req_builder = req_builder.header("X-Session-Id", value);
         };
         if let Some(token) = configuration.resolve_bearer_token().await {
             req_builder = req_builder.bearer_auth(token);
@@ -1012,7 +980,6 @@ mod tests {
             ENV_WORKSPACE_ID,
             ENV_API_URL,
             ENV_TEST_API_URL,
-            "HOTDATA_SESSION_ID",
             "HOTDATA_DISABLE_JWT_EXCHANGE",
         ] {
             env::remove_var(key);
@@ -1485,28 +1452,6 @@ mod tests {
         assert!(matches!(err, ClientError::MissingApiToken));
 
         clear_env();
-    }
-
-    #[test]
-    fn session_id_installed_when_set() {
-        let _g = env_guard();
-        clear_env();
-
-        let client = Client::builder()
-            .api_token("hd_x")
-            .workspace_id("ws_x")
-            .session_id("sess_123")
-            .build()
-            .expect("build ok");
-
-        assert_eq!(
-            client
-                .configuration()
-                .api_keys
-                .get(SESSION_ID_HEADER)
-                .map(|k| k.key.as_str()),
-            Some("sess_123")
-        );
     }
 
     #[test]

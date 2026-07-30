@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **Breaking:** session scoping is gone from the API. `ClientBuilder::session_id`,
+  the `client::SESSION_ID_HEADER` constant, and the `HOTDATA_SESSION_ID`
+  environment variable are removed, and no request sends the `X-Session-Id`
+  header any more. Drop the `.session_id(..)` builder call; nothing replaces it.
+
 ### Changed
 
-- chore(api): stop injecting SessionId into merged spec
 - feat(databases): add search parameter to list endpoint
 
 ## [0.10.0] - 2026-07-23

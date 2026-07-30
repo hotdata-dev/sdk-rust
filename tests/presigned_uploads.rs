@@ -14,8 +14,8 @@
 //! * multipart happy path (slicing by `part_size`, per-part ETag collection,
 //!   ascending finalize parts);
 //! * progress callback monotonicity reaching exactly the file size;
-//! * storage-PUT header isolation (no SDK bearer/workspace/session headers, and
-//!   no default headers leaking off the SDK's main client);
+//! * storage-PUT header isolation (no SDK bearer/workspace headers, and no
+//!   default headers leaking off the SDK's main client);
 //! * finalize exactly-once (no retry) and per-part retry;
 //! * error surfacing (missing ETag, storage 4xx/5xx, finalize failure,
 //!   501 PRESIGN_UNSUPPORTED, malformed sessions);
@@ -31,11 +31,10 @@ use wiremock::matchers::{method, path, path_regex};
 use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
 const WORKSPACE_HEADER: &str = "X-Workspace-Id";
-const SESSION_HEADER: &str = "X-Session-Id";
 
 /// Build a client pointed at the mock server with a static bearer token and the
-/// workspace + session scope headers installed (no JWT-exchange round-trip), so
-/// the upload requests carry exactly the headers a real client would.
+/// workspace scope header installed (no JWT-exchange round-trip), so the upload
+/// requests carry exactly the headers a real client would.
 fn test_client(base_url: &str) -> Client {
     let mut configuration = Configuration {
         base_path: base_url.to_owned(),
@@ -48,13 +47,6 @@ fn test_client(base_url: &str) -> Client {
         ApiKey {
             prefix: None,
             key: "ws_test".to_owned(),
-        },
-    );
-    configuration.api_keys.insert(
-        SESSION_HEADER.to_owned(),
-        ApiKey {
-            prefix: None,
-            key: "sess_test".to_owned(),
         },
     );
     Client::from_configuration(configuration)
@@ -92,12 +84,7 @@ fn temp_file(contents: &[u8]) -> std::path::PathBuf {
 /// A presigned URL self-authorizes; an extra signed-ish header makes S3-style
 /// storage return 403.
 fn assert_no_sdk_headers(req: &Request) {
-    for forbidden in [
-        "authorization",
-        "x-workspace-id",
-        "x-session-id",
-        "x-upload-finalize-token",
-    ] {
+    for forbidden in ["authorization", "x-workspace-id", "x-upload-finalize-token"] {
         assert!(
             req.headers.get(forbidden).is_none(),
             "storage PUT must not carry the `{forbidden}` header, found one"
@@ -492,8 +479,8 @@ async fn progress_callback_reaches_total() {
 #[tokio::test]
 async fn storage_put_header_isolation_negative_check() {
     // A focused negative check on the single-PUT path: the storage PUT must not
-    // carry the SDK bearer or workspace/session scope headers even though the
-    // client is fully configured with all of them.
+    // carry the SDK bearer or workspace scope headers even though the client is
+    // fully configured with all of them.
     let server = MockServer::start().await;
     let storage_url = format!("{}/storage/iso", server.uri());
     let contents = b"isolation bytes";

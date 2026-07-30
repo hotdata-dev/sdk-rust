@@ -61,7 +61,7 @@ use crate::apis::configuration::Configuration;
 use crate::apis::query_api::QueryError as GeneratedQueryError;
 use crate::apis::results_api::GetResultError;
 use crate::apis::{query_runs_api, results_api, Error, ResponseContent};
-use crate::client::{SESSION_ID_HEADER, WORKSPACE_ID_HEADER};
+use crate::client::WORKSPACE_ID_HEADER;
 use crate::http::{backoff_delay, is_pre_response_transport_error, parse_retry_after};
 use crate::models::{AsyncQueryResponse, QueryRequest, QueryResponse, ResultsFormatQuery};
 use crate::status::ResultStatus;
@@ -636,21 +636,19 @@ async fn send_query(
     })
 }
 
-/// Apply the `X-Workspace-Id` / `X-Session-Id` API-key headers, mirroring the
-/// generated op's `isKeyInHeader` blocks.
+/// Apply the `X-Workspace-Id` API-key header, mirroring the generated op's
+/// `isKeyInHeader` block.
 fn apply_apikey_headers(
     mut req_builder: reqwest::RequestBuilder,
     config: &Configuration,
 ) -> reqwest::RequestBuilder {
-    for header in [WORKSPACE_ID_HEADER, SESSION_ID_HEADER] {
-        if let Some(apikey) = config.api_keys.get(header) {
-            let key = apikey.key.clone();
-            let value = match apikey.prefix {
-                Some(ref prefix) => format!("{prefix} {key}"),
-                None => key,
-            };
-            req_builder = req_builder.header(header, value);
-        }
+    if let Some(apikey) = config.api_keys.get(WORKSPACE_ID_HEADER) {
+        let key = apikey.key.clone();
+        let value = match apikey.prefix {
+            Some(ref prefix) => format!("{prefix} {key}"),
+            None => key,
+        };
+        req_builder = req_builder.header(WORKSPACE_ID_HEADER, value);
     }
     req_builder
 }
