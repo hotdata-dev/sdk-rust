@@ -19,11 +19,22 @@ pub struct AddManagedTableDecl {
     pub key: Option<Vec<String>>,
     #[serde(rename = "name")]
     pub name: String,
+    /// Partition keys for this table, applied in order. Omit for no partitioning. Declared when the table is created and fixed thereafter.
+    #[serde(rename = "partition_by", skip_serializing_if = "Option::is_none")]
+    pub partition_by: Option<Vec<models::TablePartitionKey>>,
+    /// Sort keys for this table, applied in order. Omit for no sort order. Declared when the table is created and fixed thereafter.
+    #[serde(rename = "sorted_by", skip_serializing_if = "Option::is_none")]
+    pub sorted_by: Option<Vec<models::TableSortKey>>,
 }
 
 impl AddManagedTableDecl {
     /// One table declaration inside an add-schema request body.
     pub fn new(name: String) -> AddManagedTableDecl {
-        AddManagedTableDecl { key: None, name }
+        AddManagedTableDecl {
+            key: None,
+            name,
+            partition_by: None,
+            sorted_by: None,
+        }
     }
 }
