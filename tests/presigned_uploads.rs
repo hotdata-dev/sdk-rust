@@ -32,9 +32,9 @@ use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
 const WORKSPACE_HEADER: &str = "X-Workspace-Id";
 
-/// Build a client pointed at the mock server with a static bearer token and the
-/// workspace scope header installed (no JWT-exchange round-trip), so the upload
-/// requests carry exactly the headers a real client would.
+/// Build a client pointed at the mock server with a bearer token and the
+/// workspace scope header installed, so the upload requests carry exactly the
+/// headers a real client would.
 fn test_client(base_url: &str) -> Client {
     let mut configuration = Configuration {
         base_path: base_url.to_owned(),

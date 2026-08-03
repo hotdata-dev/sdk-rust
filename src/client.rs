@@ -2,9 +2,9 @@
 //!
 //! This module is regeneration-immune: it is protected by `.openapi-generator-ignore`
 //! and is never emitted by the OpenAPI generator. It wraps the generated
-//! [`Configuration`](crate::apis::configuration::Configuration) and the
-//! hand-written [`TokenManager`](crate::auth::TokenManager) to provide a flat,
-//! low-ceremony surface that mirrors the Python SDK's top-level `hotdata` API.
+//! [`Configuration`](crate::apis::configuration::Configuration) to provide a
+//! flat, low-ceremony surface that mirrors the Python SDK's top-level `hotdata`
+//! API.
 //!
 //! # Example
 //!
@@ -13,7 +13,7 @@
 //!
 //! # async fn run() -> Result<(), Box<dyn std::error::Error>> {
 //! let client = Client::builder()
-//!     .api_token("hd_live_...")          // opaque token, JWT exchange is transparent
+//!     .api_token("hd_live_...")          // sent as the Authorization bearer
 //!     .workspace_id("ws_public_id")      // sets the X-Workspace-Id header
 //!     .build()?;
 //!
@@ -27,22 +27,20 @@ use std::env;
 
 use crate::apis::configuration::{ApiKey, Configuration};
 use crate::apis::{self, Error};
-use crate::auth::{TokenManager, TokenManagerOptions};
 use crate::models;
 use crate::query::{self, QueryConfig};
 
 /// Default API host. Matches the generated `Configuration::default()` base
-/// path and the OpenAPI spec server. The JWT exchange endpoint
-/// (`/v1/auth/jwt`) lives on this API host, so the ergonomic `Client` sets
-/// `base_path` explicitly to keep token exchange routed correctly even if a
-/// caller starts from a `Configuration` with a different host.
+/// path and the OpenAPI spec server. The ergonomic `Client` sets `base_path`
+/// explicitly so a caller that starts from a `Configuration` with a different
+/// host still gets a predictable target.
 pub const DEFAULT_BASE_URL: &str = "https://api.hotdata.dev";
 
 /// Header name used to scope requests to a workspace. Inserted into
 /// `Configuration::api_keys` so the generated apiKey-auth blocks emit it.
 pub const WORKSPACE_ID_HEADER: &str = "X-Workspace-Id";
 
-/// Environment variable holding the API token used for transparent JWT exchange.
+/// Environment variable holding the API token sent as the bearer credential.
 /// Mirrors the Python SDK's `HOTDATA_API_KEY`.
 pub const ENV_API_KEY: &str = "HOTDATA_API_KEY";
 
@@ -98,15 +96,13 @@ pub struct ClientBuilder {
     workspace_id: Option<String>,
     base_url: Option<String>,
     user_agent: Option<String>,
-    client_id: Option<String>,
     reqwest_client: Option<reqwest::Client>,
     query_config: Option<QueryConfig>,
 }
 
 impl ClientBuilder {
-    /// Set the opaque API token (e.g. `hd_live_...`). The token is exchanged for
-    /// a short-lived JWT transparently on the first authenticated request; an
-    /// already-minted JWT (`eyJ...`) is passed through unchanged.
+    /// Set the API token (e.g. `hd_live_...`). It is sent verbatim as the
+    /// `Authorization: Bearer` credential on every request.
     pub fn api_token(mut self, token: impl Into<String>) -> Self {
         self.api_token = Some(token.into());
         self
@@ -133,18 +129,8 @@ impl ClientBuilder {
         self
     }
 
-    /// Override the `client_id` sent with every token-exchange (JWT mint)
-    /// request. Defaults to the SDK's identifier (`hotdata-rust-sdk`). Set this
-    /// so token traffic is attributed to the host application (e.g.
-    /// `hotdata-cli`) rather than the SDK.
-    pub fn client_id(mut self, client_id: impl Into<String>) -> Self {
-        self.client_id = Some(client_id.into());
-        self
-    }
-
     /// Supply a pre-configured `reqwest::Client` (custom TLS, proxy, timeouts,
-    /// connection pool, etc.). The same client is reused for both API calls and
-    /// the out-of-band JWT exchange so transport settings are shared.
+    /// connection pool, etc.). It is used for every request the SDK makes.
     pub fn reqwest_client(mut self, client: reqwest::Client) -> Self {
         self.reqwest_client = Some(client);
         self
@@ -200,9 +186,13 @@ impl ClientBuilder {
             .unwrap_or_else(|| format!("hotdata-rust/{}", env!("CARGO_PKG_VERSION")));
 
         let mut configuration = Configuration {
-            base_path: base_path.clone(),
+            base_path,
             user_agent: Some(user_agent),
-            client: http_client.clone(),
+            client: http_client,
+            // The API token authenticates every request directly: it is sent
+            // verbatim as the `Authorization: Bearer` credential by the
+            // generated ops and the hand-written request builders.
+            bearer_access_token: Some(api_token),
             ..Configuration::default()
         };
 
@@ -216,26 +206,6 @@ impl ClientBuilder {
             },
         );
 
-        // Install the transparent api_token -> JWT exchange. The TokenManager
-        // reuses the same reqwest client (so TLS/proxy/timeout settings are
-        // shared) and the resolved base path (so the JWT mint targets the API
-        // host, honoring any test override). A caller-supplied client_id
-        // attributes the token traffic to the host app; otherwise the SDK
-        // default applies.
-        let token_manager = TokenManager::with_options(
-            api_token,
-            http_client,
-            TokenManagerOptions {
-                base_path,
-                client_id: self
-                    .client_id
-                    .clone()
-                    .unwrap_or_else(|| TokenManagerOptions::default().client_id),
-                ..TokenManagerOptions::default()
-            },
-        );
-        configuration.token_provider = Some(std::sync::Arc::new(token_manager));
-
         Ok(Client {
             configuration,
             query_config: self.query_config.unwrap_or_default(),
@@ -245,8 +215,8 @@ impl ClientBuilder {
 
 /// Flat, ergonomic HotData client.
 ///
-/// Wraps a generated [`Configuration`] with transparent JWT exchange and a
-/// workspace-scoped header. Common operations are exposed as thin async
+/// Wraps a generated [`Configuration`] with the API-token bearer credential and
+/// a workspace-scoped header. Common operations are exposed as thin async
 /// pass-throughs; for the full generated surface use
 /// [`Client::configuration`] with any `hotdata::apis::*_api::*` free function.
 #[derive(Debug, Clone)]
@@ -441,8 +411,8 @@ impl Client {
             };
             req_builder = req_builder.header("X-Workspace-Id", value);
         };
-        if let Some(token) = configuration.resolve_bearer_token().await {
-            req_builder = req_builder.bearer_auth(token);
+        if let Some(ref token) = configuration.bearer_access_token {
+            req_builder = req_builder.bearer_auth(token.to_owned());
         };
         req_builder = req_builder.json(&request);
 
@@ -975,34 +945,27 @@ mod tests {
     }
 
     fn clear_env() {
-        for key in [
-            ENV_API_KEY,
-            ENV_WORKSPACE_ID,
-            ENV_API_URL,
-            ENV_TEST_API_URL,
-            "HOTDATA_DISABLE_JWT_EXCHANGE",
-        ] {
+        for key in [ENV_API_KEY, ENV_WORKSPACE_ID, ENV_API_URL, ENV_TEST_API_URL] {
             env::remove_var(key);
         }
     }
 
-    /// The builder's `client_id` override must reach the token-exchange wire so
-    /// host apps (e.g. the CLI) attribute their token traffic correctly.
+    /// The builder's API token must be sent verbatim as the `Authorization`
+    /// bearer credential — no token-exchange round trip, no other host.
     #[tokio::test]
-    async fn builder_client_id_attributes_token_traffic() {
-        use wiremock::matchers::{body_string_contains, method, path};
+    async fn builder_api_token_is_sent_as_bearer() {
+        use wiremock::matchers::{header, method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let _g = env_guard();
         clear_env();
         let server = MockServer::start().await;
-        Mock::given(method("POST"))
-            .and(path("/v1/auth/jwt"))
-            .and(body_string_contains("client_id=hotdata-cli"))
+        Mock::given(method("GET"))
+            .and(path("/v1/databases"))
+            .and(header("Authorization", "Bearer hd_opaque"))
+            .and(header("X-Workspace-Id", "ws_x"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "access_token": "minted-jwt",
-                "expires_in": 300,
-                "refresh_token": "r1"
+                "databases": [],
             })))
             .mount(&server)
             .await;
@@ -1010,23 +973,27 @@ mod tests {
         let client = Client::builder()
             .api_token("hd_opaque")
             .workspace_id("ws_x")
-            .client_id("hotdata-cli")
             .base_url(server.uri())
             .build()
             .expect("build should succeed");
 
-        // Driving the token provider forces a mint; the mock only matches when
-        // the body carries client_id=hotdata-cli, so a None here means the
-        // override did not reach the wire.
-        let bearer = client.configuration().resolve_bearer_token().await;
-        assert_eq!(bearer.as_deref(), Some("minted-jwt"));
+        // The mock only matches when the raw API token arrives as the bearer,
+        // so a successful call proves it reached the wire unexchanged.
+        client
+            .databases()
+            .list(None, None, None)
+            .await
+            .expect("list_databases should succeed with the API token as bearer");
+
+        // Exactly one request: the API call itself. A token-exchange round trip
+        // would show up as an extra request here.
+        assert_eq!(server.received_requests().await.unwrap().len(), 1);
 
         clear_env();
     }
 
     /// Helper: build a client pointed at a wiremock server with a static bearer
-    /// token (no JWT-exchange round-trip), so query tests assert on the
-    /// `/v1/query` request directly.
+    /// token, so query tests assert on the `/v1/query` request directly.
     fn query_test_client(base_url: &str) -> Client {
         let mut configuration = Configuration {
             base_path: base_url.to_owned(),
@@ -1329,9 +1296,10 @@ mod tests {
                 .map(|k| k.key.as_str()),
             Some("ws_explicit")
         );
-        assert!(
-            config.token_provider.is_some(),
-            "a token provider must be installed"
+        assert_eq!(
+            config.bearer_access_token.as_deref(),
+            Some("hd_explicit"),
+            "the API token must be installed as the bearer credential"
         );
     }
 
@@ -1352,6 +1320,11 @@ mod tests {
                 .map(|k| k.key.as_str()),
             Some("ws_from_env")
         );
+        assert_eq!(
+            config.bearer_access_token.as_deref(),
+            Some("hd_from_env"),
+            "the env API token must become the bearer credential"
+        );
         // Default base URL when nothing overrides it.
         assert_eq!(config.base_path, DEFAULT_BASE_URL);
 
@@ -1365,7 +1338,7 @@ mod tests {
         env::set_var(ENV_API_KEY, "hd_from_env");
         env::set_var(ENV_WORKSPACE_ID, "ws_from_env");
 
-        // Explicit workspace should override the env one; token still resolves.
+        // Explicit values should override the env ones.
         let client = Client::builder()
             .api_token("hd_explicit")
             .workspace_id("ws_explicit")
@@ -1379,6 +1352,10 @@ mod tests {
                 .get(WORKSPACE_ID_HEADER)
                 .map(|k| k.key.as_str()),
             Some("ws_explicit")
+        );
+        assert_eq!(
+            client.configuration().bearer_access_token.as_deref(),
+            Some("hd_explicit")
         );
 
         clear_env();

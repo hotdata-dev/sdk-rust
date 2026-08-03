@@ -2,7 +2,7 @@
 
 Official Rust client for the [Hotdata](https://www.hotdata.dev) HTTP API: workspaces, connections, databases, SQL queries, results, secrets, uploads, indexes, jobs, embedding providers, and workspace context.
 
-The crate pairs a fully generated, typed API surface (`hotdata::apis`, `hotdata::models`) with a hand-written ergonomic layer: a flat [`Client`](#quickstart) that handles transparent API-token to JWT exchange, plus an optional Apache Arrow result decoder.
+The crate pairs a fully generated, typed API surface (`hotdata::apis`, `hotdata::models`) with a hand-written ergonomic layer: a flat [`Client`](#quickstart) that wires up authentication and workspace scoping, plus an optional Apache Arrow result decoder.
 
 ## Requirements
 
@@ -36,9 +36,9 @@ hotdata = { version = "0.1", default-features = false, features = ["rustls"] }
 
 The API authenticates with an **API token** sent as `Authorization: Bearer <token>`, plus an **`X-Workspace-Id`** header on requests scoped to a workspace.
 
-API tokens (prefixed `hd_`) are exchanged transparently for short-lived JWTs the first time a request is made, and the JWT is cached and refreshed automatically. You only ever supply the API token — the `Client` does the exchange against `/v1/auth/jwt` for you, mirroring the [Hotdata CLI](https://github.com/hotdata-dev/hotdata-cli).
+Your API token (prefixed `hd_`) is the only credential you need. It is sent verbatim as the bearer token on every request — there is nothing to exchange, refresh, or cache.
 
-If you already hold a JWT (a value beginning with `eyJ`), it is passed through unchanged with no exchange. To disable the exchange entirely, set `HOTDATA_DISABLE_JWT_EXCHANGE` to `1`, `true`, `yes`, or `on`.
+> **Deprecated and removed.** Earlier versions exchanged the API token for a short-lived JWT against `/v1/auth/jwt` and refreshed it in the background. That exchange, the `hotdata::auth` module (`TokenManager`, `BearerTokenProvider`), `Configuration::token_provider`, `Configuration::resolve_bearer_token`, `ClientBuilder::client_id`, and the `HOTDATA_DISABLE_JWT_EXCHANGE` escape hatch are all gone — see the [CHANGELOG](CHANGELOG.md). If you passed an API token to `ClientBuilder::api_token`, nothing changes for you.
 
 ```rust
 use hotdata::prelude::*;
@@ -214,7 +214,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-Both methods accept `offset` and `limit` for pagination, and both honor the transparent JWT exchange. They return `ArrowError::NotReady` if the result is still pending or processing — poll `client.get_result(result_id, database_id)` until its status is `ready` first. `ArrowResult` also surfaces the `X-Total-Row-Count` header (`total_row_count`) and the `rel="next"` pagination `Link` (`next_link`).
+Both methods accept `offset` and `limit` for pagination, and both carry the same authentication and workspace headers as the generated operations. They return `ArrowError::NotReady` if the result is still pending or processing — poll `client.get_result(result_id, database_id)` until its status is `ready` first. `ArrowResult` also surfaces the `X-Total-Row-Count` header (`total_row_count`) and the `rel="next"` pagination `Link` (`next_link`).
 
 To run a query and get its result as Arrow in a single call — submit, await
 `ready`, and decode — use `query_to_arrow`:
@@ -233,7 +233,7 @@ let arrow = client
 
 ## Debug logging
 
-Every HTTP call the SDK makes — generated operations and the hand-written `submit_query`, `upload_file`, Arrow fetch, and JWT mint — emits `log::debug!` records on the `hotdata::http` target: the request (`>>> METHOD url`, headers, body) and the response (`<<< status`, body). `Authorization` bearer tokens and sensitive body fields (`api_token`, `secret`, `password`, …) are masked before logging.
+Every HTTP call the SDK makes — generated operations and the hand-written `submit_query`, `upload_file`, and Arrow fetch — emits `log::debug!` records on the `hotdata::http` target: the request (`>>> METHOD url`, headers, body) and the response (`<<< status`, body). `Authorization` bearer tokens and sensitive body fields (`api_token`, `secret`, `password`, …) are masked before logging.
 
 The SDK installs no logger and prints nothing on its own. To see the records, wire any [`log`](https://docs.rs/log) backend and enable the `hotdata::http` target at debug level. For example with [`env_logger`](https://docs.rs/env_logger):
 

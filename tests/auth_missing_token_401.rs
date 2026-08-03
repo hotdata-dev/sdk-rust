@@ -3,7 +3,7 @@
 //! Calls without a bearer token return 401 with the documented
 //! ApiErrorResponse shape. Uses an unauthenticated `Configuration` built
 //! locally — does not go through the ergonomic `Client` (which always installs
-//! a token provider).
+//! the API token as the bearer credential).
 //!
 //! Although this scenario sends no credentials, it still gates on the standard
 //! test env (like sdk-python's `env` fixture) so `cargo test` with no secrets

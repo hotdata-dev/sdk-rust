@@ -9,9 +9,9 @@
 //!   4. fetches that result as Arrow record batches (behind the `arrow` feature),
 //!   5. shows the one-call `query_to_arrow` shortcut.
 //!
-//! Transparent JWT exchange is automatic: you pass the opaque `hd_...` API
-//! token and the SDK mints/refreshes a short-lived JWT behind the scenes on the
-//! first authenticated request. There is nothing to call and nothing to cache.
+//! Authentication is a single credential: you pass your `hd_...` API token and
+//! the SDK sends it as the `Authorization: Bearer` header on every request.
+//! There is nothing to exchange, refresh, or cache.
 //!
 //! ## Running
 //!
@@ -73,8 +73,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     //
     // `client.<resource>()` returns a handle that hides the `&Configuration`
     // plumbing, so you never reach for `hotdata::apis::*_api` free functions.
-    // The first authenticated call transparently exchanges the API token for a
-    // JWT; subsequent calls reuse the cached token until it nears expiry.
+    // Every call carries the API token as its bearer credential.
     let workspaces = client.workspaces().list(None).await?;
     println!("Visible workspaces ({}):", workspaces.workspaces.len());
     for ws in &workspaces.workspaces {

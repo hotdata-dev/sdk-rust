@@ -74,8 +74,8 @@ pub async fn create_upload_session_handler(
         };
         req_builder = req_builder.header("X-Workspace-Id", value);
     };
-    if let Some(token) = configuration.resolve_bearer_token().await {
-        req_builder = req_builder.bearer_auth(token);
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
     };
     req_builder = req_builder.json(&p_body_create_upload_request);
 
@@ -140,8 +140,8 @@ pub async fn create_upload_sessions_batch_handler(
         };
         req_builder = req_builder.header("X-Workspace-Id", value);
     };
-    if let Some(token) = configuration.resolve_bearer_token().await {
-        req_builder = req_builder.bearer_auth(token);
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
     };
     req_builder = req_builder.json(&p_body_batch_create_upload_request);
 
@@ -219,8 +219,8 @@ pub async fn finalize_upload_handler(
         };
         req_builder = req_builder.header("X-Workspace-Id", value);
     };
-    if let Some(token) = configuration.resolve_bearer_token().await {
-        req_builder = req_builder.bearer_auth(token);
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
     };
     req_builder = req_builder.json(&p_body_finalize_upload_request);
 
@@ -297,8 +297,8 @@ pub async fn mint_upload_parts_handler(
         };
         req_builder = req_builder.header("X-Workspace-Id", value);
     };
-    if let Some(token) = configuration.resolve_bearer_token().await {
-        req_builder = req_builder.bearer_auth(token);
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
     };
     req_builder = req_builder.json(&p_body_mint_upload_parts_request);
 
