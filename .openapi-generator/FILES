@@ -115,9 +115,11 @@ docs/SecretMetadataResponse.md
 docs/SecretsApi.md
 docs/SubmitJobResponse.md
 docs/TableInfo.md
+docs/TablePartitionKey.md
 docs/TableProfileResponse.md
 docs/TableRefreshError.md
 docs/TableRefreshResult.md
+docs/TableSortKey.md
 docs/TemporalProfileDetail.md
 docs/TextProfileDetail.md
 docs/UpdateEmbeddingProviderRequest.md
@@ -256,9 +258,11 @@ src/models/schema_refresh_result.rs
 src/models/secret_metadata_response.rs
 src/models/submit_job_response.rs
 src/models/table_info.rs
+src/models/table_partition_key.rs
 src/models/table_profile_response.rs
 src/models/table_refresh_error.rs
 src/models/table_refresh_result.rs
+src/models/table_sort_key.rs
 src/models/temporal_profile_detail.rs
 src/models/text_profile_detail.rs
 src/models/update_embedding_provider_request.rs
