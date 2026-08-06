@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 pub struct TableSortKey {
     #[serde(rename = "column")]
     pub column: String,
-    /// `asc` (the default) or `desc`.
+    /// `asc` (the default) or `desc`. Null when the table was declared without an explicit direction for this key.
     #[serde(
         rename = "direction",
         default,
@@ -24,7 +24,7 @@ pub struct TableSortKey {
         skip_serializing_if = "Option::is_none"
     )]
     pub direction: Option<Option<String>>,
-    /// Where nulls are placed: `first` or `last`. Defaults to the SQL default for the chosen direction.
+    /// Where nulls are placed: `first` or `last`. Defaults to the SQL default for the chosen direction. Null when the table was declared without an explicit placement for this key.
     #[serde(
         rename = "nulls",
         default,
