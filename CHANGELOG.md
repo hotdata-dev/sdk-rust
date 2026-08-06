@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- chore: clarify sort and partition semantics in table schemas
 - feat(tables): add partition_by and sorted_by configuration
 - `QueryRunInfo::user_public_id` now reports the caller's stable account id (the
   access token's subject) instead of a fingerprint of the bearer token, which
