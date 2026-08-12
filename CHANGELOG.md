@@ -17,6 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - feat(databases): add bulk operations and count endpoint
+- **Breaking:** `list_databases` and `Databases::list` take a `batch` parameter,
+  narrowing the listing to one bulk-creation batch; existing callers must pass
+  an extra `None`.
+- `Databases::count` wraps `GET /v1/databases/count` and returns the number of
+  databases in the workspace across every page. Note this is not the listing's
+  `count` field, which reports how many rows a single page returned — totalling
+  a workspace from the listing means walking every page, and pages cap at 100.
 - chore: clarify sort and partition semantics in table schemas
 - feat(tables): add partition_by and sorted_by configuration
 - `QueryRunInfo::user_public_id` now reports the caller's stable account id (the
