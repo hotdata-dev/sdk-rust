@@ -5,6 +5,7 @@
 | Name | Value |
 |---- | -----|
 | Noop | noop |
+| BulkCreateDatabases | bulk_create_databases |
 | DataRefreshTable | data_refresh_table |
 | DataRefreshConnection | data_refresh_connection |
 | CreateIndex | create_index |
@@ -14,6 +15,8 @@
 | ResultDeletion | result_deletion |
 | StaleResultCleanup | stale_result_cleanup |
 | ResultRetention | result_retention |
+| DucklakeCompaction | ducklake_compaction |
+| DucklakeTableCompaction | ducklake_table_compaction |
 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
