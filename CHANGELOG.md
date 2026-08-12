@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [0.11.0] - 2026-08-12
+
 ### Removed
 
 - **Breaking:** session scoping is gone from the API. `ClientBuilder::session_id`,
