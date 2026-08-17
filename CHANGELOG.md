@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- feat(loads): support inline csv data in table load requests
 
 ## [0.11.0] - 2026-08-12
 

@@ -13,6 +13,7 @@ docs/BulkCreateDatabasesRequest.md
 docs/BulkCreateDatabasesResult.md
 docs/CategoricalProfileDetail.md
 docs/CategoryValueInfo.md
+docs/ColumnDefinition.md
 docs/ColumnInfo.md
 docs/ColumnProfileDetail.md
 docs/ColumnProfileDetailOneOf.md
@@ -21,6 +22,7 @@ docs/ColumnProfileDetailOneOf2.md
 docs/ColumnProfileDetailOneOf3.md
 docs/ColumnProfileDetailOneOf4.md
 docs/ColumnProfileInfo.md
+docs/ColumnTypeSpec.md
 docs/ConnectionHealthResponse.md
 docs/ConnectionInfo.md
 docs/ConnectionRefreshResult.md
@@ -174,6 +176,7 @@ src/models/bulk_create_databases_request.rs
 src/models/bulk_create_databases_result.rs
 src/models/categorical_profile_detail.rs
 src/models/category_value_info.rs
+src/models/column_definition.rs
 src/models/column_info.rs
 src/models/column_profile_detail.rs
 src/models/column_profile_detail_one_of.rs
@@ -182,6 +185,7 @@ src/models/column_profile_detail_one_of_2.rs
 src/models/column_profile_detail_one_of_3.rs
 src/models/column_profile_detail_one_of_4.rs
 src/models/column_profile_info.rs
+src/models/column_type_spec.rs
 src/models/connection_health_response.rs
 src/models/connection_info.rs
 src/models/connection_refresh_result.rs
