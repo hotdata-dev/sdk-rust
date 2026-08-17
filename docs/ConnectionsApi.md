@@ -13,7 +13,7 @@ Method | HTTP request | Description
 [**get_connection**](ConnectionsApi.md#get_connection) | **GET** /v1/connections/{connection_id} | Get connection
 [**get_table_profile**](ConnectionsApi.md#get_table_profile) | **GET** /v1/connections/{connection_id}/tables/{schema}/{table}/profile | Get table profile
 [**list_connections**](ConnectionsApi.md#list_connections) | **GET** /v1/connections | List connections
-[**load_managed_table**](ConnectionsApi.md#load_managed_table) | **POST** /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads | Load managed table from upload or query result
+[**load_managed_table**](ConnectionsApi.md#load_managed_table) | **POST** /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads | Load managed table from inline data, upload, or query result
 [**purge_connection_cache**](ConnectionsApi.md#purge_connection_cache) | **DELETE** /v1/connections/{connection_id}/cache | Purge connection cache
 [**purge_table_cache**](ConnectionsApi.md#purge_table_cache) | **DELETE** /v1/connections/{connection_id}/tables/{schema}/{table}/cache | Purge table cache
 
@@ -296,9 +296,9 @@ This endpoint does not need any parameter.
 ## load_managed_table
 
 > models::LoadManagedTableResponse load_managed_table(connection_id, schema, table, load_managed_table_request)
-Load managed table from upload or query result
+Load managed table from inline data, upload, or query result
 
-Publish data as the new contents of a managed table from one of two sources — provide exactly one. With `upload_id`, a previously-uploaded file is published: CSV, JSON, and Parquet are supported; the format is auto-detected from the upload's `Content-Type` and file contents, or set explicitly via the `format` field. With `result_id`, a persisted query result is copied into the table, so the table keeps its data even after the result expires; a result can be loaded into any number of tables. If the target table (or its schema) has not been declared yet, it is created automatically as part of the load — declaring tables up front is optional. `mode` selects how the data is applied: `replace` overwrites the table's contents, `append` inserts the new rows on top of the existing data. Concurrent loads against the same upload return 409. For an upload, set `async` to run the load in the background and get back a job ID to poll; add `async_after_ms` to wait briefly for it to finish before falling back to a job ID. A `result_id` load runs synchronously.
+Publish data as the new contents of a managed table from one of three sources — provide exactly one. With `data`, CSV text is sent inline in this request, up to 2 MiB; column types are detected from the data unless `columns` declares them, and a larger payload is rejected with 413 and the error code `INLINE_DATA_TOO_LARGE`, at which point the data should be uploaded and loaded by `upload_id` instead. With `upload_id`, a previously-uploaded file is published: CSV, JSON, and Parquet are supported; the format is auto-detected from the upload's `Content-Type` and file contents, or set explicitly via the `format` field. With `result_id`, a persisted query result is copied into the table, so the table keeps its data even after the result expires; a result can be loaded into any number of tables. If the target table (or its schema) has not been declared yet, it is created automatically as part of the load — declaring tables up front is optional. `mode` selects how the data is applied: `replace` overwrites the table's contents, `append` inserts the new rows on top of the existing data. Concurrent loads against the same upload return 409. For an upload or inline data, set `async` to run the load in the background and get back a job ID to poll; add `async_after_ms` to wait briefly for it to finish before falling back to a job ID. A `result_id` load runs synchronously.
 
 ### Parameters
 
