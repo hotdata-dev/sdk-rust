@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **Breaking:** the API-token to JWT key exchange is deprecated and removed.
+  Clients now authenticate with the API token itself, sent verbatim as
+  `Authorization: Bearer <token>`; the SDK no longer calls `/v1/auth/jwt`, mints
+  or refreshes short-lived JWTs, or holds a refresh token. This drops the whole
+  `hotdata::auth` module (`TokenManager`, `TokenManagerOptions`,
+  `BearerTokenProvider`, `TokenExchangeError`, `PersistCallback`, `CLIENT_ID`),
+  the `Configuration::token_provider` field, the
+  `Configuration::resolve_bearer_token` method, `ClientBuilder::client_id`, and
+  the `HOTDATA_DISABLE_JWT_EXCHANGE` opt-out. `ClientBuilder::api_token` now
+  installs the token as `Configuration::bearer_access_token`; callers that only
+  used the builder need no changes. Code that installed a custom
+  `BearerTokenProvider` should set `bearer_access_token` directly instead.
+
 ### Changed
 
 - feat(loads): add idempotency_key to load requests

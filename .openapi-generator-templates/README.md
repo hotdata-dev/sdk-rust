@@ -10,6 +10,15 @@ These templates replace that field with `api_keys: HashMap<String, ApiKey>`
 keyed by header name, and change the per-operation header-emission code
 to look up the right scheme: `configuration.api_keys.get("X-Workspace-Id")`.
 
+## Bearer auth
+
+Bearer auth uses the stock upstream emission: the API token is set on
+`Configuration.bearer_access_token` and sent verbatim as
+`Authorization: Bearer <token>` by every generated op. These templates
+previously routed it through a pluggable async token provider to exchange the
+API token for a short-lived JWT; that exchange is gone, so nothing here
+overrides the upstream bearer blocks anymore.
+
 ## Debug-logging hook (`api.mustache`)
 
 Every generated op emits `crate::http_log::log_request(&req)` after building

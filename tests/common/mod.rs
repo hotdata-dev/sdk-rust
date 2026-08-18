@@ -41,9 +41,8 @@ pub fn test_http_client() -> reqwest::Client {
         .expect("building the test reqwest client should not fail")
 }
 
-/// Default API host. The auth-token -> JWT exchange and every endpoint live on
-/// the API host, so the ergonomic `Client` always points here unless overridden
-/// by `HOTDATA_SDK_TEST_API_URL`.
+/// Default API host. Every endpoint lives on the API host, so the ergonomic
+/// `Client` always points here unless overridden by `HOTDATA_SDK_TEST_API_URL`.
 pub const DEFAULT_API_URL: &str = "https://api.hotdata.dev";
 
 /// Resolved test environment. Mirrors sdk-python's `TestEnv` dataclass.

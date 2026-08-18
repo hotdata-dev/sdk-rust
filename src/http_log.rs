@@ -4,9 +4,8 @@
 //! through this module: the generated free functions in `apis::*` (via the
 //! `api.mustache` template), and the hand-written ergonomic layer —
 //! [`Client::submit_query`](crate::client::Client::submit_query),
-//! [`Client::upload_file`](crate::client::Client::upload_file), the Arrow
-//! result fetch in [`crate::arrow`], and the API-token -> JWT mint in
-//! [`crate::auth`]. Each emits `log::debug!` records on the [`TARGET`]
+//! [`Client::upload_file`](crate::client::Client::upload_file), and the Arrow
+//! result fetch in [`crate::arrow`]. Each emits `log::debug!` records on the [`TARGET`]
 //! (`hotdata::http`) target so a host can switch them on with any `log` backend
 //! and render them however it likes (e.g. the CLI's `--debug` flag, which maps
 //! this target to its `>>> METHOD url` / `<<< status` output).
@@ -368,10 +367,10 @@ mod tests {
 
     #[test]
     fn form_body_masks_sensitive_fields() {
-        let body = "grant_type=api_token&api_token=hd_0123456789abcdef&client_id=hotdata-rust-sdk";
+        let body = "name=prod-postgres&api_token=hd_0123456789abcdef&type=postgres";
         let out = redact_body(body.as_bytes());
-        assert!(out.contains("grant_type=api_token"));
-        assert!(out.contains("client_id=hotdata-rust-sdk"));
+        assert!(out.contains("name=prod-postgres"));
+        assert!(out.contains("type=postgres"));
         assert!(out.contains("api_token=hd_0...cdef"));
         assert!(!out.contains("hd_0123456789abcdef"));
     }
