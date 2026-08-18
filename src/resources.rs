@@ -255,16 +255,34 @@ impl<'a> DatabasesApi<'a> {
     }
 
     /// List databases, newest first, one keyset page at a time. Pass `cursor`
-    /// (from a previous response's `next_cursor`) to fetch the next page, and
+    /// (from a previous response's `next_cursor`) to fetch the next page,
     /// `search` to return only databases whose name contains that text
-    /// (case-insensitive).
+    /// (case-insensitive), and `batch` to list only the databases belonging to
+    /// one bulk-creation batch.
     pub async fn list(
         &self,
         limit: Option<i32>,
         cursor: Option<&str>,
         search: Option<&str>,
+        batch: Option<&str>,
     ) -> Result<models::ListDatabasesResponse, Error<apis::databases_api::ListDatabasesError>> {
-        apis::databases_api::list_databases(self.config, limit, cursor, search).await
+        apis::databases_api::list_databases(self.config, limit, cursor, search, batch).await
+    }
+
+    /// Total number of databases in the workspace, across every page `list`
+    /// would return.
+    ///
+    /// The listing's `count` field is the size of one page; this is the
+    /// whole-workspace total in a single call. `search` and `batch` mean
+    /// exactly what they mean on `list`, so a count and a listing given the
+    /// same filters describe the same set.
+    pub async fn count(
+        &self,
+        search: Option<&str>,
+        batch: Option<&str>,
+    ) -> Result<models::DatabaseCountResponse, Error<apis::databases_api::CountDatabasesError>>
+    {
+        apis::databases_api::count_databases(self.config, search, batch).await
     }
 
     /// Delete a database by id.

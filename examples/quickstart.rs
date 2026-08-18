@@ -194,7 +194,7 @@ async fn resolve_database_id(client: &Client) -> Result<Option<String>, Box<dyn 
             return Ok(Some(id));
         }
     }
-    let databases = client.databases().list(None, None, None).await?;
+    let databases = client.databases().list(None, None, None, None).await?;
     Ok(databases.databases.into_iter().next().map(|db| db.id))
 }
 

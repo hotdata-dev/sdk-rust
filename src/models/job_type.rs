@@ -17,6 +17,8 @@ use serde::{Deserialize, Serialize};
 pub enum JobType {
     #[serde(rename = "noop")]
     Noop,
+    #[serde(rename = "bulk_create_databases")]
+    BulkCreateDatabases,
     #[serde(rename = "data_refresh_table")]
     DataRefreshTable,
     #[serde(rename = "data_refresh_connection")]
@@ -35,12 +37,17 @@ pub enum JobType {
     StaleResultCleanup,
     #[serde(rename = "result_retention")]
     ResultRetention,
+    #[serde(rename = "ducklake_compaction")]
+    DucklakeCompaction,
+    #[serde(rename = "ducklake_table_compaction")]
+    DucklakeTableCompaction,
 }
 
 impl std::fmt::Display for JobType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::Noop => write!(f, "noop"),
+            Self::BulkCreateDatabases => write!(f, "bulk_create_databases"),
             Self::DataRefreshTable => write!(f, "data_refresh_table"),
             Self::DataRefreshConnection => write!(f, "data_refresh_connection"),
             Self::CreateIndex => write!(f, "create_index"),
@@ -50,6 +57,8 @@ impl std::fmt::Display for JobType {
             Self::ResultDeletion => write!(f, "result_deletion"),
             Self::StaleResultCleanup => write!(f, "stale_result_cleanup"),
             Self::ResultRetention => write!(f, "result_retention"),
+            Self::DucklakeCompaction => write!(f, "ducklake_compaction"),
+            Self::DucklakeTableCompaction => write!(f, "ducklake_table_compaction"),
         }
     }
 }
