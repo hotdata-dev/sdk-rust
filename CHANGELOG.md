@@ -7,13 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- feat(loads): add idempotency_key to load requests
-- feat(loads): support inline csv data in table load requests
-
-## [0.11.0] - 2026-08-12
-
 ### Removed
 
 - **Breaking:** the API-token to JWT key exchange is deprecated and removed.
@@ -28,6 +21,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   installs the token as `Configuration::bearer_access_token`; callers that only
   used the builder need no changes. Code that installed a custom
   `BearerTokenProvider` should set `bearer_access_token` directly instead.
+
+### Changed
+
+- feat(loads): add idempotency_key to load requests
+- feat(loads): support inline csv data in table load requests
+
+## [0.11.0] - 2026-08-12
+
+### Removed
+
 - **Breaking:** session scoping is gone from the API. `ClientBuilder::session_id`,
   the `client::SESSION_ID_HEADER` constant, and the `HOTDATA_SESSION_ID`
   environment variable are removed, and no request sends the `X-Session-Id`
