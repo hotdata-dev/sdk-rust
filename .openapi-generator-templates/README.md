@@ -12,12 +12,16 @@ to look up the right scheme: `configuration.api_keys.get("X-Workspace-Id")`.
 
 ## Bearer auth
 
-Bearer auth uses the stock upstream emission: the API token is set on
-`Configuration.bearer_access_token` and sent verbatim as
-`Authorization: Bearer <token>` by every generated op. These templates
-previously routed it through a pluggable async token provider to exchange the
-API token for a short-lived JWT; that exchange is gone, so nothing here
-overrides the upstream bearer blocks anymore.
+The stock upstream templates read `Configuration.bearer_access_token` directly
+at every bearer-auth site, so the credential is fixed for the lifetime of the
+`Configuration`. These templates route it through
+`Configuration::resolve_bearer_token().await` instead, which prefers an
+optional `token_provider` (`Option<Arc<dyn crate::auth::BearerTokenProvider>>`)
+and falls back to `bearer_access_token` when none is installed. That lets a host
+which owns its own credential lifecycle — e.g. the CLI's short-lived PKCE access
+token — supply a fresh bearer per request instead of one baked in at `Client`
+construction. Nothing is exchanged: the provider is a hook, not a token
+exchange.
 
 ## Debug-logging hook (`api.mustache`)
 

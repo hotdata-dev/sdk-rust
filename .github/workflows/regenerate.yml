@@ -56,7 +56,7 @@ jobs:
           python3 scripts/normalize-openapi.py openapi.yaml
 
       # Targeted clean: delete ONLY generator-owned subtrees. The hand-written
-      # ergonomic layer (src/lib.rs, src/arrow.rs, src/client.rs)
+      # ergonomic layer (src/lib.rs, src/auth.rs, src/arrow.rs, src/client.rs)
       # is preserved here and additionally protected by .openapi-generator-ignore
       # so the generator re-emits src/apis and src/models in place without
       # clobbering the regen-immune modules or Cargo.toml.
@@ -158,15 +158,16 @@ jobs:
 
       # Regen-safety guard (the Rust analog of sdk-python's AST check). Fails the
       # build loudly if the generator clobbered the hand-written ergonomic layer
-      # or if the bearer/logging template hooks were dropped or renamed by a
-      # future generator version. Runs BEFORE cargo check so the failure is precise.
+      # or if the bearer-provider/logging template hooks were dropped or renamed
+      # by a future generator version. Runs BEFORE cargo check so the failure is
+      # precise.
       - name: Verify ergonomic layer survived regen
         run: |
           set -euo pipefail
           fail=0
 
           # 1. Hand-written, regen-immune modules must exist.
-          for f in src/lib.rs src/arrow.rs src/client.rs src/resources.rs src/field.rs src/status.rs src/http_log.rs; do
+          for f in src/lib.rs src/auth.rs src/arrow.rs src/client.rs src/resources.rs src/field.rs src/status.rs src/http_log.rs; do
             if [ ! -f "$f" ]; then
               echo "::error::$f is missing (regen clobbered the ergonomic layer)"
               fail=1
@@ -174,7 +175,7 @@ jobs:
           done
 
           # 2. lib.rs must still wire the hand-written modules.
-          for decl in 'pub mod client;' 'pub mod arrow;' 'pub mod resources;' 'pub mod field;' 'pub mod status;' 'pub mod http_log;'; do
+          for decl in 'pub mod auth;' 'pub mod client;' 'pub mod arrow;' 'pub mod resources;' 'pub mod field;' 'pub mod status;' 'pub mod http_log;'; do
             if ! grep -q "$decl" src/lib.rs; then
               echo "::error::src/lib.rs no longer declares '$decl'"
               fail=1
@@ -182,31 +183,47 @@ jobs:
           done
 
           # 3. lib.rs must still re-export the ergonomic surface.
+          if ! grep -Eq 'pub use (crate::)?auth::' src/lib.rs; then
+            echo "::error::src/lib.rs no longer re-exports the auth surface"
+            fail=1
+          fi
           if ! grep -Eq 'pub use (crate::)?client::' src/lib.rs; then
             echo "::error::src/lib.rs no longer re-exports the client surface"
             fail=1
           fi
 
-          # 4. The API-token bearer auth must still be emitted. Clients
-          #    authenticate with the API token sent directly as the
-          #    `Authorization: Bearer` credential (`bearer_access_token`), so a
-          #    generator change that drops the field or the per-op auth block
-          #    would silently produce unauthenticated requests.
+          # 4. The custom bearer emission must have survived the generator.
+          #    configuration.mustache emits `token_provider` +
+          #    `resolve_bearer_token` on `Configuration`; api.mustache calls
+          #    `resolve_bearer_token().await` at every bearer-auth site so a host
+          #    that owns its credential lifecycle can supply a fresh bearer per
+          #    request. The stock upstream templates instead read
+          #    `bearer_access_token` inline, so a generator change that reverted
+          #    to them would silently pin the credential at Client construction —
+          #    exactly the regression this guard exists to catch.
           if ! grep -q 'bearer_access_token' src/apis/configuration.rs; then
             echo "::error::bearer_access_token missing from generated configuration.rs (configuration.mustache drift)"
             fail=1
           fi
-          if ! grep -rq 'req_builder.bearer_auth' src/apis/; then
-            echo "::error::bearer_auth missing from generated apis (api.mustache bearer hook drift)"
+          if ! grep -q 'token_provider' src/apis/configuration.rs; then
+            echo "::error::token_provider missing from generated configuration.rs (configuration.mustache drift)"
             fail=1
           fi
-          # `resolve_bearer_token` was the pre-#107 JWT-exchange hook; it no
-          # longer exists on `Configuration`. A stray call site (e.g. an op
-          # generated before the removal, surviving a merge untouched) would
-          # compile-fail rather than silently misbehave, but catch it here so
-          # regen fails fast with a clear cause instead of a generic E0599.
-          if grep -rq 'resolve_bearer_token' src/; then
-            echo "::error::resolve_bearer_token found under src/ (removed in #107; stale call site from pre-merge generation)"
+          if ! grep -q 'resolve_bearer_token' src/apis/configuration.rs; then
+            echo "::error::resolve_bearer_token missing from generated configuration.rs (configuration.mustache drift)"
+            fail=1
+          fi
+          if ! grep -rq 'resolve_bearer_token().await' src/apis/; then
+            echo "::error::resolve_bearer_token().await missing from generated apis (api.mustache bearer hook drift)"
+            fail=1
+          fi
+          # The inverse check: no generated op may fall back to reading
+          # `bearer_access_token` inline. That is the stock upstream emission, so
+          # its presence under src/apis/*_api.rs means the override was dropped
+          # for at least one op — which still compiles and still authenticates on
+          # a static token, and so would otherwise slip through unnoticed.
+          if grep -rq 'configuration.bearer_access_token' src/apis/; then
+            echo "::error::a generated op reads configuration.bearer_access_token directly (api.mustache bearer hook drift; expected resolve_bearer_token().await)"
             fail=1
           fi
 
@@ -226,7 +243,7 @@ jobs:
             echo "::error::Regen-safety check failed: the ergonomic layer or auth/logging hooks did not survive regeneration."
             exit 1
           fi
-          echo "Ergonomic layer survived regeneration: hand-written modules, lib.rs wiring, and bearer-auth + debug-logging hooks all intact."
+          echo "Ergonomic layer survived regeneration: hand-written modules, lib.rs wiring, and bearer-provider + debug-logging hooks all intact."
 
       # NOTE: regeneration deliberately does NOT compile the crate. A compile
       # failure here used to abort the job before "Create PR", so a regen that

@@ -76,8 +76,8 @@ pub async fn get_result(
         };
         req_builder = req_builder.header("X-Workspace-Id", value);
     };
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
+    if let Some(token) = configuration.resolve_bearer_token().await {
+        req_builder = req_builder.bearer_auth(token);
     };
 
     let req = req_builder.build()?;
@@ -150,8 +150,8 @@ pub async fn list_results(
         };
         req_builder = req_builder.header("X-Workspace-Id", value);
     };
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
+    if let Some(token) = configuration.resolve_bearer_token().await {
+        req_builder = req_builder.bearer_auth(token);
     };
 
     let req = req_builder.build()?;

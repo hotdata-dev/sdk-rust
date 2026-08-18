@@ -8,7 +8,8 @@
 //!
 //! This module mirrors `hotdata/arrow.py` from the Python SDK. It builds the
 //! request exactly like the generated `get_result` (same URL, user-agent,
-//! `X-Workspace-Id` API key, and `bearer_access_token` API-token credential),
+//! `X-Workspace-Id` API key, and the bearer credential resolved via
+//! [`crate::apis::configuration::Configuration::resolve_bearer_token`]),
 //! adds `Accept: application/vnd.apache.arrow.stream` plus `?format=arrow`, and
 //! decodes the resulting IPC stream with `arrow-ipc`.
 //!
@@ -233,9 +234,9 @@ impl Iterator for ArrowBatchStream {
 /// without materializing them all at once.
 ///
 /// The request is built to match the generated `get_result`: same URL, the
-/// `X-Workspace-Id` API key header, the user-agent, and the API-token bearer
-/// credential from
-/// [`Configuration::bearer_access_token`](crate::apis::configuration::Configuration).
+/// `X-Workspace-Id` API key header, the user-agent, and the bearer credential
+/// resolved via
+/// [`Configuration::resolve_bearer_token`](crate::apis::configuration::Configuration::resolve_bearer_token).
 /// `Accept` and `?format=arrow` are added on top.
 ///
 /// # Errors
@@ -353,9 +354,10 @@ async fn fetch_arrow_bytes(
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
 
-    // API-token bearer credential, matching the generated ops.
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
+    // Bearer credential, resolved per request so a pluggable token provider can
+    // hand back a freshly refreshed value — matching the generated ops.
+    if let Some(token) = configuration.resolve_bearer_token().await {
+        req_builder = req_builder.bearer_auth(token);
     }
 
     req_builder = req_builder.header(reqwest::header::ACCEPT, ARROW_STREAM_MEDIA_TYPE);

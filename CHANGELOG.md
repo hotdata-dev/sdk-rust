@@ -8,6 +8,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 
+## [0.13.0] - 2026-08-18
+
+### Added
+
+- The pluggable per-request bearer hook is back, for consumers that own their own
+  credential lifecycle. `Configuration::token_provider` takes an
+  `Option<Arc<dyn hotdata::auth::BearerTokenProvider>>`, and
+  `Configuration::resolve_bearer_token` resolves the credential once per request
+  — every generated op plus the hand-written `submit_query`, `upload_file`
+  (create-session *and* finalize), and Arrow fetch. A host whose access token is
+  short-lived (e.g. the CLI's PKCE browser-login session, which expires in
+  minutes) can now refresh mid-command instead of 401ing on a long call — a
+  multi-gigabyte upload whose finalize lands after the TTL, a slow query, a large
+  parallel batch. The trait's error type is `BearerTokenError`
+  (`Transport`/`Status`/`Malformed`, `#[non_exhaustive]`); a provider that returns
+  an error is logged via the `log` facade and the request proceeds
+  unauthenticated, so the resulting 401 stays diagnosable.
+
+  **Additive and non-breaking.** `bearer_access_token` keeps working exactly as
+  it did in 0.12.0 when no provider is installed, and `ClientBuilder::api_token`
+  still installs the API token there — no caller needs to change anything.
+
+  This does **not** reintroduce the API-token to JWT exchange removed in 0.12.0.
+  `TokenManager`, the `/v1/auth/jwt` call, `ClientBuilder::client_id`,
+  `PersistCallback`, and `HOTDATA_DISABLE_JWT_EXCHANGE` stay removed. A provider
+  is a hook, not an exchange: the SDK never trades one credential for another.
+
 ## [0.12.0] - 2026-08-18
 
 ### Removed

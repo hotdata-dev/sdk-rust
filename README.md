@@ -2,7 +2,7 @@
 
 Official Rust client for the [Hotdata](https://www.hotdata.dev) HTTP API: workspaces, connections, databases, SQL queries, results, secrets, uploads, indexes, jobs, embedding providers, and workspace context.
 
-The crate pairs a fully generated, typed API surface (`hotdata::apis`, `hotdata::models`) with a hand-written ergonomic layer: a flat [`Client`](#quickstart) that wires up authentication and workspace scoping, plus an optional Apache Arrow result decoder.
+The crate pairs a fully generated, typed API surface (`hotdata::apis`, `hotdata::models`) with a hand-written ergonomic layer: a flat [`Client`](#quickstart) that wires up authentication (a static API token, or a [pluggable per-request bearer](#supplying-a-bearer-per-request)) and workspace scoping, plus an optional Apache Arrow result decoder.
 
 ## Requirements
 
@@ -38,7 +38,7 @@ The API authenticates with an **API token** sent as `Authorization: Bearer <toke
 
 Your API token (prefixed `hd_`) is the only credential you need. It is sent verbatim as the bearer token on every request — there is nothing to exchange, refresh, or cache.
 
-> **Deprecated and removed.** Earlier versions exchanged the API token for a short-lived JWT against `/v1/auth/jwt` and refreshed it in the background. That exchange, the `hotdata::auth` module (`TokenManager`, `BearerTokenProvider`), `Configuration::token_provider`, `Configuration::resolve_bearer_token`, `ClientBuilder::client_id`, and the `HOTDATA_DISABLE_JWT_EXCHANGE` escape hatch are all gone — see the [CHANGELOG](CHANGELOG.md). If you passed an API token to `ClientBuilder::api_token`, nothing changes for you.
+> **Deprecated and removed.** Earlier versions exchanged the API token for a short-lived JWT against `/v1/auth/jwt` and refreshed it in the background. That exchange, `TokenManager`, `ClientBuilder::client_id`, and the `HOTDATA_DISABLE_JWT_EXCHANGE` escape hatch are all gone and are not coming back — see the [CHANGELOG](CHANGELOG.md). If you passed an API token to `ClientBuilder::api_token`, nothing changes for you.
 
 ```rust
 use hotdata::prelude::*;
@@ -50,6 +50,31 @@ let client = Client::builder()
 ```
 
 `base_url` defaults to `https://api.hotdata.dev`. Override it if you target another environment.
+
+### Supplying a bearer per request
+
+A static API token is fixed for the life of the `Configuration`, which is all most callers need. A host that owns its own credential lifecycle — an interactive login whose access token expires in minutes, say — can install a [`BearerTokenProvider`](https://docs.rs/hotdata/latest/hotdata/auth/trait.BearerTokenProvider.html) on `Configuration::token_provider` instead. The SDK then asks it for a bearer once per request, so a long call (a multi-gigabyte `upload_file`, a slow query, a large parallel batch) can refresh mid-flight rather than 401 on a token that expired after it started:
+
+```rust
+use hotdata::auth::{BearerTokenError, BearerTokenProvider};
+use hotdata::prelude::*;
+
+#[derive(Debug)]
+struct MySession { /* refresh token, expiry, mutex, ... */ }
+
+#[async_trait::async_trait]
+impl BearerTokenProvider for MySession {
+    async fn bearer_value(&self) -> Result<String, BearerTokenError> {
+        // Refresh if needed, then hand back a currently valid access token.
+        Ok(self.current_access_token().await?)
+    }
+}
+
+let mut client = Client::builder().api_token("unused").build()?;
+client.configuration_mut().token_provider = Some(std::sync::Arc::new(session));
+```
+
+`bearer_value` is called on every request, including the create-session and finalize legs of `upload_file`, so a credential that rotates between them is picked up. It is a hook and nothing more: the SDK never exchanges one credential for another. With no provider installed, `bearer_access_token` behaves exactly as before. If a provider returns an error, the SDK logs a warning on the `log` facade and sends the request unauthenticated, so the resulting 401 stays diagnosable rather than hiding the real cause.
 
 ## Quickstart
 

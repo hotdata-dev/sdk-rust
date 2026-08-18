@@ -87,8 +87,8 @@ pub async fn create_index(
         };
         req_builder = req_builder.header("X-Workspace-Id", value);
     };
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
+    if let Some(token) = configuration.resolve_bearer_token().await {
+        req_builder = req_builder.bearer_auth(token);
     };
     req_builder = req_builder.json(&p_body_create_index_request);
 
@@ -166,8 +166,8 @@ pub async fn delete_index(
         };
         req_builder = req_builder.header("X-Workspace-Id", value);
     };
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
+    if let Some(token) = configuration.resolve_bearer_token().await {
+        req_builder = req_builder.bearer_auth(token);
     };
 
     let req = req_builder.build()?;
@@ -227,8 +227,8 @@ pub async fn list_indexes(
         };
         req_builder = req_builder.header("X-Workspace-Id", value);
     };
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
+    if let Some(token) = configuration.resolve_bearer_token().await {
+        req_builder = req_builder.bearer_auth(token);
     };
 
     let req = req_builder.build()?;
@@ -321,8 +321,8 @@ pub async fn list_indexes_collection(
         };
         req_builder = req_builder.header("X-Workspace-Id", value);
     };
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
+    if let Some(token) = configuration.resolve_bearer_token().await {
+        req_builder = req_builder.bearer_auth(token);
     };
 
     let req = req_builder.build()?;

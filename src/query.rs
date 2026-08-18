@@ -616,8 +616,8 @@ async fn send_query(
         req_builder = req_builder.header("X-Database-Id", param_value.to_string());
     }
     req_builder = apply_apikey_headers(req_builder, config);
-    if let Some(ref token) = config.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
+    if let Some(token) = config.resolve_bearer_token().await {
+        req_builder = req_builder.bearer_auth(token);
     }
     req_builder = req_builder.json(request);
 

@@ -3,7 +3,7 @@
 // in openapi-generator stock-template output (src/apis/*, src/models/*) and
 // would reappear on every regeneration. lib.rs is in .openapi-generator-ignore,
 // so these suppressions survive regen. The hand-written ergonomic layer
-// (arrow.rs/client.rs) is clean and does not rely on them.
+// (auth.rs/arrow.rs/client.rs) is clean and does not rely on them.
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::needless_return)]
 #![allow(clippy::derivable_impls)]
@@ -18,6 +18,7 @@ extern crate url;
 pub mod apis;
 #[cfg(feature = "arrow")]
 pub mod arrow;
+pub mod auth;
 pub mod client;
 pub mod field;
 pub(crate) mod http;
@@ -38,6 +39,7 @@ pub use arrow::{
     get_result_arrow, stream_result_arrow, ArrowBatchStream, ArrowError, ArrowResult,
     ARROW_STREAM_MEDIA_TYPE,
 };
+pub use auth::{BearerTokenError, BearerTokenProvider};
 #[cfg(feature = "arrow")]
 pub use client::QueryToArrowError;
 pub use client::{AwaitResultError, Client, ClientBuilder, ClientError, PollConfig, QueryOutcome};
@@ -59,7 +61,7 @@ pub use uploads::{
 
 /// Process-wide lock serializing every test that mutates `std::env`. Env is a
 /// process-global resource, so per-module locks would race; all env-mutating
-/// tests across the crate (client.rs, …) lock this single mutex.
+/// tests across the crate (auth.rs, client.rs, …) lock this single mutex.
 #[cfg(test)]
 pub(crate) static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
