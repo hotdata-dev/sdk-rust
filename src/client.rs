@@ -1304,6 +1304,24 @@ mod tests {
     }
 
     #[test]
+    fn debug_does_not_leak_api_token() {
+        let _g = env_guard();
+        clear_env();
+
+        let client = Client::builder()
+            .api_token("hd_live_super_secret_token")
+            .workspace_id("ws_explicit")
+            .build()
+            .expect("build should succeed with explicit values");
+
+        let rendered = format!("{:?}", client.configuration());
+        assert!(
+            !rendered.contains("hd_live_super_secret_token"),
+            "Configuration's Debug output must redact the bearer token, got: {rendered}"
+        );
+    }
+
+    #[test]
     fn builder_falls_back_to_env() {
         let _g = env_guard();
         clear_env();

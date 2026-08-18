@@ -10,7 +10,7 @@
 
 use std::collections::HashMap;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Configuration {
     pub base_path: String,
     pub user_agent: Option<String>,
@@ -29,10 +29,46 @@ pub struct Configuration {
 
 pub type BasicAuth = (String, Option<String>);
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ApiKey {
     pub prefix: Option<String>,
     pub key: String,
+}
+
+// Credentials are redacted rather than derived: `Configuration`/`Client` are
+// long-lived and easy to `{:?}`/`dbg!` in a caller's log, and the bearer
+// token in particular is a long-lived API token, not a short-lived JWT.
+impl std::fmt::Debug for ApiKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ApiKey")
+            .field("prefix", &self.prefix)
+            .field("key", &"<redacted>")
+            .finish()
+    }
+}
+
+impl std::fmt::Debug for Configuration {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Configuration")
+            .field("base_path", &self.base_path)
+            .field("user_agent", &self.user_agent)
+            .field("client", &self.client)
+            .field(
+                "basic_auth",
+                &self.basic_auth.as_ref().map(|_| "<redacted>"),
+            )
+            .field(
+                "oauth_access_token",
+                &self.oauth_access_token.as_ref().map(|_| "<redacted>"),
+            )
+            .field(
+                "bearer_access_token",
+                &self.bearer_access_token.as_ref().map(|_| "<redacted>"),
+            )
+            .field("api_keys", &self.api_keys)
+            .field("retry", &self.retry)
+            .finish()
+    }
 }
 
 impl Configuration {
