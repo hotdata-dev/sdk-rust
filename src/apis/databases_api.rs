@@ -368,8 +368,8 @@ pub async fn bulk_create_databases(
         };
         req_builder = req_builder.header("X-Workspace-Id", value);
     };
-    if let Some(token) = configuration.resolve_bearer_token().await {
-        req_builder = req_builder.bearer_auth(token);
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
     };
     req_builder = req_builder.json(&p_body_bulk_create_databases_request);
 
@@ -440,8 +440,8 @@ pub async fn count_databases(
         };
         req_builder = req_builder.header("X-Workspace-Id", value);
     };
-    if let Some(token) = configuration.resolve_bearer_token().await {
-        req_builder = req_builder.bearer_auth(token);
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
     };
 
     let req = req_builder.build()?;
@@ -632,8 +632,8 @@ pub async fn delete_database_batch(
         };
         req_builder = req_builder.header("X-Workspace-Id", value);
     };
-    if let Some(token) = configuration.resolve_bearer_token().await {
-        req_builder = req_builder.bearer_auth(token);
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
     };
 
     let req = req_builder.build()?;
@@ -897,8 +897,8 @@ pub async fn get_database_batch(
         };
         req_builder = req_builder.header("X-Workspace-Id", value);
     };
-    if let Some(token) = configuration.resolve_bearer_token().await {
-        req_builder = req_builder.bearer_auth(token);
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
     };
 
     let req = req_builder.build()?;
