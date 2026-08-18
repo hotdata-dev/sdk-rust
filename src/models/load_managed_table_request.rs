@@ -44,6 +44,14 @@ pub struct LoadManagedTableRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub format: Option<Option<String>>,
+    /// A key of your own that makes this load safe to retry. Send the same key again — after a timeout, a dropped connection, or any answer you did not receive — and the load runs at most once: the retry returns the original result instead of loading the rows a second time.  Generate the key before the first attempt (a UUID is a good choice) and reuse it for every retry of that same data. Use a new key for the next batch: sending different data under a key already used returns `409`, and loads nothing.  A retry sent while the first attempt is still running also returns `409`, because the table is busy with it; wait and send the same key again. A `409` never means the data was loaded twice — under one key it is loaded once or not at all.  Only valid with inline `data`. A load from `upload_id` is already safe to retry — re-send the same `upload_id`. Keys are at most 255 characters.
+    #[serde(
+        rename = "idempotency_key",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub idempotency_key: Option<Option<String>>,
     /// Key columns identifying rows for `\"delete\"`, `\"update\"`, and `\"upsert\"` loads — the columns whose values decide which existing row an incoming row removes, updates, or replaces. Omit to use the key the table was created with. Keep the key consistent across loads of the same table: changing it re-targets which rows are matched. Ignored for `\"replace\"` and `\"append\"`.
     #[serde(
         rename = "key",
@@ -82,6 +90,7 @@ impl LoadManagedTableRequest {
             columns: None,
             data: None,
             format: None,
+            idempotency_key: None,
             key: None,
             mode,
             result_id: None,
