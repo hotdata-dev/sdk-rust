@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// MintUploadPartsRequest : Request body for `POST /v1/uploads/{upload_id}/parts`: mint presigned upload URLs for specific parts of a streaming (unknown-size) multi-part upload.  Provide the 1-based part numbers you want URLs for. Mint parts as you upload, and re-request a part number if its URL expires before you finish — the parts you have already uploaded are unaffected.
+/// MintUploadPartsRequest : Request body for `POST /v1/uploads/{upload_id}/parts`: get short-lived upload URLs for specific parts of a streaming (unknown-size) multi-part upload.  Provide the 1-based part numbers you want URLs for. Mint parts as you upload, and re-request a part number if its URL expires before you finish — the parts you have already uploaded are unaffected.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MintUploadPartsRequest {
     /// The 1-based part numbers to mint URLs for. Must be non-empty; each number must be between 1 and the maximum number of parts allowed.
@@ -20,7 +20,7 @@ pub struct MintUploadPartsRequest {
 }
 
 impl MintUploadPartsRequest {
-    /// Request body for `POST /v1/uploads/{upload_id}/parts`: mint presigned upload URLs for specific parts of a streaming (unknown-size) multi-part upload.  Provide the 1-based part numbers you want URLs for. Mint parts as you upload, and re-request a part number if its URL expires before you finish — the parts you have already uploaded are unaffected.
+    /// Request body for `POST /v1/uploads/{upload_id}/parts`: get short-lived upload URLs for specific parts of a streaming (unknown-size) multi-part upload.  Provide the 1-based part numbers you want URLs for. Mint parts as you upload, and re-request a part number if its URL expires before you finish — the parts you have already uploaded are unaffected.
     pub fn new(part_numbers: Vec<i32>) -> MintUploadPartsRequest {
         MintUploadPartsRequest { part_numbers }
     }

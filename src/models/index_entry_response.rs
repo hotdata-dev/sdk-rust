@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// IndexEntryResponse : One index in a cross-table listing: the per-table [`IndexInfoResponse`] plus the identity needed to know which table it belongs to.
+/// IndexEntryResponse : One index in a cross-table listing: the index itself plus the connection, schema, and table it belongs to.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IndexEntryResponse {
     #[serde(rename = "columns")]
@@ -46,7 +46,7 @@ pub struct IndexEntryResponse {
 }
 
 impl IndexEntryResponse {
-    /// One index in a cross-table listing: the per-table [`IndexInfoResponse`] plus the identity needed to know which table it belongs to.
+    /// One index in a cross-table listing: the index itself plus the connection, schema, and table it belongs to.
     pub fn new(
         columns: Vec<String>,
         created_at: String,

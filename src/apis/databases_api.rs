@@ -137,7 +137,7 @@ pub enum LoadDatabaseTableError {
     UnknownValue(serde_json::Value),
 }
 
-/// Declare a new schema (and optionally its tables) on the database's auto-created default catalog after creation. The schema becomes reachable inside the database scope (e.g. `default.<schema>.<table>` and `information_schema.schemata`) without the caller addressing the internal default connection directly. Identifiers are normalized to lowercase.
+/// Declare a new schema (and optionally its tables) on the database's auto-created default catalog after creation. The schema becomes reachable inside the database scope (e.g. `default.<schema>.<table>` and `information_schema.schemata`) without the caller naming the database's default connection. Identifiers are normalized to lowercase.
 pub async fn add_database_schema(
     configuration: &configuration::Configuration,
     database_id: &str,

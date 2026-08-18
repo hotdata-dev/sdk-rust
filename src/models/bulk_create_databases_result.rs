@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// BulkCreateDatabasesResult : What a bulk-create job reports when it finishes. Distinct from every other `JobResult` variant by its `batch_id` field, which matters because the enum is untagged and deserializes by trying arms in order.
+/// BulkCreateDatabasesResult : What a bulk-create job reports when it finishes.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BulkCreateDatabasesResult {
     /// Batch these databases belong to.
@@ -29,7 +29,7 @@ pub struct BulkCreateDatabasesResult {
 }
 
 impl BulkCreateDatabasesResult {
-    /// What a bulk-create job reports when it finishes. Distinct from every other `JobResult` variant by its `batch_id` field, which matters because the enum is untagged and deserializes by trying arms in order.
+    /// What a bulk-create job reports when it finishes.
     pub fn new(
         batch_id: String,
         cancelled: bool,

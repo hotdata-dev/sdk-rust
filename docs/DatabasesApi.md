@@ -26,7 +26,7 @@ Method | HTTP request | Description
 > models::ManagedSchemaResponse add_database_schema(database_id, add_managed_schema_request)
 Add schema to database default catalog
 
-Declare a new schema (and optionally its tables) on the database's auto-created default catalog after creation. The schema becomes reachable inside the database scope (e.g. `default.<schema>.<table>` and `information_schema.schemata`) without the caller addressing the internal default connection directly. Identifiers are normalized to lowercase.
+Declare a new schema (and optionally its tables) on the database's auto-created default catalog after creation. The schema becomes reachable inside the database scope (e.g. `default.<schema>.<table>` and `information_schema.schemata`) without the caller naming the database's default connection. Identifiers are normalized to lowercase.
 
 ### Parameters
 

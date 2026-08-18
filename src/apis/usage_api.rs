@@ -20,7 +20,7 @@ pub enum GetUsageError {
     UnknownValue(serde_json::Value),
 }
 
-/// Return aggregated bytes scanned and current storage size for a billing period. Pass `since` as the subscription's `current_period_start` so the meter value aligns with the Stripe invoice window rather than the calendar month.
+/// Return aggregated bytes scanned and current storage size for a billing period. Pass `since` as the start of your billing period so the totals line up with your invoice rather than the calendar month.
 pub async fn get_usage(
     configuration: &configuration::Configuration,
     since: Option<&str>,

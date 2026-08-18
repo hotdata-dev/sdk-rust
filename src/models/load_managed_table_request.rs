@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// LoadManagedTableRequest : Request body for the managed-table load endpoints — the connection-scoped `POST /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads` and the database-scoped equivalent.  Publishes data to the named table from one of three sources: a previously uploaded file (`upload_id`), a persisted query result (`result_id`), or data sent inline in this request (`data`). Provide exactly one. CSV and JSON uploads are converted to columnar storage on load; Parquet uploads and query results are published directly. `mode` selects whether the data replaces the table's contents or is appended on top of them.
+/// LoadManagedTableRequest : Request body for the managed-table load endpoints — the connection-scoped `POST /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads` and the database-scoped equivalent.  Publishes data to the named table from one of three sources: a previously uploaded file (`upload_id`), a persisted query result (`result_id`), or data sent inline in this request (`data`). Provide exactly one. `mode` selects whether the data replaces the table's contents or is appended on top of them.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LoadManagedTableRequest {
     /// When true, run the load as a background job and return a job ID to poll instead of blocking until it finishes. Recommended for large uploads, which can take longer than an HTTP request should stay open.
@@ -82,7 +82,7 @@ pub struct LoadManagedTableRequest {
 }
 
 impl LoadManagedTableRequest {
-    /// Request body for the managed-table load endpoints — the connection-scoped `POST /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads` and the database-scoped equivalent.  Publishes data to the named table from one of three sources: a previously uploaded file (`upload_id`), a persisted query result (`result_id`), or data sent inline in this request (`data`). Provide exactly one. CSV and JSON uploads are converted to columnar storage on load; Parquet uploads and query results are published directly. `mode` selects whether the data replaces the table's contents or is appended on top of them.
+    /// Request body for the managed-table load endpoints — the connection-scoped `POST /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads` and the database-scoped equivalent.  Publishes data to the named table from one of three sources: a previously uploaded file (`upload_id`), a persisted query result (`result_id`), or data sent inline in this request (`data`). Provide exactly one. `mode` selects whether the data replaces the table's contents or is appended on top of them.
     pub fn new(mode: String) -> LoadManagedTableRequest {
         LoadManagedTableRequest {
             r#async: None,
