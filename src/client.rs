@@ -981,7 +981,7 @@ mod tests {
         // so a successful call proves it reached the wire unexchanged.
         client
             .databases()
-            .list(None, None, None)
+            .list(None, None, None, None)
             .await
             .expect("list_databases should succeed with the API token as bearer");
 
