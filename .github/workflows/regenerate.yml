@@ -200,6 +200,15 @@ jobs:
             echo "::error::bearer_auth missing from generated apis (api.mustache bearer hook drift)"
             fail=1
           fi
+          # `resolve_bearer_token` was the pre-#107 JWT-exchange hook; it no
+          # longer exists on `Configuration`. A stray call site (e.g. an op
+          # generated before the removal, surviving a merge untouched) would
+          # compile-fail rather than silently misbehave, but catch it here so
+          # regen fails fast with a clear cause instead of a generic E0599.
+          if grep -rq 'resolve_bearer_token' src/; then
+            echo "::error::resolve_bearer_token found under src/ (removed in #107; stale call site from pre-merge generation)"
+            fail=1
+          fi
 
           # 5. The request/response debug-logging hooks must have survived the
           #    generator. api.mustache emits crate::http_log::log_request +
