@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [0.12.0] - 2026-08-18
+
 ### Removed
 
 - **Breaking:** the API-token to JWT key exchange is deprecated and removed.
