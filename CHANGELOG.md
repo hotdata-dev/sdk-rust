@@ -24,7 +24,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   parallel batch. The trait's error type is `BearerTokenError`
   (`Transport`/`Status`/`Malformed`, `#[non_exhaustive]`); a provider that returns
   an error is logged via the `log` facade and the request proceeds
-  unauthenticated, so the resulting 401 stays diagnosable.
+  unauthenticated; that warning is the only trace of the cause, and it requires
+  a `log` implementation installed in the host binary to be visible.
+
+  "Per request" includes each attempt of a 429 retry chain: the retry helper
+  re-resolves rather than replaying the `Authorization` header from the first
+  attempt, which could otherwise outlive a short-lived token (the retry deadline
+  defaults to 120s and an honored `Retry-After` is uncapped). Presigned storage
+  `PUT`s are excluded by construction — they authorize via the signed URL and
+  must never carry a bearer.
 
   **Additive and non-breaking.** `bearer_access_token` keeps working exactly as
   it did in 0.12.0 when no provider is installed, and `ClientBuilder::api_token`
