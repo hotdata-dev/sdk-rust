@@ -100,10 +100,64 @@ pub(crate) fn is_pre_response_transport_error(err: &reqwest::Error) -> bool {
 /// mapping surfaces it to the caller — no new error type. This mirrors
 /// `crate::query::submit_with_retry`, which enforces the same `deadline` on the
 /// hand-written query path, so the two stay aligned.
+///
+/// # Bearer freshness across retries
+///
+/// Each *retry* re-resolves the bearer via
+/// [`Configuration::resolve_bearer_token`]. The op resolved one for attempt 0
+/// and baked it into `req`'s `Authorization` header; replaying that clone
+/// unchanged would pin the credential for the life of the retry chain, which
+/// can outlive a short-lived token — `deadline` defaults to 120s and an honored
+/// `Retry-After` is deliberately uncapped. That would reintroduce, on the 429
+/// path, exactly the expiry the provider hook exists to prevent, and would leave
+/// the generated ops disagreeing with `crate::query::submit_with_retry`, which
+/// rebuilds its request (and so re-resolves) per attempt.
+///
+/// Only touched when a [`token_provider`](crate::apis::configuration::Configuration::token_provider)
+/// is installed: with none, `resolve_bearer_token` would just hand back the same
+/// static `bearer_access_token` again, so the header is left exactly as the op
+/// built it and behavior is identical to 0.12.0. Other auth schemes (basic,
+/// oauth, api-key headers) are never rewritten.
+///
+/// Requests that carry **no** credential of ours — the presigned storage `PUT`s,
+/// which self-authorize via the signed URL — must use
+/// [`execute_retrying_unauthenticated`] instead, so they can never acquire an
+/// `Authorization` header on a retry.
 pub(crate) async fn execute_retrying(
+    configuration: &crate::apis::configuration::Configuration,
+    req: reqwest::Request,
+) -> reqwest::Result<reqwest::Response> {
+    execute_retrying_inner(
+        &configuration.client,
+        req,
+        &configuration.retry,
+        Some(configuration),
+    )
+    .await
+}
+
+/// [`execute_retrying`] for a request that must never carry our bearer.
+///
+/// Used by the presigned storage `PUT`s in [`crate::uploads`]: they go to object
+/// storage on a separate client, authorize via the signed URL, and 403 on
+/// S3-style backends if an `Authorization` header is present. Taking the client
+/// and policy explicitly — with no [`Configuration`] to resolve from — makes it
+/// structurally impossible for the retry path to add one.
+pub(crate) async fn execute_retrying_unauthenticated(
     client: &reqwest::Client,
     req: reqwest::Request,
     retry: &RetryPolicy,
+) -> reqwest::Result<reqwest::Response> {
+    execute_retrying_inner(client, req, retry, None).await
+}
+
+/// Shared retry loop. `refresh_from` is `Some` only for our own API calls; see
+/// [`execute_retrying`] and [`execute_retrying_unauthenticated`].
+async fn execute_retrying_inner(
+    client: &reqwest::Client,
+    req: reqwest::Request,
+    retry: &RetryPolicy,
+    refresh_from: Option<&crate::apis::configuration::Configuration>,
 ) -> reqwest::Result<reqwest::Response> {
     let start = Instant::now();
     // attempt 0 is the initial request; 1..=max_retries are the retries.
@@ -111,9 +165,18 @@ pub(crate) async fn execute_retrying(
         // Clone the request before consuming it so a 429 or a pre-response reset
         // can be retried. A streaming body can't be cloned (`None`) — send it
         // once with no retry.
-        let Some(clone) = req.try_clone() else {
+        let Some(mut clone) = req.try_clone() else {
             return client.execute(req).await;
         };
+        // Attempt 0 already carries the bearer the op just resolved; only a
+        // retry can have gone stale. See "Bearer freshness across retries".
+        if attempt > 0 {
+            if let Some(configuration) = refresh_from {
+                if configuration.token_provider.is_some() {
+                    refresh_authorization(&mut clone, configuration).await;
+                }
+            }
+        }
         let resp = match client.execute(clone).await {
             Ok(resp) => resp,
             Err(e) => {
@@ -150,6 +213,42 @@ pub(crate) async fn execute_retrying(
     // Unreachable: the loop always returns on its last iteration (attempt ==
     // max_retries short-circuits above). Send once as a defensive fallback.
     client.execute(req).await
+}
+
+/// Overwrite `req`'s `Authorization` with a freshly resolved bearer.
+///
+/// Called only for retries, and only when a `token_provider` is installed (see
+/// [`execute_retrying`]). Deliberately total — it never panics and never fails
+/// the retry:
+///
+/// * provider errors (`resolve_bearer_token` -> `None`, already logged there):
+///   strip the header so the retry goes unauthenticated and the server's 401
+///   surfaces the credential problem, rather than replaying a bearer the
+///   provider has just disowned;
+/// * a token that isn't a valid header value: leave the existing header in
+///   place. The retry then reuses the previous bearer — no worse than the
+///   pre-fix behavior — instead of panicking inside the retry loop.
+async fn refresh_authorization(
+    req: &mut reqwest::Request,
+    configuration: &crate::apis::configuration::Configuration,
+) {
+    match configuration.resolve_bearer_token().await {
+        Some(token) => match reqwest::header::HeaderValue::from_str(&format!("Bearer {token}")) {
+            Ok(value) => {
+                req.headers_mut()
+                    .insert(reqwest::header::AUTHORIZATION, value);
+            }
+            Err(e) => {
+                log::warn!(
+                    "hotdata: resolved bearer is not a valid header value, \
+                     retrying with the previous one: {e}"
+                );
+            }
+        },
+        None => {
+            req.headers_mut().remove(reqwest::header::AUTHORIZATION);
+        }
+    }
 }
 
 /// Delay before the next 429 retry: honor `Retry-After` when present (exactly,
@@ -250,9 +349,10 @@ mod tests {
 
         let client = reqwest::Client::new();
         let url = format!("{}/thing", server.uri());
-        let resp = execute_retrying(&client, post_req(&client, &url), &fast_retry(5))
-            .await
-            .expect("should succeed after retries");
+        let resp =
+            execute_retrying_unauthenticated(&client, post_req(&client, &url), &fast_retry(5))
+                .await
+                .expect("should succeed after retries");
         assert_eq!(resp.status(), StatusCode::OK);
         // 2 retried 429s + 1 success = 3 requests reached the server.
         assert_eq!(server.received_requests().await.unwrap().len(), 3);
@@ -270,9 +370,10 @@ mod tests {
         let client = reqwest::Client::new();
         let url = format!("{}/thing", server.uri());
         // 1 initial + 2 retries = 3 requests, all 429; the final 429 is returned.
-        let resp = execute_retrying(&client, post_req(&client, &url), &fast_retry(2))
-            .await
-            .expect("should return the final 429, not a transport error");
+        let resp =
+            execute_retrying_unauthenticated(&client, post_req(&client, &url), &fast_retry(2))
+                .await
+                .expect("should return the final 429, not a transport error");
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
         assert_eq!(server.received_requests().await.unwrap().len(), 3);
     }
@@ -299,7 +400,7 @@ mod tests {
         };
         let client = reqwest::Client::new();
         let url = format!("{}/thing", server.uri());
-        let resp = execute_retrying(&client, post_req(&client, &url), &retry)
+        let resp = execute_retrying_unauthenticated(&client, post_req(&client, &url), &retry)
             .await
             .expect("should return the 429 after the deadline stops retries");
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
@@ -319,9 +420,10 @@ mod tests {
 
         let client = reqwest::Client::new();
         let url = format!("{}/thing", server.uri());
-        let resp = execute_retrying(&client, post_req(&client, &url), &fast_retry(5))
-            .await
-            .expect("should return the 400 without retrying");
+        let resp =
+            execute_retrying_unauthenticated(&client, post_req(&client, &url), &fast_retry(5))
+                .await
+                .expect("should return the 400 without retrying");
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
         assert_eq!(server.received_requests().await.unwrap().len(), 1);
     }
@@ -340,7 +442,7 @@ mod tests {
             .json(&json!({"k": "v"}))
             .build()
             .expect("request should build");
-        let resp = execute_retrying(&client, req, &fast_retry(5))
+        let resp = execute_retrying_unauthenticated(&client, req, &fast_retry(5))
             .await
             .expect("pre-response reset should be retried, then succeed");
         assert_eq!(resp.status(), StatusCode::OK);
@@ -361,7 +463,7 @@ mod tests {
             .json(&json!({"k": "v"}))
             .build()
             .expect("request should build");
-        let err = execute_retrying(&client, req, &fast_retry(2))
+        let err = execute_retrying_unauthenticated(&client, req, &fast_retry(2))
             .await
             .expect_err("persistent reset should propagate after retries");
         assert!(is_pre_response_transport_error(&err));

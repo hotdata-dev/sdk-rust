@@ -411,8 +411,8 @@ impl Client {
             };
             req_builder = req_builder.header("X-Workspace-Id", value);
         };
-        if let Some(ref token) = configuration.bearer_access_token {
-            req_builder = req_builder.bearer_auth(token.to_owned());
+        if let Some(token) = configuration.resolve_bearer_token().await {
+            req_builder = req_builder.bearer_auth(token);
         };
         req_builder = req_builder.json(&request);
 
@@ -421,8 +421,7 @@ impl Client {
         // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
         // shedding) is retried per `configuration.retry`, matching the generated
         // ops. The JSON body clones cleanly, so retries work fully.
-        let resp =
-            crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
+        let resp = crate::http::execute_retrying(configuration, req).await?;
 
         let status = resp.status();
         crate::http_log::log_response_status(status);
@@ -1318,6 +1317,43 @@ mod tests {
         assert!(
             !rendered.contains("hd_live_super_secret_token"),
             "Configuration's Debug output must redact the bearer token, got: {rendered}"
+        );
+    }
+
+    /// A `BearerTokenProvider` implementor's own `Debug` is whatever it happens
+    /// to be, and a session type may well print the token it holds. `Configuration`
+    /// must therefore render only whether a provider is installed, never delegate
+    /// to it.
+    #[test]
+    fn debug_does_not_delegate_to_the_token_provider() {
+        #[derive(Debug)]
+        #[allow(dead_code)]
+        struct LeakyProvider {
+            access_token: &'static str,
+        }
+
+        #[crate::auth::async_trait]
+        impl crate::auth::BearerTokenProvider for LeakyProvider {
+            async fn bearer_value(&self) -> Result<String, crate::auth::BearerTokenError> {
+                Ok(self.access_token.to_owned())
+            }
+        }
+
+        let configuration = Configuration {
+            token_provider: Some(std::sync::Arc::new(LeakyProvider {
+                access_token: "provider_held_secret",
+            })),
+            ..Configuration::default()
+        };
+
+        let rendered = format!("{configuration:?}");
+        assert!(
+            !rendered.contains("provider_held_secret"),
+            "Configuration's Debug must not render the provider's contents, got: {rendered}"
+        );
+        assert!(
+            rendered.contains("token_provider"),
+            "Configuration's Debug must still report the field, got: {rendered}"
         );
     }
 

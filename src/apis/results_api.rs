@@ -76,8 +76,8 @@ pub async fn get_result(
         };
         req_builder = req_builder.header("X-Workspace-Id", value);
     };
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
+    if let Some(token) = configuration.resolve_bearer_token().await {
+        req_builder = req_builder.bearer_auth(token);
     };
 
     let req = req_builder.build()?;
@@ -85,8 +85,7 @@ pub async fn get_result(
     // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
     // shedding) is retried per `configuration.retry` on every generated op, not
     // just the hand-written query path. See crate::http::execute_retrying.
-    let resp =
-        crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
+    let resp = crate::http::execute_retrying(configuration, req).await?;
 
     let status = resp.status();
     crate::http_log::log_response_status(status);
@@ -150,8 +149,8 @@ pub async fn list_results(
         };
         req_builder = req_builder.header("X-Workspace-Id", value);
     };
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
+    if let Some(token) = configuration.resolve_bearer_token().await {
+        req_builder = req_builder.bearer_auth(token);
     };
 
     let req = req_builder.build()?;
@@ -159,8 +158,7 @@ pub async fn list_results(
     // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
     // shedding) is retried per `configuration.retry` on every generated op, not
     // just the hand-written query path. See crate::http::execute_retrying.
-    let resp =
-        crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
+    let resp = crate::http::execute_retrying(configuration, req).await?;
 
     let status = resp.status();
     crate::http_log::log_response_status(status);
