@@ -421,8 +421,7 @@ impl Client {
         // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
         // shedding) is retried per `configuration.retry`, matching the generated
         // ops. The JSON body clones cleanly, so retries work fully.
-        let resp =
-            crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
+        let resp = crate::http::execute_retrying(configuration, req).await?;
 
         let status = resp.status();
         crate::http_log::log_response_status(status);

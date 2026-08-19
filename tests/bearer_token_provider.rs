@@ -22,16 +22,32 @@
 //!   `query::send_query`, `Client::submit_query`, and the Arrow fetch — resolves
 //!   per request too. These sit outside `src/apis/`, which is all the CI regen
 //!   guard greps, so nothing else would catch one being reverted to a plain
-//!   `bearer_access_token` read.
+//!   `bearer_access_token` read;
+//! * a 429 retry chain re-resolves rather than replaying the bearer baked into
+//!   the first attempt, while the presigned storage `PUT` still never acquires
+//!   an `Authorization` header on retry.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
+use std::time::Duration;
 
 use hotdata::auth::{async_trait, BearerTokenError, BearerTokenProvider};
 use hotdata::models::QueryRequest;
-use hotdata::{Client, Configuration, UploadOptions};
+use hotdata::{Client, Configuration, RetryPolicy, UploadOptions};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, Request, ResponseTemplate};
+
+/// A retry policy that retries promptly, so a 429 chain runs in milliseconds
+/// instead of the default half-second-and-up backoff.
+fn fast_retry() -> RetryPolicy {
+    RetryPolicy {
+        max_retries: 3,
+        base_backoff: Duration::from_millis(1),
+        max_backoff: Duration::from_millis(5),
+        deadline: Duration::from_secs(10),
+        jitter: 0.0,
+    }
+}
 
 /// A provider that hands out `values[i]` on call `i`, then repeats the last one.
 /// Recording the call count lets a test prove the SDK asked once per request
@@ -540,4 +556,212 @@ async fn arrow_fetch_resolves_per_request() {
         "the Arrow fetch must resolve a fresh bearer for each call"
     );
     assert_eq!(provider.call_count(), 2);
+}
+
+// ---------------------------------------------------------------------------
+// 429 retry chains.
+//
+// `http::execute_retrying` clones one already-built request per attempt, so the
+// Authorization header from attempt 0 would be replayed on every retry. With a
+// 120s default deadline and an honored `Retry-After` deliberately uncapped, a
+// chain can outlive a short-lived token — the same expiry this hook exists to
+// prevent, just narrowed to the 429 path. Retries now re-resolve.
+// ---------------------------------------------------------------------------
+
+/// A 429 then a 200: the retry must carry a freshly resolved bearer, not the one
+/// baked into the first attempt.
+#[tokio::test]
+async fn retry_after_429_re_resolves_the_bearer() {
+    let server = MockServer::start().await;
+    // First call 429s, then the fallback 200s. `up_to_n_times(1)` plus an
+    // explicit priority makes the ordering deterministic.
+    Mock::given(method("GET"))
+        .and(path("/v1/workspaces"))
+        .respond_with(ResponseTemplate::new(429))
+        .up_to_n_times(1)
+        .with_priority(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v1/workspaces"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "ok": true,
+            "workspaces": [],
+        })))
+        .with_priority(2)
+        .mount(&server)
+        .await;
+
+    let provider = SequenceProvider::new(&["stale-token", "refreshed-token"]);
+    let mut config = config_for(&server.uri());
+    config.token_provider = Some(provider.clone());
+    config.retry = fast_retry();
+    let client = Client::from_configuration(config);
+
+    client
+        .workspaces()
+        .list(None)
+        .await
+        .expect("the retry should succeed");
+
+    let requests = server.received_requests().await.expect("requests recorded");
+    assert_eq!(
+        recorded_bearers(&requests),
+        vec![
+            Some("Bearer stale-token".to_owned()),
+            Some("Bearer refreshed-token".to_owned()),
+        ],
+        "the 429 retry must re-resolve instead of replaying attempt 0's bearer"
+    );
+    assert_eq!(
+        provider.call_count(),
+        2,
+        "one resolve for the initial attempt, one for the retry"
+    );
+}
+
+/// With no provider installed, a 429 retry must behave exactly as it did in
+/// 0.12.0: the static bearer is replayed and nothing re-resolves.
+#[tokio::test]
+async fn retry_after_429_replays_static_bearer_unchanged() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v1/workspaces"))
+        .respond_with(ResponseTemplate::new(429))
+        .up_to_n_times(1)
+        .with_priority(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v1/workspaces"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "ok": true,
+            "workspaces": [],
+        })))
+        .with_priority(2)
+        .mount(&server)
+        .await;
+
+    let mut config = config_for(&server.uri());
+    config.bearer_access_token = Some("static-token".to_owned());
+    config.retry = fast_retry();
+    let client = Client::from_configuration(config);
+
+    client
+        .workspaces()
+        .list(None)
+        .await
+        .expect("the retry should succeed");
+
+    let requests = server.received_requests().await.expect("requests recorded");
+    assert_eq!(
+        recorded_bearers(&requests),
+        vec![
+            Some("Bearer static-token".to_owned()),
+            Some("Bearer static-token".to_owned()),
+        ],
+        "with no provider the static bearer is replayed, as in 0.12.0"
+    );
+}
+
+/// A presigned storage `PUT` must never acquire an `Authorization` header —
+/// including on a 429 retry, with a provider installed. It authorizes via the
+/// signed URL and S3-style storage 403s if a bearer is present, so the retry
+/// path routes it through `execute_retrying_unauthenticated`, which has no
+/// `Configuration` to resolve one from.
+///
+/// Deliberately a *multipart* upload: the single-`PUT` whole-file path streams
+/// its body, and a streamed body can't be cloned, so it bypasses the retry
+/// helper entirely (`uploads.rs`). Only multipart part `PUT`s — buffered
+/// `Bytes` — are retryable, so they are the only storage requests that reach
+/// the code path under test.
+#[tokio::test]
+async fn storage_part_put_never_gains_a_bearer_on_retry() {
+    let server = MockServer::start().await;
+    let part_size = 5usize;
+    // 8 bytes at part_size=5 -> two parts (5 + 3).
+    let contents: Vec<u8> = (0u8..8).collect();
+    let part_urls: Vec<String> = (1..=2)
+        .map(|i| format!("{}/storage/part/{i}", server.uri()))
+        .collect();
+
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "finalize_token": "ftok_retry",
+            "headers": {},
+            "mode": "multipart",
+            "part_size": part_size,
+            "part_urls": part_urls,
+            "upload_id": "upl_retry",
+        })))
+        .mount(&server)
+        .await;
+
+    // Part 1 429s once and then succeeds, exercising the retry path. Part 2
+    // succeeds immediately.
+    Mock::given(method("PUT"))
+        .and(path("/storage/part/1"))
+        .respond_with(ResponseTemplate::new(429))
+        .up_to_n_times(1)
+        .with_priority(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path("/storage/part/1"))
+        .respond_with(ResponseTemplate::new(200).insert_header("ETag", "\"etag-part-1\""))
+        .with_priority(2)
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path("/storage/part/2"))
+        .respond_with(ResponseTemplate::new(200).insert_header("ETag", "\"etag-part-2\""))
+        .mount(&server)
+        .await;
+
+    Mock::given(method("POST"))
+        .and(path("/v1/uploads/upl_retry/finalize"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "created_at": "2026-06-25T00:00:00Z",
+            "size_bytes": contents.len(),
+            "status": "ready",
+            "upload_id": "upl_retry",
+        })))
+        .mount(&server)
+        .await;
+
+    let provider = SequenceProvider::new(&["tok-a", "tok-b", "tok-c", "tok-d"]);
+    let mut config = config_for(&server.uri());
+    config.token_provider = Some(provider.clone());
+    config.retry = fast_retry();
+    let client = Client::from_configuration(config);
+
+    let file = std::env::temp_dir().join(format!(
+        "hotdata-bearer-retry-{}",
+        uuid::Uuid::new_v4().simple()
+    ));
+    std::fs::write(&file, &contents).expect("writing the temp upload file should succeed");
+    let result = client.upload_file(&file, UploadOptions::default()).await;
+    let _ = std::fs::remove_file(&file);
+    result.expect("the upload should succeed through the storage retry");
+
+    let requests = server.received_requests().await.expect("requests recorded");
+    let part_puts: Vec<_> = requests
+        .iter()
+        .filter(|r| r.url.path().starts_with("/storage/part/"))
+        .collect();
+    // Part 1 twice (429 then 200) + part 2 once: the retry actually happened.
+    assert_eq!(
+        part_puts.len(),
+        3,
+        "expected part 1 to retry after its 429, got {} part PUTs",
+        part_puts.len()
+    );
+    for put in &part_puts {
+        assert!(
+            put.headers.get("authorization").is_none(),
+            "part PUT to {} must carry no Authorization header",
+            put.url.path()
+        );
+    }
 }

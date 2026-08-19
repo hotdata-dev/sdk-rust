@@ -226,6 +226,22 @@ jobs:
             echo "::error::a generated op reads configuration.bearer_access_token directly (api.mustache bearer hook drift; expected resolve_bearer_token().await)"
             fail=1
           fi
+          # Every op must dispatch through crate::http::execute_retrying, which
+          # owns both the 429 retry policy AND the per-retry bearer re-resolve.
+          # The stock emission is a bare `configuration.client.execute(req)`: it
+          # compiles and authenticates, so a regen that reverted to it would
+          # silently drop 429 handling and pin the credential for the whole retry
+          # chain. Note it must be the Configuration-taking form — the
+          # client+policy form (execute_retrying_unauthenticated) deliberately
+          # cannot refresh a bearer and is only for presigned storage PUTs.
+          if ! grep -rq 'crate::http::execute_retrying(configuration, req)' src/apis/; then
+            echo "::error::execute_retrying(configuration, req) missing from generated apis (api.mustache retry/bearer dispatch drift)"
+            fail=1
+          fi
+          if grep -rq 'client.execute(req)' src/apis/; then
+            echo "::error::a generated op dispatches via client.execute(req) directly (api.mustache retry/bearer dispatch drift; expected crate::http::execute_retrying(configuration, req))"
+            fail=1
+          fi
 
           # 5. The request/response debug-logging hooks must have survived the
           #    generator. api.mustache emits crate::http_log::log_request +

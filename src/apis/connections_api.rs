@@ -160,8 +160,7 @@ pub async fn add_managed_schema(
     // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
     // shedding) is retried per `configuration.retry` on every generated op, not
     // just the hand-written query path. See crate::http::execute_retrying.
-    let resp =
-        crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
+    let resp = crate::http::execute_retrying(configuration, req).await?;
 
     let status = resp.status();
     crate::http_log::log_response_status(status);
@@ -235,8 +234,7 @@ pub async fn add_managed_table(
     // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
     // shedding) is retried per `configuration.retry` on every generated op, not
     // just the hand-written query path. See crate::http::execute_retrying.
-    let resp =
-        crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
+    let resp = crate::http::execute_retrying(configuration, req).await?;
 
     let status = resp.status();
     crate::http_log::log_response_status(status);
@@ -302,8 +300,7 @@ pub async fn check_connection_health(
     // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
     // shedding) is retried per `configuration.retry` on every generated op, not
     // just the hand-written query path. See crate::http::execute_retrying.
-    let resp =
-        crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
+    let resp = crate::http::execute_retrying(configuration, req).await?;
 
     let status = resp.status();
     crate::http_log::log_response_status(status);
@@ -368,8 +365,7 @@ pub async fn create_connection(
     // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
     // shedding) is retried per `configuration.retry` on every generated op, not
     // just the hand-written query path. See crate::http::execute_retrying.
-    let resp =
-        crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
+    let resp = crate::http::execute_retrying(configuration, req).await?;
 
     let status = resp.status();
     crate::http_log::log_response_status(status);
@@ -437,8 +433,7 @@ pub async fn delete_connection(
     // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
     // shedding) is retried per `configuration.retry` on every generated op, not
     // just the hand-written query path. See crate::http::execute_retrying.
-    let resp =
-        crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
+    let resp = crate::http::execute_retrying(configuration, req).await?;
 
     let status = resp.status();
     crate::http_log::log_response_status(status);
@@ -500,8 +495,7 @@ pub async fn delete_managed_table(
     // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
     // shedding) is retried per `configuration.retry` on every generated op, not
     // just the hand-written query path. See crate::http::execute_retrying.
-    let resp =
-        crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
+    let resp = crate::http::execute_retrying(configuration, req).await?;
 
     let status = resp.status();
     crate::http_log::log_response_status(status);
@@ -555,8 +549,7 @@ pub async fn get_connection(
     // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
     // shedding) is retried per `configuration.retry` on every generated op, not
     // just the hand-written query path. See crate::http::execute_retrying.
-    let resp =
-        crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
+    let resp = crate::http::execute_retrying(configuration, req).await?;
 
     let status = resp.status();
     crate::http_log::log_response_status(status);
@@ -628,8 +621,7 @@ pub async fn get_table_profile(
     // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
     // shedding) is retried per `configuration.retry` on every generated op, not
     // just the hand-written query path. See crate::http::execute_retrying.
-    let resp =
-        crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
+    let resp = crate::http::execute_retrying(configuration, req).await?;
 
     let status = resp.status();
     crate::http_log::log_response_status(status);
@@ -687,8 +679,7 @@ pub async fn list_connections(
     // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
     // shedding) is retried per `configuration.retry` on every generated op, not
     // just the hand-written query path. See crate::http::execute_retrying.
-    let resp =
-        crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
+    let resp = crate::http::execute_retrying(configuration, req).await?;
 
     let status = resp.status();
     crate::http_log::log_response_status(status);
@@ -765,8 +756,7 @@ pub async fn load_managed_table(
     // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
     // shedding) is retried per `configuration.retry` on every generated op, not
     // just the hand-written query path. See crate::http::execute_retrying.
-    let resp =
-        crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
+    let resp = crate::http::execute_retrying(configuration, req).await?;
 
     let status = resp.status();
     crate::http_log::log_response_status(status);
@@ -834,8 +824,7 @@ pub async fn purge_connection_cache(
     // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
     // shedding) is retried per `configuration.retry` on every generated op, not
     // just the hand-written query path. See crate::http::execute_retrying.
-    let resp =
-        crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
+    let resp = crate::http::execute_retrying(configuration, req).await?;
 
     let status = resp.status();
     crate::http_log::log_response_status(status);
@@ -897,8 +886,7 @@ pub async fn purge_table_cache(
     // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
     // shedding) is retried per `configuration.retry` on every generated op, not
     // just the hand-written query path. See crate::http::execute_retrying.
-    let resp =
-        crate::http::execute_retrying(&configuration.client, req, &configuration.retry).await?;
+    let resp = crate::http::execute_retrying(configuration, req).await?;
 
     let status = resp.status();
     crate::http_log::log_response_status(status);

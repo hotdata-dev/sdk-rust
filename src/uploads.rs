@@ -1101,7 +1101,7 @@ async fn put_to_storage(
 
     let req = req_builder.build().map_err(UploadError::Storage)?;
     crate::http_log::log_request(&req);
-    let resp = crate::http::execute_retrying(&client, req, retry)
+    let resp = crate::http::execute_retrying_unauthenticated(&client, req, retry)
         .await
         .map_err(UploadError::Storage)?;
 
