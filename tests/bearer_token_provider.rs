@@ -17,12 +17,18 @@
 //! * a provider that errors logs a warning and the request proceeds
 //!   unauthenticated, so the server sees no bearer;
 //! * `upload_file`'s create-session and finalize legs each resolve through the
-//!   provider, so a token that rotates between them is picked up.
+//!   provider, so a token that rotates between them is picked up;
+//! * every *hand-written* bearer call site — `client.query()` via
+//!   `query::send_query`, `Client::submit_query`, and the Arrow fetch — resolves
+//!   per request too. These sit outside `src/apis/`, which is all the CI regen
+//!   guard greps, so nothing else would catch one being reverted to a plain
+//!   `bearer_access_token` read.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use hotdata::auth::{async_trait, BearerTokenError, BearerTokenProvider};
+use hotdata::models::QueryRequest;
 use hotdata::{Client, Configuration, UploadOptions};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, Request, ResponseTemplate};
@@ -408,4 +414,130 @@ async fn upload_file_resolves_create_and_finalize_through_the_provider() {
         None,
         "the storage PUT must carry no Authorization header"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Hand-written bearer call sites.
+//
+// `src/query.rs` (send_query), `src/client.rs` (submit_query) and `src/arrow.rs`
+// (fetch_arrow_bytes) each build their own request rather than going through a
+// generated op, so each has its own `resolve_bearer_token` call. The CI regen
+// guard only greps `src/apis/`, so if one of these were reverted to reading
+// `bearer_access_token` directly, nothing above would fail. These pin them.
+//
+// Each asserts the *sequence* of bearers across two calls: one value per call
+// proves the site resolved independently rather than reusing a cached token.
+// The calls are allowed to fail — the bearer is applied while the request is
+// built, long before the response is parsed — so the mocks return bodies these
+// entry points won't deserialize and the results are deliberately discarded.
+// ---------------------------------------------------------------------------
+
+fn sql(text: &str) -> QueryRequest {
+    QueryRequest {
+        sql: text.to_owned(),
+        ..Default::default()
+    }
+}
+
+/// `client.query()` reaches the wire through `query::send_query`, the
+/// hand-written `POST /v1/query` builder — and it backs the most-used entry
+/// point in the SDK.
+#[tokio::test]
+async fn send_query_resolves_per_request() {
+    let server = MockServer::start().await;
+    // 200 with a body `QueryResponse` can't deserialize: enough to exercise the
+    // request path without tripping the 429 retry loop (only 429s and
+    // pre-response connection errors retry, so the provider is asked once per
+    // call here).
+    Mock::given(method("POST"))
+        .and(path("/v1/query"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(r#"{"unparseable":true}"#))
+        .mount(&server)
+        .await;
+
+    let provider = SequenceProvider::new(&["query-first", "query-second"]);
+    let mut config = config_for(&server.uri());
+    config.token_provider = Some(provider.clone());
+    let client = Client::from_configuration(config);
+
+    let _ = client.query(sql("SELECT 1")).await;
+    let _ = client.query(sql("SELECT 2")).await;
+
+    let requests = server.received_requests().await.expect("requests recorded");
+    assert_eq!(
+        recorded_bearers(&requests),
+        vec![
+            Some("Bearer query-first".to_owned()),
+            Some("Bearer query-second".to_owned()),
+        ],
+        "send_query must resolve a fresh bearer for each POST /v1/query"
+    );
+    assert_eq!(provider.call_count(), 2);
+}
+
+/// `Client::submit_query` builds its own `POST /v1/query` (it needs the raw 202
+/// body the generated op discards), so it carries a second, separate bearer
+/// site from `send_query`.
+#[tokio::test]
+async fn submit_query_resolves_per_request() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/query"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(r#"{"unparseable":true}"#))
+        .mount(&server)
+        .await;
+
+    let provider = SequenceProvider::new(&["submit-first", "submit-second"]);
+    let mut config = config_for(&server.uri());
+    config.token_provider = Some(provider.clone());
+    let client = Client::from_configuration(config);
+
+    let _ = client.submit_query(sql("SELECT 1"), None).await;
+    let _ = client.submit_query(sql("SELECT 2"), None).await;
+
+    let requests = server.received_requests().await.expect("requests recorded");
+    assert_eq!(
+        recorded_bearers(&requests),
+        vec![
+            Some("Bearer submit-first".to_owned()),
+            Some("Bearer submit-second".to_owned()),
+        ],
+        "submit_query must resolve a fresh bearer for each call"
+    );
+    assert_eq!(provider.call_count(), 2);
+}
+
+/// The Arrow fetch (`arrow::fetch_arrow_bytes`) negotiates `?format=arrow` with
+/// its own request builder, so it is a third independent bearer site. Relevant
+/// to the CLI, which pulls results this way after a long query.
+#[cfg(feature = "arrow")]
+#[tokio::test]
+async fn arrow_fetch_resolves_per_request() {
+    let server = MockServer::start().await;
+    // Not valid Arrow IPC — the decode fails, which is fine: the bearer is
+    // applied when the request is built.
+    Mock::given(method("GET"))
+        .and(path("/v1/results/res_1"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("not-arrow-ipc"))
+        .mount(&server)
+        .await;
+
+    let provider = SequenceProvider::new(&["arrow-first", "arrow-second"]);
+    let mut config = config_for(&server.uri());
+    config.token_provider = Some(provider.clone());
+    let client = Client::from_configuration(config);
+
+    let _ = client.get_result_arrow("res_1", "dbid_1", None, None).await;
+    let _ = client.get_result_arrow("res_1", "dbid_1", None, None).await;
+
+    let requests = server.received_requests().await.expect("requests recorded");
+    assert_eq!(
+        recorded_bearers(&requests),
+        vec![
+            Some("Bearer arrow-first".to_owned()),
+            Some("Bearer arrow-second".to_owned()),
+        ],
+        "the Arrow fetch must resolve a fresh bearer for each call"
+    );
+    assert_eq!(provider.call_count(), 2);
 }
