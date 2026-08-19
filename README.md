@@ -56,25 +56,27 @@ let client = Client::builder()
 A static API token is fixed for the life of the `Configuration`, which is all most callers need. A host that owns its own credential lifecycle — an interactive login whose access token expires in minutes, say — can install a [`BearerTokenProvider`](https://docs.rs/hotdata/latest/hotdata/auth/trait.BearerTokenProvider.html) on `Configuration::token_provider` instead. The SDK then asks it for a bearer once per request, so a long call (a multi-gigabyte `upload_file`, a slow query, a large parallel batch) can refresh mid-flight rather than 401 on a token that expired after it started:
 
 ```rust
-use hotdata::auth::{BearerTokenError, BearerTokenProvider};
+use hotdata::auth::{async_trait, BearerTokenError, BearerTokenProvider};
 use hotdata::prelude::*;
 
 #[derive(Debug)]
 struct MySession { /* refresh token, expiry, mutex, ... */ }
 
-#[async_trait::async_trait]
+#[async_trait]
 impl BearerTokenProvider for MySession {
     async fn bearer_value(&self) -> Result<String, BearerTokenError> {
         // Refresh if needed, then hand back a currently valid access token.
-        Ok(self.current_access_token().await?)
+        Ok("eyJ...".to_owned())
     }
 }
 
 let mut client = Client::builder().api_token("unused").build()?;
-client.configuration_mut().token_provider = Some(std::sync::Arc::new(session));
+client.configuration_mut().token_provider = Some(std::sync::Arc::new(MySession {}));
 ```
 
-`bearer_value` is called on every request, including the create-session and finalize legs of `upload_file`, so a credential that rotates between them is picked up. It is a hook and nothing more: the SDK never exchanges one credential for another. With no provider installed, `bearer_access_token` behaves exactly as before. If a provider returns an error, the SDK logs a warning on the `log` facade and sends the request unauthenticated, so the resulting 401 stays diagnosable rather than hiding the real cause.
+`bearer_value` is called on every request, including the create-session and finalize legs of `upload_file`, so a credential that rotates between them is picked up. It is a hook and nothing more: the SDK never exchanges one credential for another. With no provider installed, `bearer_access_token` behaves exactly as before.
+
+If a provider returns an error, the SDK logs a warning on the `log` facade and sends the request unauthenticated, which surfaces as a 401 from the server. That warning is only visible if your binary installed a `log` implementation with `warn` enabled for the `hotdata` target — without one, a provider failure looks like any other 401, so wire up a logger before debugging one.
 
 ## Quickstart
 

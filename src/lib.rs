@@ -61,7 +61,7 @@ pub use uploads::{
 
 /// Process-wide lock serializing every test that mutates `std::env`. Env is a
 /// process-global resource, so per-module locks would race; all env-mutating
-/// tests across the crate (auth.rs, client.rs, …) lock this single mutex.
+/// tests across the crate (client.rs, …) lock this single mutex.
 #[cfg(test)]
 pub(crate) static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 

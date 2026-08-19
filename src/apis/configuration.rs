@@ -90,8 +90,14 @@ impl Configuration {
     ///
     /// If a provider is configured but errors, the error is logged via the
     /// `log` facade and `None` is returned. The request then proceeds
-    /// unauthenticated and the server replies 401; logging the cause keeps that
-    /// 401 diagnosable instead of silently swallowing the real failure.
+    /// unauthenticated and the server replies 401.
+    ///
+    /// The `Option` return cannot carry that cause to the caller, so the
+    /// `log::warn!` is the only trace of it — and it is visible only if the
+    /// host installed a `log` implementation with `warn` enabled for the
+    /// `hotdata` target. In a binary with no logger, a provider failure is
+    /// indistinguishable from any other 401, so wire up a logger before
+    /// debugging one.
     pub async fn resolve_bearer_token(&self) -> Option<String> {
         if let Some(ref provider) = self.token_provider {
             match provider.bearer_value().await {
