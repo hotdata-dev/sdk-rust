@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// QueryResponse : Response body for POST /query  Query results are returned immediately along with a `result_id` for later retrieval. The actual persistence to storage happens asynchronously in the background.  To check if a result is ready for SQL queries, poll GET /results/{id} and check `status`: - `\"processing\"`: Persistence is still in progress - `\"ready\"`: Result is available for retrieval and SQL queries - `\"failed\"`: Persistence failed (check `error_message` for details)
+/// QueryResponse : Response body for POST /query  Query results are returned immediately along with a `result_id` for later retrieval. Saving the result for later retrieval happens asynchronously in the background.  To check if a result is ready for SQL queries, poll GET /results/{id} and check `status`: - `\"processing\"`: Persistence is still in progress - `\"ready\"`: Result is available for retrieval and SQL queries - `\"failed\"`: Persistence failed (check `error_message` for details)
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct QueryResponse {
     #[serde(rename = "columns")]
@@ -27,7 +27,7 @@ pub struct QueryResponse {
     /// Unique identifier for the query run record (qrun...).
     #[serde(rename = "query_run_id")]
     pub query_run_id: String,
-    /// Unique identifier for retrieving this result via GET /results/{id}. When non-null, the result is being persisted asynchronously. Null only when the result fit entirely in this response (`truncated: false`) but could not be persisted for later retrieval — see the `warning` field. A `truncated: true` response ALWAYS carries a non-null, resolvable `result_id` (#640 F1): a truncated result that cannot be persisted fails the request with a retryable HTTP 503 (`PERSISTENCE_UNAVAILABLE`, with a `Retry-After` header) rather than returning a partial body with a dead ticket.
+    /// Unique identifier for retrieving this result via GET /results/{id}. When non-null, the result is being persisted asynchronously. Null only when the result fit entirely in this response (`truncated: false`) but could not be persisted for later retrieval — see the `warning` field. A `truncated: true` response ALWAYS carries a non-null, resolvable `result_id`: a truncated result that cannot be persisted fails the request with a retryable HTTP 503 (`PERSISTENCE_UNAVAILABLE`, with a `Retry-After` header) rather than returning a partial body with a dead ticket.
     #[serde(
         rename = "result_id",
         default,
@@ -52,7 +52,7 @@ pub struct QueryResponse {
     /// True when `rows` is a bounded preview of a larger result. Fetch the full result via `result_id`.
     #[serde(rename = "truncated")]
     pub truncated: bool,
-    /// Warning message if result persistence could not be initiated. Present only when the full result is returned inline (`truncated: false`) but could not be persisted: `result_id` is then null and the result cannot be re-fetched later, though every row is in this response. A truncated result never carries a warning — if it cannot be persisted the request fails with a retryable HTTP 503 (`PERSISTENCE_UNAVAILABLE`, with a `Retry-After` header) instead (#640 F1).
+    /// Warning message if result persistence could not be initiated. Present only when the full result is returned inline (`truncated: false`) but could not be persisted: `result_id` is then null and the result cannot be re-fetched later, though every row is in this response. A truncated result never carries a warning — if it cannot be persisted the request fails with a retryable HTTP 503 (`PERSISTENCE_UNAVAILABLE`, with a `Retry-After` header) instead.
     #[serde(
         rename = "warning",
         default,
@@ -63,7 +63,7 @@ pub struct QueryResponse {
 }
 
 impl QueryResponse {
-    /// Response body for POST /query  Query results are returned immediately along with a `result_id` for later retrieval. The actual persistence to storage happens asynchronously in the background.  To check if a result is ready for SQL queries, poll GET /results/{id} and check `status`: - `\"processing\"`: Persistence is still in progress - `\"ready\"`: Result is available for retrieval and SQL queries - `\"failed\"`: Persistence failed (check `error_message` for details)
+    /// Response body for POST /query  Query results are returned immediately along with a `result_id` for later retrieval. Saving the result for later retrieval happens asynchronously in the background.  To check if a result is ready for SQL queries, poll GET /results/{id} and check `status`: - `\"processing\"`: Persistence is still in progress - `\"ready\"`: Result is available for retrieval and SQL queries - `\"failed\"`: Persistence failed (check `error_message` for details)
     pub fn new(
         columns: Vec<String>,
         execution_time_ms: i64,

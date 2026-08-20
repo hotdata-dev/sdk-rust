@@ -49,6 +49,14 @@ pub struct QueryRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub default_schema: Option<Option<String>>,
+    /// SQL dialect the `sql` field is written in. One of `hotsql` (the default), `duckdb`, `postgres`, or `snowflake`. When set to anything other than `hotsql`, the query is translated to HotSQL before it runs, so you can use idioms from that dialect (for example Snowflake `IFF(...)` or Postgres `MOD(a, b)`). Only read-only queries are accepted. An unrecognized value is rejected with a 400.
+    #[serde(
+        rename = "dialect",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub dialect: Option<Option<String>>,
     #[serde(rename = "sql")]
     pub sql: String,
 }
@@ -62,6 +70,7 @@ impl QueryRequest {
             database_id: None,
             default_catalog: None,
             default_schema: None,
+            dialect: None,
             sql,
         }
     }

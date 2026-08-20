@@ -26,9 +26,10 @@ async fn embedding_providers_crud() {
 
     let mut create_req =
         models::CreateEmbeddingProviderRequest::new(name.clone(), "service".to_string());
-    create_req.config = Some(Some(
-        serde_json::json!({ "model": "text-embedding-3-small" }),
-    ));
+    create_req.config = Some(std::collections::HashMap::from([(
+        "model".to_string(),
+        serde_json::json!("text-embedding-3-small"),
+    )]));
     let created = embedding_providers_api::create_embedding_provider(config, create_req)
         .await
         .expect("create_embedding_provider should succeed");

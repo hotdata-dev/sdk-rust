@@ -54,9 +54,9 @@ pub struct CreateIndexRequest {
     pub embedding_provider_id: Option<Option<String>>,
     #[serde(rename = "index_name")]
     pub index_name: String,
-    /// Index type: \"sorted\" (default), \"bm25\", or \"vector\"
+    /// Index type. `sorted` supports range queries, `bm25` full-text search, and `vector` similarity search.
     #[serde(rename = "index_type", skip_serializing_if = "Option::is_none")]
-    pub index_type: Option<String>,
+    pub index_type: Option<IndexType>,
     /// Distance metric for vector indexes: \"l2\", \"cosine\", or \"dot\". When omitted, defaults to \"l2\" for float array columns or the provider's preferred metric for text columns with auto-embedding.
     #[serde(
         rename = "metric",
@@ -90,5 +90,21 @@ impl CreateIndexRequest {
             metric: None,
             output_column: None,
         }
+    }
+}
+/// Index type. `sorted` supports range queries, `bm25` full-text search, and `vector` similarity search.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+pub enum IndexType {
+    #[serde(rename = "sorted")]
+    Sorted,
+    #[serde(rename = "bm25")]
+    Bm25,
+    #[serde(rename = "vector")]
+    Vector,
+}
+
+impl Default for IndexType {
+    fn default() -> IndexType {
+        Self::Sorted
     }
 }

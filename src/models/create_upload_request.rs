@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// CreateUploadRequest : Request body for `POST /v1/uploads` and for each entry of `POST /v1/uploads/batch`.  Describes a single file you intend to upload directly to storage. The service chooses where the bytes are stored and returns a short-lived URL to `PUT` them to; you do not pick the storage location. The declared size is validated against the bytes you actually upload when you finalize.
+/// CreateUploadRequest : Request body for `POST /v1/uploads` and for each entry of `POST /v1/uploads/batch`.  Describes a single file you intend to upload. The response carries a short-lived URL to `PUT` the bytes to, so the file never passes through the API itself. The declared size is validated against the bytes you actually upload when you finalize.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CreateUploadRequest {
     /// Integrity checksum algorithm you are volunteering for this file. Currently only `sha256` is accepted. Optional; pair with `checksum_value`.
@@ -46,7 +46,7 @@ pub struct CreateUploadRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub content_type: Option<Option<String>>,
-    /// The exact size, in bytes, of the file you will upload. Optional. When provided, it is validated at create time against the maximum allowed size, and again at finalize against the bytes actually stored — a mismatch fails the finalize. Omit it to create a streaming (unknown-size) upload: the session is always multi-part and returns no part URLs up front; instead you mint part URLs on demand from `POST /v1/uploads/{upload_id}/parts` as you upload, and finalize validates only that the file is non-empty.
+    /// The exact size, in bytes, of the file you will upload. Optional. When provided, it is validated at create time against the maximum allowed size, and again at finalize against the bytes actually uploaded — a mismatch fails the finalize. Omit it to create a streaming (unknown-size) upload: the session is always multi-part and returns no part URLs up front; instead you mint part URLs on demand from `POST /v1/uploads/{upload_id}/parts` as you upload, and finalize validates only that the file is non-empty.
     #[serde(
         rename = "declared_size_bytes",
         default,
@@ -54,7 +54,7 @@ pub struct CreateUploadRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub declared_size_bytes: Option<Option<i64>>,
-    /// Original file name, recorded with the upload for your own bookkeeping. Optional and advisory — it does not affect where the bytes are stored or how they are loaded.
+    /// Original file name, recorded with the upload for your own bookkeeping. Optional and advisory — it does not affect how the file is uploaded or loaded.
     #[serde(
         rename = "filename",
         default,
@@ -73,7 +73,7 @@ pub struct CreateUploadRequest {
 }
 
 impl CreateUploadRequest {
-    /// Request body for `POST /v1/uploads` and for each entry of `POST /v1/uploads/batch`.  Describes a single file you intend to upload directly to storage. The service chooses where the bytes are stored and returns a short-lived URL to `PUT` them to; you do not pick the storage location. The declared size is validated against the bytes you actually upload when you finalize.
+    /// Request body for `POST /v1/uploads` and for each entry of `POST /v1/uploads/batch`.  Describes a single file you intend to upload. The response carries a short-lived URL to `PUT` the bytes to, so the file never passes through the API itself. The declared size is validated against the bytes you actually upload when you finalize.
     pub fn new() -> CreateUploadRequest {
         CreateUploadRequest {
             checksum_algo: None,

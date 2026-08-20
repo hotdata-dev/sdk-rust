@@ -17,7 +17,7 @@ pub struct CreateDatabaseResponse {
     /// Name the database's default catalog answers to inside its query scope (`default` unless overridden at create time).
     #[serde(rename = "default_catalog")]
     pub default_catalog: String,
-    /// Internal id of the connection that backs this database's `default` catalog. Workspace-level connection endpoints (list, get, health, delete, cache purge) refuse to act on this id — it is exposed only for the managed-tables load endpoint (`POST /v1/connections/{id}/schemas/{s}/tables/{t}/loads`) so callers can publish parquet into tables declared at database-create time. Addressing it directly in SQL is not the recommended path — use `default` inside an `X-Database-Id` scope instead.
+    /// Internal id of the connection that backs this database's `default` catalog. Workspace-level connection endpoints (list, get, health, delete, cache purge) refuse to act on this id — it is exposed only for the managed-tables load endpoint (`POST /v1/connections/{id}/schemas/{s}/tables/{t}/loads`) so callers can load data into tables declared at database-create time. Addressing it directly in SQL is not the recommended path — use `default` inside an `X-Database-Id` scope instead.
     #[serde(rename = "default_connection_id")]
     pub default_connection_id: String,
     /// Schema that unqualified table names resolve to inside this database's query scope. `main` unless the database declares a single schema or a `default_schema` was set at create time.
