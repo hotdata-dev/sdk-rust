@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// UploadSessionResponse : A created upload session: everything needed to upload the bytes directly to storage and later finalize the upload.
+/// UploadSessionResponse : A created upload session: everything needed to upload the file and later finalize it.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UploadSessionResponse {
     /// One-time token that authorizes finalizing this upload. Returned exactly once at create time — store it; it cannot be retrieved again.
@@ -23,7 +23,7 @@ pub struct UploadSessionResponse {
     /// Upload mode: `single` (upload the whole file with one `PUT` to `url`) or `multipart` (upload each part with one `PUT` to the matching entry in `part_urls`). Modeled as a string so additional modes can be added later without breaking clients.
     #[serde(rename = "mode")]
     pub mode: String,
-    /// For a `multipart` upload (both known-size and streaming), the size in bytes to split the file into: send bytes `[(i-1) * part_size, i * part_size)` as part *i*, with the last part carrying the remainder. Slice by this value — do **not** divide the file evenly by the number of parts, which can make a non-final part smaller than the 5 MiB minimum that storage requires (the upload then fails at finalize). Absent for `single` uploads.
+    /// For a `multipart` upload (both known-size and streaming), the size in bytes to split the file into: send bytes `[(i-1) * part_size, i * part_size)` as part *i*, with the last part carrying the remainder. Slice by this value — do **not** divide the file evenly by the number of parts, which can make a non-final part smaller than the 5 MiB minimum for a non-final part (the upload then fails at finalize). Absent for `single` uploads.
     #[serde(
         rename = "part_size",
         default,
@@ -53,7 +53,7 @@ pub struct UploadSessionResponse {
 }
 
 impl UploadSessionResponse {
-    /// A created upload session: everything needed to upload the bytes directly to storage and later finalize the upload.
+    /// A created upload session: everything needed to upload the file and later finalize it.
     pub fn new(
         finalize_token: String,
         headers: std::collections::HashMap<String, String>,

@@ -22,13 +22,9 @@ pub struct CreateEmbeddingProviderRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub api_key: Option<Option<String>>,
-    #[serde(
-        rename = "config",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub config: Option<Option<serde_json::Value>>,
+    /// Provider-specific configuration (model name, base URL, dimensions, etc.)
+    #[serde(rename = "config", skip_serializing_if = "Option::is_none")]
+    pub config: Option<std::collections::HashMap<String, serde_json::Value>>,
     #[serde(rename = "name")]
     pub name: String,
     /// Provider type: \"local\" or \"service\"

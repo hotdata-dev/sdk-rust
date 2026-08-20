@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// FinalizeUploadRequest : Request body for `POST /v1/uploads/{upload_id}/finalize`.  Finalizing confirms the bytes were uploaded and makes the upload usable as managed-table contents. The request body is optional for single-`PUT` uploads; send `parts` only for a future multi-part upload.
+/// FinalizeUploadRequest : Request body for `POST /v1/uploads/{upload_id}/finalize`.  Finalizing confirms the bytes were uploaded and makes the upload usable as managed-table contents. The request body is optional for single-`PUT` uploads; send `parts` only for a multi-part upload.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct FinalizeUploadRequest {
     /// Parts to assemble, for a multi-part upload. Omit for single-`PUT` uploads (the common case).
@@ -25,7 +25,7 @@ pub struct FinalizeUploadRequest {
 }
 
 impl FinalizeUploadRequest {
-    /// Request body for `POST /v1/uploads/{upload_id}/finalize`.  Finalizing confirms the bytes were uploaded and makes the upload usable as managed-table contents. The request body is optional for single-`PUT` uploads; send `parts` only for a future multi-part upload.
+    /// Request body for `POST /v1/uploads/{upload_id}/finalize`.  Finalizing confirms the bytes were uploaded and makes the upload usable as managed-table contents. The request body is optional for single-`PUT` uploads; send `parts` only for a multi-part upload.
     pub fn new() -> FinalizeUploadRequest {
         FinalizeUploadRequest { parts: None }
     }

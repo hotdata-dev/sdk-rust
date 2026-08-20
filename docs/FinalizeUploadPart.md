@@ -4,8 +4,8 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**e_tag** | **String** | The entity tag (ETag) storage returned for the uploaded part. | 
-**part_number** | **i32** | 1-based part number, as reported by storage for the part. | 
+**e_tag** | **String** | The `ETag` response header returned by that part's `PUT`. | 
+**part_number** | **i32** | The 1-based part number you uploaded this part as. | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

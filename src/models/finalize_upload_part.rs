@@ -11,19 +11,19 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// FinalizeUploadPart : One part of a multi-part upload, supplied at finalize. Reserved for a future multi-part mode; single-`PUT` uploads have no parts.
+/// FinalizeUploadPart : One part of a multi-part upload, supplied at finalize. Single-`PUT` uploads have no parts.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct FinalizeUploadPart {
-    /// The entity tag (ETag) storage returned for the uploaded part.
+    /// The `ETag` response header returned by that part's `PUT`.
     #[serde(rename = "e_tag")]
     pub e_tag: String,
-    /// 1-based part number, as reported by storage for the part.
+    /// The 1-based part number you uploaded this part as.
     #[serde(rename = "part_number")]
     pub part_number: i32,
 }
 
 impl FinalizeUploadPart {
-    /// One part of a multi-part upload, supplied at finalize. Reserved for a future multi-part mode; single-`PUT` uploads have no parts.
+    /// One part of a multi-part upload, supplied at finalize. Single-`PUT` uploads have no parts.
     pub fn new(e_tag: String, part_number: i32) -> FinalizeUploadPart {
         FinalizeUploadPart { e_tag, part_number }
     }
