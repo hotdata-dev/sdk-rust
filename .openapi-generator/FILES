@@ -23,13 +23,7 @@ docs/ColumnProfileDetailOneOf3.md
 docs/ColumnProfileDetailOneOf4.md
 docs/ColumnProfileInfo.md
 docs/ColumnTypeSpec.md
-docs/ConnectionHealthResponse.md
 docs/ConnectionInfo.md
-docs/ConnectionRefreshResult.md
-docs/ConnectionSchemaError.md
-docs/ConnectionTypeDetail.md
-docs/ConnectionTypeSummary.md
-docs/ConnectionTypesApi.md
 docs/ConnectionsApi.md
 docs/CreateConnectionRequest.md
 docs/CreateConnectionResponse.md
@@ -39,8 +33,6 @@ docs/CreateEmbeddingProviderRequest.md
 docs/CreateEmbeddingProviderResponse.md
 docs/CreateIndexRequest.md
 docs/CreateSavedQueryRequest.md
-docs/CreateSecretRequest.md
-docs/CreateSecretResponse.md
 docs/CreateUploadRequest.md
 docs/CreateWorkspaceRequest.md
 docs/CreateWorkspaceResponse.md
@@ -67,7 +59,6 @@ docs/ForkDatabaseRequest.md
 docs/GetConnectionResponse.md
 docs/GetDatabaseContextResponse.md
 docs/GetResultResponse.md
-docs/GetSecretResponse.md
 docs/IndexEntryResponse.md
 docs/IndexInfoResponse.md
 docs/IndexStatus.md
@@ -79,7 +70,6 @@ docs/JobStatus.md
 docs/JobStatusResponse.md
 docs/JobType.md
 docs/JobsApi.md
-docs/ListConnectionTypesResponse.md
 docs/ListConnectionsResponse.md
 docs/ListDatabaseContextsResponse.md
 docs/ListDatabasesResponse.md
@@ -91,7 +81,6 @@ docs/ListQueryRunsResponse.md
 docs/ListResultsResponse.md
 docs/ListSavedQueriesResponse.md
 docs/ListSavedQueryVersionsResponse.md
-docs/ListSecretsResponse.md
 docs/ListWorkspacesResponse.md
 docs/LoadManagedTableRequest.md
 docs/LoadManagedTableResponse.md
@@ -106,9 +95,6 @@ docs/QueryRequest.md
 docs/QueryResponse.md
 docs/QueryRunInfo.md
 docs/QueryRunsApi.md
-docs/RefreshApi.md
-docs/RefreshRequest.md
-docs/RefreshResponse.md
 docs/RefreshWarning.md
 docs/ResultInfo.md
 docs/ResultsApi.md
@@ -117,14 +103,10 @@ docs/SavedQueriesApi.md
 docs/SavedQueryDetail.md
 docs/SavedQuerySummary.md
 docs/SavedQueryVersionInfo.md
-docs/SchemaRefreshResult.md
-docs/SecretMetadataResponse.md
-docs/SecretsApi.md
 docs/SubmitJobResponse.md
 docs/TableInfo.md
 docs/TablePartitionKey.md
 docs/TableProfileResponse.md
-docs/TableRefreshError.md
 docs/TableRefreshResult.md
 docs/TableSortKey.md
 docs/TemporalProfileDetail.md
@@ -132,8 +114,6 @@ docs/TextProfileDetail.md
 docs/UpdateEmbeddingProviderRequest.md
 docs/UpdateEmbeddingProviderResponse.md
 docs/UpdateSavedQueryRequest.md
-docs/UpdateSecretRequest.md
-docs/UpdateSecretResponse.md
 docs/UploadSessionResponse.md
 docs/UploadsApi.md
 docs/UpsertDatabaseContextRequest.md
@@ -144,7 +124,6 @@ docs/WorkspaceListItem.md
 docs/WorkspaceUsageResponse.md
 docs/WorkspacesApi.md
 src/apis/configuration.rs
-src/apis/connection_types_api.rs
 src/apis/connections_api.rs
 src/apis/database_context_api.rs
 src/apis/databases_api.rs
@@ -155,10 +134,8 @@ src/apis/jobs_api.rs
 src/apis/mod.rs
 src/apis/query_api.rs
 src/apis/query_runs_api.rs
-src/apis/refresh_api.rs
 src/apis/results_api.rs
 src/apis/saved_queries_api.rs
-src/apis/secrets_api.rs
 src/apis/uploads_api.rs
 src/apis/usage_api.rs
 src/apis/workspaces_api.rs
@@ -186,12 +163,7 @@ src/models/column_profile_detail_one_of_3.rs
 src/models/column_profile_detail_one_of_4.rs
 src/models/column_profile_info.rs
 src/models/column_type_spec.rs
-src/models/connection_health_response.rs
 src/models/connection_info.rs
-src/models/connection_refresh_result.rs
-src/models/connection_schema_error.rs
-src/models/connection_type_detail.rs
-src/models/connection_type_summary.rs
 src/models/create_connection_request.rs
 src/models/create_connection_response.rs
 src/models/create_database_request.rs
@@ -200,8 +172,6 @@ src/models/create_embedding_provider_request.rs
 src/models/create_embedding_provider_response.rs
 src/models/create_index_request.rs
 src/models/create_saved_query_request.rs
-src/models/create_secret_request.rs
-src/models/create_secret_response.rs
 src/models/create_upload_request.rs
 src/models/create_workspace_request.rs
 src/models/create_workspace_response.rs
@@ -225,7 +195,6 @@ src/models/fork_database_request.rs
 src/models/get_connection_response.rs
 src/models/get_database_context_response.rs
 src/models/get_result_response.rs
-src/models/get_secret_response.rs
 src/models/index_entry_response.rs
 src/models/index_info_response.rs
 src/models/index_status.rs
@@ -234,7 +203,6 @@ src/models/job_result.rs
 src/models/job_status.rs
 src/models/job_status_response.rs
 src/models/job_type.rs
-src/models/list_connection_types_response.rs
 src/models/list_connections_response.rs
 src/models/list_database_contexts_response.rs
 src/models/list_databases_response.rs
@@ -246,7 +214,6 @@ src/models/list_query_runs_response.rs
 src/models/list_results_response.rs
 src/models/list_saved_queries_response.rs
 src/models/list_saved_query_versions_response.rs
-src/models/list_secrets_response.rs
 src/models/list_workspaces_response.rs
 src/models/load_managed_table_request.rs
 src/models/load_managed_table_response.rs
@@ -260,21 +227,16 @@ src/models/numeric_profile_detail.rs
 src/models/query_request.rs
 src/models/query_response.rs
 src/models/query_run_info.rs
-src/models/refresh_request.rs
-src/models/refresh_response.rs
 src/models/refresh_warning.rs
 src/models/result_info.rs
 src/models/results_format_query.rs
 src/models/saved_query_detail.rs
 src/models/saved_query_summary.rs
 src/models/saved_query_version_info.rs
-src/models/schema_refresh_result.rs
-src/models/secret_metadata_response.rs
 src/models/submit_job_response.rs
 src/models/table_info.rs
 src/models/table_partition_key.rs
 src/models/table_profile_response.rs
-src/models/table_refresh_error.rs
 src/models/table_refresh_result.rs
 src/models/table_sort_key.rs
 src/models/temporal_profile_detail.rs
@@ -282,8 +244,6 @@ src/models/text_profile_detail.rs
 src/models/update_embedding_provider_request.rs
 src/models/update_embedding_provider_response.rs
 src/models/update_saved_query_request.rs
-src/models/update_secret_request.rs
-src/models/update_secret_response.rs
 src/models/upload_session_response.rs
 src/models/upsert_database_context_request.rs
 src/models/upsert_database_context_response.rs
