@@ -6,7 +6,6 @@ Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**add_managed_schema**](ConnectionsApi.md#add_managed_schema) | **POST** /v1/connections/{connection_id}/schemas | Add managed schema
 [**add_managed_table**](ConnectionsApi.md#add_managed_table) | **POST** /v1/connections/{connection_id}/schemas/{schema}/tables | Add managed table
-[**check_connection_health**](ConnectionsApi.md#check_connection_health) | **GET** /v1/connections/{connection_id}/health | Check connection health
 [**create_connection**](ConnectionsApi.md#create_connection) | **POST** /v1/connections | Create connection
 [**delete_connection**](ConnectionsApi.md#delete_connection) | **DELETE** /v1/connections/{connection_id} | Delete connection
 [**delete_managed_table**](ConnectionsApi.md#delete_managed_table) | **DELETE** /v1/connections/{connection_id}/schemas/{schema}/tables/{table} | Delete managed table
@@ -77,36 +76,6 @@ Name | Type | Description  | Required | Notes
 ### HTTP request headers
 
 - **Content-Type**: application/json
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
-## check_connection_health
-
-> models::ConnectionHealthResponse check_connection_health(connection_id)
-Check connection health
-
-Test connectivity to the remote database. Returns health status and latency.
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**connection_id** | **String** | Connection ID | [required] |
-
-### Return type
-
-[**models::ConnectionHealthResponse**](ConnectionHealthResponse.md)
-
-### Authorization
-
-[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
-
-### HTTP request headers
-
-- **Content-Type**: Not defined
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

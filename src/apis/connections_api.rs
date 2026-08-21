@@ -33,14 +33,6 @@ pub enum AddManagedTableError {
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`check_connection_health`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum CheckConnectionHealthError {
-    Status404(models::ApiErrorResponse),
-    UnknownValue(serde_json::Value),
-}
-
 /// struct for typed errors of method [`create_connection`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -257,72 +249,6 @@ pub async fn add_managed_table(
         let content = resp.text().await?;
         crate::http_log::log_response_body(&content);
         let entity: Option<AddManagedTableError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent {
-            status,
-            content,
-            entity,
-        }))
-    }
-}
-
-/// Test connectivity to the remote database. Returns health status and latency.
-pub async fn check_connection_health(
-    configuration: &configuration::Configuration,
-    connection_id: &str,
-) -> Result<models::ConnectionHealthResponse, Error<CheckConnectionHealthError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_path_connection_id = connection_id;
-
-    let uri_str = format!(
-        "{}/v1/connections/{connection_id}/health",
-        configuration.base_path,
-        connection_id = crate::apis::urlencode(p_path_connection_id)
-    );
-    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
-        let key = apikey.key.clone();
-        let value = match apikey.prefix {
-            Some(ref prefix) => format!("{} {}", prefix, key),
-            None => key,
-        };
-        req_builder = req_builder.header("X-Workspace-Id", value);
-    };
-    if let Some(token) = configuration.resolve_bearer_token().await {
-        req_builder = req_builder.bearer_auth(token);
-    };
-
-    let req = req_builder.build()?;
-    crate::http_log::log_request(&req);
-    // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
-    // shedding) is retried per `configuration.retry` on every generated op, not
-    // just the hand-written query path. See crate::http::execute_retrying.
-    let resp = crate::http::execute_retrying(configuration, req).await?;
-
-    let status = resp.status();
-    crate::http_log::log_response_status(status);
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
-
-    if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        crate::http_log::log_response_body(&content);
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ConnectionHealthResponse`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ConnectionHealthResponse`")))),
-        }
-    } else {
-        let content = resp.text().await?;
-        crate::http_log::log_response_body(&content);
-        let entity: Option<CheckConnectionHealthError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
