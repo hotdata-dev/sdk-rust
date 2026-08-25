@@ -521,7 +521,7 @@ impl Client {
     /// multipart `PUT`s split by the server's `part_size` for a large one), then
     /// finalizes (`POST /v1/uploads/{id}/finalize`) and returns the
     /// [`models::FinalizeUploadResponse`] — read `upload_id` from it to load the
-    /// upload into a managed table.
+    /// upload into an instant database table.
     ///
     /// This path NEVER falls back to the legacy `POST /v1/files` proxy: a server
     /// that cannot presign (`501 PRESIGN_UNSUPPORTED`) is a hard

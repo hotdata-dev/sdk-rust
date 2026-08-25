@@ -2,7 +2,7 @@
 //!
 //! Defined in www.hotdata.dev/api/test-scenarios.yaml — create a database
 //! (metadata-only grouping), read it, confirm it appears in list_databases,
-//! declare a schema and a table on its managed catalog, then delete it and
+//! declare a schema and a table on its instant database catalog, then delete it and
 //! verify it's gone.
 
 mod common;
@@ -31,7 +31,7 @@ async fn databases_lifecycle() {
         "created database {database_id} not present in list_databases"
     );
 
-    // Declare a schema on the database's managed catalog. Identifiers are
+    // Declare a schema on the instant database's catalog. Identifiers are
     // SQL-scoped, so use underscore-only names (the database is unique per run,
     // so a fixed schema/table name can't collide across tests).
     let schema_name = "sdkci_schema";
@@ -45,7 +45,7 @@ async fn databases_lifecycle() {
     assert_eq!(schema.schema, schema_name);
     assert!(
         !schema.connection_id.is_empty(),
-        "schema should report its managed-catalog connection"
+        "schema should report its instant database catalog connection"
     );
 
     // Declare a table on that schema.

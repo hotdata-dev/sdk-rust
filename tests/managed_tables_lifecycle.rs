@@ -1,12 +1,12 @@
 //! Scenario: managed_tables_lifecycle.
 //!
 //! Defined in www.hotdata.dev/api/test-scenarios.yaml — create a database (which
-//! auto-provisions a managed catalog), declare a schema and table on it, upload a
+//! auto-provisions an instant database catalog), declare a schema and table on it, upload a
 //! small parquet file, load it into the table via load_managed_table, then delete
 //! the table and the database. Self-cleaning — touches no seeded data.
 //!
 //! refresh / get_table_profile / purge_table_cache are deliberately NOT exercised
-//! here: runtimedb rejects all three against a managed catalog (they are valid
+//! here: runtimedb rejects all three against an instant database catalog (they are valid
 //! only for real source connections, covered by source_table_refresh_profile).
 //! The 3-row parquet payload is a committed fixture (tests/fixtures/), so the test
 //! needs no parquet writer at runtime.
@@ -24,8 +24,8 @@ async fn managed_tables_lifecycle() {
 
     let database_id = common::create_scratch_database(&client, "managed-tables").await;
 
-    // The database's auto-provisioned default catalog is a managed catalog,
-    // addressed through its default_connection_id.
+    // The instant database's auto-provisioned default catalog is addressed
+    // through its default_connection_id.
     let connection_id = databases_api::get_database(config, &database_id)
         .await
         .expect("get_database should succeed")
