@@ -1,7 +1,7 @@
 /*
  * Hotdata API
  *
- * Powerful data platform API for managed databases, queries, and analytics.
+ * Powerful data platform API for instant databases, queries, and analytics.
  *
  * The version of the OpenAPI document: 1.0.0
  * Contact: developers@hotdata.dev
@@ -19,10 +19,6 @@ pub enum JobType {
     Noop,
     #[serde(rename = "bulk_create_databases")]
     BulkCreateDatabases,
-    #[serde(rename = "data_refresh_table")]
-    DataRefreshTable,
-    #[serde(rename = "data_refresh_connection")]
-    DataRefreshConnection,
     #[serde(rename = "create_index")]
     CreateIndex,
     #[serde(rename = "managed_load")]
@@ -48,8 +44,6 @@ impl std::fmt::Display for JobType {
         match self {
             Self::Noop => write!(f, "noop"),
             Self::BulkCreateDatabases => write!(f, "bulk_create_databases"),
-            Self::DataRefreshTable => write!(f, "data_refresh_table"),
-            Self::DataRefreshConnection => write!(f, "data_refresh_connection"),
             Self::CreateIndex => write!(f, "create_index"),
             Self::ManagedLoad => write!(f, "managed_load"),
             Self::DucklakeVacuum => write!(f, "ducklake_vacuum"),

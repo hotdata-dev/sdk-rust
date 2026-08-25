@@ -1,7 +1,7 @@
 /*
  * Hotdata API
  *
- * Powerful data platform API for managed databases, queries, and analytics.
+ * Powerful data platform API for instant databases, queries, and analytics.
  *
  * The version of the OpenAPI document: 1.0.0
  * Contact: developers@hotdata.dev
@@ -476,7 +476,7 @@ pub async fn count_databases(
     }
 }
 
-/// Create a new database (a metadata-only grouping). A managed default catalog is auto-created and addressable inside the database as `default` (or the optional `default_catalog` name), with a `main` schema pre-declared so `default.main.<table>` works out of the box. The optional `name` is a free-form display label and is not required to be unique. Optional `default_catalog` overrides the name the default catalog answers to; it must be a valid SQL identifier and may not collide with the reserved catalog names `hotdata` or `information_schema`. Optional `schemas` declares additional schemas/tables on the default catalog at create time; declared tables can be loaded via the standard managed-tables-load endpoint targeting `default_connection_id`. Optional `expires_at` sets when the database expires — accepts either an RFC 3339 timestamp or a relative duration suffixed with `h` (hours), `m` (minutes), or `d` (days), e.g. `24h`, `48h`, `90m`, `7d`. When omitted, the database never expires. Expiry is best-effort: the database will not be deleted before `expires_at`, but cleanup may run later than the exact timestamp.
+/// Create a new database (a metadata-only grouping). A managed default catalog is auto-created and addressable inside the database as `default` (or the optional `default_catalog` name), with a `main` schema pre-declared so `default.main.<table>` works out of the box. The optional `name` is a free-form display label and is not required to be unique; when omitted, a label derived from the new database's ID is assigned. Optional `default_catalog` overrides the name the default catalog answers to; it must be a valid SQL identifier and may not collide with the reserved catalog names `hotdata` or `information_schema`. Optional `schemas` declares additional schemas/tables on the default catalog at create time; declared tables can be loaded via the standard managed-tables-load endpoint targeting `default_connection_id`. Optional `expires_at` sets when the database expires — accepts either an RFC 3339 timestamp or a relative duration suffixed with `h` (hours), `m` (minutes), or `d` (days), e.g. `24h`, `48h`, `90m`, `7d`. When omitted, the database never expires. Expiry is best-effort: the database will not be deleted before `expires_at`, but cleanup may run later than the exact timestamp.
 pub async fn create_database(
     configuration: &configuration::Configuration,
     create_database_request: models::CreateDatabaseRequest,

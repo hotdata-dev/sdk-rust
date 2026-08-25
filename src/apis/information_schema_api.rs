@@ -1,7 +1,7 @@
 /*
  * Hotdata API
  *
- * Powerful data platform API for managed databases, queries, and analytics.
+ * Powerful data platform API for instant databases, queries, and analytics.
  *
  * The version of the OpenAPI document: 1.0.0
  * Contact: developers@hotdata.dev
@@ -21,7 +21,7 @@ pub enum InformationSchemaError {
     UnknownValue(serde_json::Value),
 }
 
-/// List discovered tables with optional filtering and pagination. Supports wildcard patterns (SQL %) for schema and table name filters. Set include_columns=true to include column definitions (omitted by default). Every table carries its declared storage layout — `partition_by` and `sorted_by` — which is fixed when the table is created and cannot be changed afterwards. Both are always present; an empty array means none was declared. Only tables in a hotdata-managed database declare a layout here, so a table discovered from an external connection always reports empty arrays.
+/// List discovered tables with optional filtering and pagination. Supports wildcard patterns (SQL %) for schema and table name filters. Set include_columns=true to include column definitions (omitted by default). Every table carries its declared storage layout — `partition_by` and `sorted_by` — which is fixed when the table is created and cannot be changed afterwards. Both are always present; an empty array means none was declared. Only tables in a Hotdata instant database declare a layout here, so a table discovered from an external connection always reports empty arrays.
 pub async fn information_schema(
     configuration: &configuration::Configuration,
     connection_id: Option<&str>,
