@@ -17,7 +17,6 @@ use serde::{Deserialize, Serialize};
 #[serde(untagged)]
 pub enum JobResult {
     TableRefreshResult(Box<models::TableRefreshResult>),
-    ConnectionRefreshResult(Box<models::ConnectionRefreshResult>),
     IndexInfoResponse(Box<models::IndexInfoResponse>),
     LoadManagedTableResponse(Box<models::LoadManagedTableResponse>),
     BulkCreateDatabasesResult(Box<models::BulkCreateDatabasesResult>),

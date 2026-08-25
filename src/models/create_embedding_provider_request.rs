@@ -30,7 +30,7 @@ pub struct CreateEmbeddingProviderRequest {
     /// Provider type: \"local\" or \"service\"
     #[serde(rename = "provider_type")]
     pub provider_type: String,
-    /// Reference an existing secret by name (for service providers).
+    /// Reference an existing stored secret by name (for service providers).  A stored secret is only sent to an approved provider origin — by default OpenAI's public API. To use a different endpoint, supply the key inline with `api_key` instead, or ask your operator to approve the origin.
     #[serde(
         rename = "secret_name",
         default,
