@@ -1,7 +1,7 @@
 /*
  * Hotdata API
  *
- * Powerful data platform API for managed databases, queries, and analytics.
+ * Powerful data platform API for instant databases, queries, and analytics.
  *
  * The version of the OpenAPI document: 1.0.0
  * Contact: developers@hotdata.dev
@@ -16,8 +16,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum JobResult {
-    TableRefreshResult(Box<models::TableRefreshResult>),
-    ConnectionRefreshResult(Box<models::ConnectionRefreshResult>),
     IndexInfoResponse(Box<models::IndexInfoResponse>),
     LoadManagedTableResponse(Box<models::LoadManagedTableResponse>),
     BulkCreateDatabasesResult(Box<models::BulkCreateDatabasesResult>),
@@ -25,6 +23,6 @@ pub enum JobResult {
 
 impl Default for JobResult {
     fn default() -> Self {
-        Self::TableRefreshResult(Default::default())
+        Self::IndexInfoResponse(Default::default())
     }
 }

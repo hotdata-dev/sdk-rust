@@ -1,7 +1,7 @@
 /*
  * Hotdata API
  *
- * Powerful data platform API for managed databases, queries, and analytics.
+ * Powerful data platform API for instant databases, queries, and analytics.
  *
  * The version of the OpenAPI document: 1.0.0
  * Contact: developers@hotdata.dev
@@ -38,7 +38,7 @@ pub struct CreateDatabaseRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub expires_at: Option<Option<String>>,
-    /// Optional free-form display label (for UIs/CLIs). Not unique. Not an identifier — databases are always addressed by `id`.  Accepts the legacy `description` key as an alias so clients that predate the rename keep populating this field.
+    /// Optional free-form display label (for UIs/CLIs). When omitted, a label derived from the database's ID is assigned. Not unique. Not an identifier — databases are always addressed by `id`.  Accepts the legacy `description` key as an alias so clients that predate the rename keep populating this field.
     #[serde(
         rename = "name",
         default,

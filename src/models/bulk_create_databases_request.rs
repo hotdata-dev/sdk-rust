@@ -1,7 +1,7 @@
 /*
  * Hotdata API
  *
- * Powerful data platform API for managed databases, queries, and analytics.
+ * Powerful data platform API for instant databases, queries, and analytics.
  *
  * The version of the OpenAPI document: 1.0.0
  * Contact: developers@hotdata.dev
@@ -49,7 +49,7 @@ pub struct BulkCreateDatabasesRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub idempotency_key: Option<Option<String>>,
-    /// Optional display-label pattern for each database. `{index}` is replaced with the database's zero-based position — for example `tenant-{index}` produces `tenant-0`, `tenant-1`, and so on. Labels are not identifiers and are not required to be unique.
+    /// Optional display-label pattern for each database. `{index}` is replaced with the database's zero-based position — for example `tenant-{index}` produces `tenant-0`, `tenant-1`, and so on. When omitted, each database is labelled from its own ID. Labels are not identifiers and are not required to be unique.
     #[serde(
         rename = "name_template",
         default,

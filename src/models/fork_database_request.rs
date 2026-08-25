@@ -1,7 +1,7 @@
 /*
  * Hotdata API
  *
- * Powerful data platform API for managed databases, queries, and analytics.
+ * Powerful data platform API for instant databases, queries, and analytics.
  *
  * The version of the OpenAPI document: 1.0.0
  * Contact: developers@hotdata.dev
@@ -22,7 +22,7 @@ pub struct ForkDatabaseRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub expires_at: Option<Option<String>>,
-    /// Optional display label for the fork. When omitted, the source database's name (if any) is carried over.
+    /// Optional display label for the fork. When omitted, the fork takes the source's label followed by a short suffix derived from the fork's own ID, so the two stay distinguishable. A source with no usable label of its own gives a fork named from that ID alone.
     #[serde(
         rename = "name",
         default,
