@@ -113,7 +113,6 @@ impl From<&str> for ContentType {
     }
 }
 
-pub mod connection_types_api;
 pub mod connections_api;
 pub mod database_context_api;
 pub mod databases_api;
@@ -123,10 +122,8 @@ pub mod information_schema_api;
 pub mod jobs_api;
 pub mod query_api;
 pub mod query_runs_api;
-pub mod refresh_api;
 pub mod results_api;
 pub mod saved_queries_api;
-pub mod secrets_api;
 pub mod uploads_api;
 pub mod usage_api;
 pub mod workspaces_api;

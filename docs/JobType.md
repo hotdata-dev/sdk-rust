@@ -6,8 +6,6 @@
 |---- | -----|
 | Noop | noop |
 | BulkCreateDatabases | bulk_create_databases |
-| DataRefreshTable | data_refresh_table |
-| DataRefreshConnection | data_refresh_connection |
 | CreateIndex | create_index |
 | ManagedLoad | managed_load |
 | DucklakeVacuum | ducklake_vacuum |
