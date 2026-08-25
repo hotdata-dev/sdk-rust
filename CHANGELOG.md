@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Docs restructure (Core Concepts / Push Data / Pull Data) + homepage design refinements
 
 ## [0.14.0] - 2026-08-20
 

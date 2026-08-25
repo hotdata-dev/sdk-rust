@@ -5,7 +5,6 @@
 | Name | Description |
 |---- | -----|
 | BulkCreateDatabasesResult | Job-specific result payload. The shape depends on the job type. Null while the job is pending or running. |
-| ConnectionRefreshResult | Job-specific result payload. The shape depends on the job type. Null while the job is pending or running. |
 | IndexInfoResponse | Job-specific result payload. The shape depends on the job type. Null while the job is pending or running. |
 | LoadManagedTableResponse | Job-specific result payload. The shape depends on the job type. Null while the job is pending or running. |
 | TableRefreshResult | Job-specific result payload. The shape depends on the job type. Null while the job is pending or running. |
