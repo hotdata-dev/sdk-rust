@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- docs: adopt "instant database" terminology in doc comments and test comments; public API names (e.g. `load_managed_table`, `source_type: managed`) are unchanged
+
 
 ## [0.14.0] - 2026-08-20
 

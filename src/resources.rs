@@ -80,7 +80,7 @@ impl<'a> ConnectionsApi<'a> {
         apis::connections_api::purge_connection_cache(self.config, connection_id).await
     }
 
-    /// Get a profile for a managed table.
+    /// Get a profile for an instant database table.
     pub async fn get_table_profile(
         &self,
         connection_id: &str,
@@ -91,7 +91,7 @@ impl<'a> ConnectionsApi<'a> {
         apis::connections_api::get_table_profile(self.config, connection_id, schema, table).await
     }
 
-    /// Load (materialize) a managed table.
+    /// Load (materialize) an instant database table.
     pub async fn load_managed_table(
         &self,
         connection_id: &str,
@@ -110,7 +110,7 @@ impl<'a> ConnectionsApi<'a> {
         .await
     }
 
-    /// Delete a managed table.
+    /// Delete an instant database table.
     pub async fn delete_managed_table(
         &self,
         connection_id: &str,
@@ -377,7 +377,7 @@ impl<'a> EmbeddingProvidersApi<'a> {
 
 /// Indexes resource handle. Wraps [`apis::indexes_api`](crate::apis::indexes_api).
 ///
-/// Covers managed-table (connection/schema/table) indexes.
+/// Covers instant database table (connection/schema/table) indexes.
 pub struct IndexesApi<'a> {
     config: &'a Configuration,
 }
@@ -387,7 +387,7 @@ impl<'a> IndexesApi<'a> {
         Self { config }
     }
 
-    /// Create an index on a managed table.
+    /// Create an index on an instant database table.
     pub async fn create_index(
         &self,
         connection_id: &str,
@@ -398,7 +398,7 @@ impl<'a> IndexesApi<'a> {
         apis::indexes_api::create_index(self.config, connection_id, schema, table, request).await
     }
 
-    /// List indexes on a managed table.
+    /// List indexes on an instant database table.
     pub async fn list_indexes(
         &self,
         connection_id: &str,
@@ -408,7 +408,7 @@ impl<'a> IndexesApi<'a> {
         apis::indexes_api::list_indexes(self.config, connection_id, schema, table).await
     }
 
-    /// Delete an index from a managed table.
+    /// Delete an index from an instant database table.
     pub async fn delete_index(
         &self,
         connection_id: &str,
