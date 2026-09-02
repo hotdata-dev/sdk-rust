@@ -573,11 +573,6 @@ impl Client {
         crate::resources::ConnectionsApi::new(&self.configuration)
     }
 
-    /// Connection-types resource handle.
-    pub fn connection_types(&self) -> crate::resources::ConnectionTypesApi<'_> {
-        crate::resources::ConnectionTypesApi::new(&self.configuration)
-    }
-
     /// Database-context resource handle.
     pub fn database_context(&self) -> crate::resources::DatabaseContextApi<'_> {
         crate::resources::DatabaseContextApi::new(&self.configuration)
@@ -624,19 +619,9 @@ impl Client {
         crate::resources::ResultsApi::new(&self.configuration)
     }
 
-    /// Refresh resource handle.
-    pub fn refresh(&self) -> crate::resources::RefreshApi<'_> {
-        crate::resources::RefreshApi::new(&self.configuration)
-    }
-
     /// Saved-queries resource handle.
     pub fn saved_queries(&self) -> crate::resources::SavedQueriesApi<'_> {
         crate::resources::SavedQueriesApi::new(&self.configuration)
-    }
-
-    /// Secrets resource handle.
-    pub fn secrets(&self) -> crate::resources::SecretsApi<'_> {
-        crate::resources::SecretsApi::new(&self.configuration)
     }
 
     /// Uploads resource handle.

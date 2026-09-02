@@ -61,17 +61,6 @@ impl<'a> ConnectionsApi<'a> {
         apis::connections_api::delete_connection(self.config, connection_id).await
     }
 
-    /// Check the health of a connection.
-    pub async fn check_health(
-        &self,
-        connection_id: &str,
-    ) -> Result<
-        models::ConnectionHealthResponse,
-        Error<apis::connections_api::CheckConnectionHealthError>,
-    > {
-        apis::connections_api::check_connection_health(self.config, connection_id).await
-    }
-
     /// Purge the entire cache for a connection.
     pub async fn purge_cache(
         &self,
@@ -128,38 +117,6 @@ impl<'a> ConnectionsApi<'a> {
         table: &str,
     ) -> Result<(), Error<apis::connections_api::PurgeTableCacheError>> {
         apis::connections_api::purge_table_cache(self.config, connection_id, schema, table).await
-    }
-}
-
-/// Connection-types resource handle. Wraps [`apis::connection_types_api`](crate::apis::connection_types_api).
-pub struct ConnectionTypesApi<'a> {
-    config: &'a Configuration,
-}
-
-impl<'a> ConnectionTypesApi<'a> {
-    pub(crate) fn new(config: &'a Configuration) -> Self {
-        Self { config }
-    }
-
-    /// Get the configuration schema for a connection type by name.
-    pub async fn get(
-        &self,
-        name: &str,
-    ) -> Result<
-        models::ConnectionTypeDetail,
-        Error<apis::connection_types_api::GetConnectionTypeError>,
-    > {
-        apis::connection_types_api::get_connection_type(self.config, name).await
-    }
-
-    /// List available connection types.
-    pub async fn list(
-        &self,
-    ) -> Result<
-        models::ListConnectionTypesResponse,
-        Error<apis::connection_types_api::ListConnectionTypesError>,
-    > {
-        apis::connection_types_api::list_connection_types(self.config).await
     }
 }
 
@@ -590,25 +547,6 @@ impl<'a> ResultsApi<'a> {
     }
 }
 
-/// Refresh resource handle. Wraps [`apis::refresh_api`](crate::apis::refresh_api).
-pub struct RefreshApi<'a> {
-    config: &'a Configuration,
-}
-
-impl<'a> RefreshApi<'a> {
-    pub(crate) fn new(config: &'a Configuration) -> Self {
-        Self { config }
-    }
-
-    /// Refresh a refreshable resource.
-    pub async fn refresh(
-        &self,
-        request: models::RefreshRequest,
-    ) -> Result<models::RefreshResponse, Error<apis::refresh_api::RefreshError>> {
-        apis::refresh_api::refresh(self.config, request).await
-    }
-}
-
 /// Saved-queries resource handle. Wraps [`apis::saved_queries_api`](crate::apis::saved_queries_api).
 pub struct SavedQueriesApi<'a> {
     config: &'a Configuration,
@@ -687,57 +625,6 @@ impl<'a> SavedQueriesApi<'a> {
         Error<apis::saved_queries_api::ListSavedQueryVersionsError>,
     > {
         apis::saved_queries_api::list_saved_query_versions(self.config, id, limit, offset).await
-    }
-}
-
-/// Secrets resource handle. Wraps [`apis::secrets_api`](crate::apis::secrets_api).
-pub struct SecretsApi<'a> {
-    config: &'a Configuration,
-}
-
-impl<'a> SecretsApi<'a> {
-    pub(crate) fn new(config: &'a Configuration) -> Self {
-        Self { config }
-    }
-
-    /// Create a new secret.
-    pub async fn create(
-        &self,
-        request: models::CreateSecretRequest,
-    ) -> Result<models::CreateSecretResponse, Error<apis::secrets_api::CreateSecretError>> {
-        apis::secrets_api::create_secret(self.config, request).await
-    }
-
-    /// Fetch a secret by name.
-    pub async fn get(
-        &self,
-        name: &str,
-    ) -> Result<models::GetSecretResponse, Error<apis::secrets_api::GetSecretError>> {
-        apis::secrets_api::get_secret(self.config, name).await
-    }
-
-    /// List secrets.
-    pub async fn list(
-        &self,
-    ) -> Result<models::ListSecretsResponse, Error<apis::secrets_api::ListSecretsError>> {
-        apis::secrets_api::list_secrets(self.config).await
-    }
-
-    /// Update a secret by name.
-    pub async fn update(
-        &self,
-        name: &str,
-        request: models::UpdateSecretRequest,
-    ) -> Result<models::UpdateSecretResponse, Error<apis::secrets_api::UpdateSecretError>> {
-        apis::secrets_api::update_secret(self.config, name, request).await
-    }
-
-    /// Delete a secret by name.
-    pub async fn delete(
-        &self,
-        name: &str,
-    ) -> Result<(), Error<apis::secrets_api::DeleteSecretError>> {
-        apis::secrets_api::delete_secret(self.config, name).await
     }
 }
 
@@ -837,7 +724,6 @@ mod tests {
     fn all_handles_constructible() {
         let config = Configuration::default();
         let _ = ConnectionsApi::new(&config);
-        let _ = ConnectionTypesApi::new(&config);
         let _ = DatabaseContextApi::new(&config);
         let _ = DatabasesApi::new(&config);
         let _ = EmbeddingProvidersApi::new(&config);
@@ -847,9 +733,7 @@ mod tests {
         let _ = QueryApi::new(&config);
         let _ = QueryRunsApi::new(&config);
         let _ = ResultsApi::new(&config);
-        let _ = RefreshApi::new(&config);
         let _ = SavedQueriesApi::new(&config);
-        let _ = SecretsApi::new(&config);
         let _ = UploadsApi::new(&config);
         let _ = WorkspacesApi::new(&config);
     }
