@@ -1,6 +1,6 @@
 # hotdata
 
-Official Rust client for the [Hotdata](https://www.hotdata.dev) HTTP API: workspaces, connections, databases, SQL queries, results, secrets, uploads, indexes, jobs, embedding providers, and workspace context.
+Official Rust client for the [Hotdata](https://www.hotdata.dev) HTTP API: workspaces, connections, databases, SQL queries, results, uploads, indexes, jobs, embedding providers, and workspace context.
 
 The crate pairs a fully generated, typed API surface (`hotdata::apis`, `hotdata::models`) with a hand-written ergonomic layer: a flat [`Client`](#quickstart) that wires up authentication (a static API token, or a [pluggable per-request bearer](#supplying-a-bearer-per-request)) and workspace scoping, plus an optional Apache Arrow result decoder.
 
@@ -123,15 +123,14 @@ ergonomic, workspace-scoped handles so you never pass a `Configuration` around:
 // Grouped handles: client.<resource>().<operation>(..)
 let connections = client.connections().list().await?;
 let connection  = client.connections().get(&connections.connections[0].id).await?;
-let secrets  = client.secrets().list().await?;
 // Query runs are database-scoped: pass the database id first.
 let runs     = client.query_runs().list(database_id, Some(50), None, None, None).await?;
 ```
 
-Handles exist for every resource — `connections`, `connection_types`,
-`databases`, `database_context`, `embedding_providers`, `indexes`,
-`information_schema`, `jobs`, `queries`, `query_runs`, `results`, `refresh`,
-`saved_queries`, `secrets`, `uploads`, `workspaces`. The hottest
+Handles exist for every resource — `connections`, `databases`,
+`database_context`, `embedding_providers`, `indexes`, `information_schema`,
+`jobs`, `queries`, `query_runs`, `results`, `saved_queries`, `uploads`,
+`workspaces`. The hottest
 operations also have flat shortcuts directly on `Client` (`query` — with
 `query_in` to scope to a database, `query_preview` to skip auto-follow, and
 `query_with` for a per-call `QueryConfig` — plus `get_result`, `list_results`,

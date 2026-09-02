@@ -32,16 +32,6 @@ async fn connections_read() {
         "seeded connection {connection_id} not in list_connections"
     );
 
-    let health = connections_api::check_connection_health(config, &connection_id)
-        .await
-        .expect("check_connection_health should succeed");
-    assert_eq!(health.connection_id, connection_id);
-    assert!(
-        health.healthy,
-        "seeded connection unhealthy: {:?}",
-        health.error
-    );
-
     // purge_connection_cache returns () on success.
     connections_api::purge_connection_cache(config, &connection_id)
         .await

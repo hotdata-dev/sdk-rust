@@ -48,9 +48,9 @@ pub use query::{
     DEFAULT_MAX_AUTO_BYTES, DEFAULT_MAX_AUTO_ROWS, OVERLOADED_ERROR_CODE,
 };
 pub use resources::{
-    ConnectionTypesApi, ConnectionsApi, DatabaseContextApi, DatabasesApi, EmbeddingProvidersApi,
-    IndexesApi, InformationSchemaApi, JobsApi, QueryApi, QueryRunsApi, RefreshApi, ResultsApi,
-    SavedQueriesApi, SecretsApi, UploadsApi, WorkspacesApi,
+    ConnectionsApi, DatabaseContextApi, DatabasesApi, EmbeddingProvidersApi, IndexesApi,
+    InformationSchemaApi, JobsApi, QueryApi, QueryRunsApi, ResultsApi, SavedQueriesApi,
+    UploadsApi, WorkspacesApi,
 };
 pub use status::{QueryRunStatus, QueryRunStatusExt, ResultStatus, ResultStatusExt};
 pub use uploads::{
