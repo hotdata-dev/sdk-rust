@@ -64,6 +64,7 @@ pub enum CountDatabasesError {
 #[serde(untagged)]
 pub enum CreateDatabaseError {
     Status400(models::ApiErrorResponse),
+    Status409(models::ApiErrorResponse),
     Status500(models::ApiErrorResponse),
     UnknownValue(serde_json::Value),
 }
@@ -119,6 +120,14 @@ pub enum GetDatabaseBatchError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`get_database_lineage`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetDatabaseLineageError {
+    Status404(models::ApiErrorResponse),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`list_databases`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -134,6 +143,16 @@ pub enum LoadDatabaseTableError {
     Status404(models::ApiErrorResponse),
     Status409(models::ApiErrorResponse),
     Status413(models::ApiErrorResponse),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`lookup_database_by_name`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum LookupDatabaseByNameError {
+    Status400(models::ApiErrorResponse),
+    Status404(models::ApiErrorResponse),
+    Status409(models::ApiErrorResponse),
     UnknownValue(serde_json::Value),
 }
 
@@ -476,7 +495,7 @@ pub async fn count_databases(
     }
 }
 
-/// Create a new database (a metadata-only grouping). A managed default catalog is auto-created and addressable inside the database as `default` (or the optional `default_catalog` name), with a `main` schema pre-declared so `default.main.<table>` works out of the box. The optional `name` is a free-form display label and is not required to be unique; when omitted, a label derived from the new database's ID is assigned. Optional `default_catalog` overrides the name the default catalog answers to; it must be a valid SQL identifier and may not collide with the reserved catalog names `hotdata` or `information_schema`. Optional `schemas` declares additional schemas/tables on the default catalog at create time; declared tables can be loaded via the standard managed-tables-load endpoint targeting `default_connection_id`. Optional `expires_at` sets when the database expires — accepts either an RFC 3339 timestamp or a relative duration suffixed with `h` (hours), `m` (minutes), or `d` (days), e.g. `24h`, `48h`, `90m`, `7d`. When omitted, the database never expires. Expiry is best-effort: the database will not be deleted before `expires_at`, but cleanup may run later than the exact timestamp.
+/// Create a new database (a metadata-only grouping). A managed default catalog is auto-created and addressable inside the database as `default` (or the optional `default_catalog` name), with a `main` schema pre-declared so `default.main.<table>` works out of the box. The optional `name` is a free-form display label and is not required to be unique; when omitted, a label derived from the new database's ID is assigned. Optional `default_catalog` overrides the name the default catalog answers to; it must be a valid SQL identifier and may not collide with the reserved catalog names `hotdata` or `information_schema`. Optional `schemas` declares additional schemas/tables on the default catalog at create time; declared tables can be loaded via the standard managed-tables-load endpoint targeting `default_connection_id`. Optional `expires_at` sets when the database expires — accepts either an RFC 3339 timestamp or a relative duration suffixed with `h` (hours), `m` (minutes), or `d` (days), e.g. `24h`, `48h`, `90m`, `7d`. When omitted, the database never expires. Expiry is best-effort: the database will not be deleted before `expires_at`, but cleanup may run later than the exact timestamp. Optional `if_not_exists` makes this a get-or-create: when a database already carries the requested `name`, it is returned with status `200` and nothing is created, which lets a client bind to its database on every start-up without first looking one up.
 pub async fn create_database(
     configuration: &configuration::Configuration,
     create_database_request: models::CreateDatabaseRequest,
@@ -794,7 +813,7 @@ pub async fn fork_database(
     }
 }
 
-/// Fetch a database by id. The `name` field is a display label only; it is not accepted as an identifier here.
+/// Fetch a database by id. The `name` field is a display label only and is not accepted as an identifier here; to fetch a database by its name instead, use `GET /v1/databases/by-name`.
 pub async fn get_database(
     configuration: &configuration::Configuration,
     database_id: &str,
@@ -926,7 +945,78 @@ pub async fn get_database_batch(
     }
 }
 
-/// List databases in the workspace, newest first, one page at a time. When no `limit` is given a default page size is applied, so a single call returns at most one page rather than every database. If the response's `has_more` is true, pass its `next_cursor` value back as the `cursor` query parameter to fetch the next page. Pass `search` to return only databases whose name contains that text (case-insensitive). Pass `batch` with the `batch_id` returned by a bulk-creation call to list only that batch's databases.
+/// Trace where a database came from and what came from it.  `ancestors` walks the fork chain from this database's immediate source up to the original it descends from, nearest first, and each entry says which state of that source the next database down copied. `forks` lists the databases forked directly from this one, most recently forked first, with `fork_count` giving the true total when the list is only a sample of it.  Lineage is a historical record, not a live link: a fork is an independent database from the moment it is created, and either side can change or be deleted without affecting the other. Deleting either one does not erase the record: a deleted ancestor keeps its place in the chain, a deleted fork still appears among `forks`, and both are marked with `exists` set to false.  A database that was never forked, and was never forked from, answers with empty lists and itself as `root_id`. Forks taken before lineage was recorded carry none: their provenance was never written and cannot be reconstructed.
+pub async fn get_database_lineage(
+    configuration: &configuration::Configuration,
+    database_id: &str,
+    forks_limit: Option<i32>,
+) -> Result<models::DatabaseLineageResponse, Error<GetDatabaseLineageError>> {
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_path_database_id = database_id;
+    let p_query_forks_limit = forks_limit;
+
+    let uri_str = format!(
+        "{}/v1/databases/{database_id}/lineage",
+        configuration.base_path,
+        database_id = crate::apis::urlencode(p_path_database_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = p_query_forks_limit {
+        req_builder = req_builder.query(&[("forks_limit", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
+        let key = apikey.key.clone();
+        let value = match apikey.prefix {
+            Some(ref prefix) => format!("{} {}", prefix, key),
+            None => key,
+        };
+        req_builder = req_builder.header("X-Workspace-Id", value);
+    };
+    if let Some(token) = configuration.resolve_bearer_token().await {
+        req_builder = req_builder.bearer_auth(token);
+    };
+
+    let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
+    // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
+    // shedding) is retried per `configuration.retry` on every generated op, not
+    // just the hand-written query path. See crate::http::execute_retrying.
+    let resp = crate::http::execute_retrying(configuration, req).await?;
+
+    let status = resp.status();
+    crate::http_log::log_response_status(status);
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::DatabaseLineageResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::DatabaseLineageResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        let entity: Option<GetDatabaseLineageError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// List databases in the workspace, newest first, one page at a time. When no `limit` is given a default page size is applied, so a single call returns at most one page rather than every database. If the response's `has_more` is true, pass its `next_cursor` value back as the `cursor` query parameter to fetch the next page. Pass `search` to return only databases whose name *contains* that text (case-insensitive); to fetch the single database whose name matches exactly, use `GET /v1/databases/by-name` instead. Pass `batch` with the `batch_id` returned by a bulk-creation call to list only that batch's databases.
 pub async fn list_databases(
     configuration: &configuration::Configuration,
     limit: Option<i32>,
@@ -1075,6 +1165,69 @@ pub async fn load_database_table(
         let content = resp.text().await?;
         crate::http_log::log_response_body(&content);
         let entity: Option<LoadDatabaseTableError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Fetch a single database by its exact name. This is the counterpart to the listing's `search` filter, which matches any database whose name merely contains the text.  Matching ignores case for names made of unaccented Latin letters and digits; that much is guaranteed. For names containing other characters — accented letters, or any non-Latin script — whether case is ignored depends on the deployment, so rely on neither: look those up with the capitalisation they were created with.  Returns 404 when no database has that name. A name shared by more than one database returns 409 rather than picking one of them; address those by id.
+pub async fn lookup_database_by_name(
+    configuration: &configuration::Configuration,
+    name: &str,
+) -> Result<models::DatabaseDetailResponse, Error<LookupDatabaseByNameError>> {
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_query_name = name;
+
+    let uri_str = format!("{}/v1/databases/by-name", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    req_builder = req_builder.query(&[("name", &p_query_name.to_string())]);
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
+        let key = apikey.key.clone();
+        let value = match apikey.prefix {
+            Some(ref prefix) => format!("{} {}", prefix, key),
+            None => key,
+        };
+        req_builder = req_builder.header("X-Workspace-Id", value);
+    };
+    if let Some(token) = configuration.resolve_bearer_token().await {
+        req_builder = req_builder.bearer_auth(token);
+    };
+
+    let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
+    // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
+    // shedding) is retried per `configuration.retry` on every generated op, not
+    // just the hand-written query path. See crate::http::execute_retrying.
+    let resp = crate::http::execute_retrying(configuration, req).await?;
+
+    let status = resp.status();
+    crate::http_log::log_response_status(status);
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::DatabaseDetailResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::DatabaseDetailResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        let entity: Option<LookupDatabaseByNameError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

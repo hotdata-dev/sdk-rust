@@ -14,6 +14,14 @@ use serde::{Deserialize, Serialize};
 /// CreateDatabaseResponse : Response body for POST /databases
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CreateDatabaseResponse {
+    /// Whether this call brought the database into existence.  Only `false` when `if_not_exists` found a database already carrying the requested name, in which case nothing was created and the existing one is returned. The response status says the same thing — `201` against `200` — but generated clients often surface only the body, so it is stated here as well.  Always sent. It is declared optional so that a client built against a newer version of this API still accepts a response from a deployment that predates the field. Absent therefore means \"this deployment cannot say\", which is not the same as `false` — test for the two values explicitly rather than for truthiness.
+    #[serde(
+        rename = "created",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub created: Option<Option<bool>>,
     /// Name the database's default catalog answers to inside its query scope (`default` unless overridden at create time).
     #[serde(rename = "default_catalog")]
     pub default_catalog: String,
@@ -31,6 +39,13 @@ pub struct CreateDatabaseResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub expires_at: Option<Option<String>>,
+    #[serde(
+        rename = "forked_from",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub forked_from: Option<Option<Box<models::ForkedFromInfo>>>,
     #[serde(rename = "id")]
     pub id: String,
     #[serde(
@@ -51,10 +66,12 @@ impl CreateDatabaseResponse {
         id: String,
     ) -> CreateDatabaseResponse {
         CreateDatabaseResponse {
+            created: None,
             default_catalog,
             default_connection_id,
             default_schema,
             expires_at: None,
+            forked_from: None,
             id,
             name: None,
         }

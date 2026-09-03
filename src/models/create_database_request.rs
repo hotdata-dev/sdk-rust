@@ -38,6 +38,9 @@ pub struct CreateDatabaseRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub expires_at: Option<Option<String>>,
+    /// Return the database that already carries this `name` instead of creating a second one with it. Requires `name`; the comparison is case-insensitive for unaccented Latin letters and digits, and ignores surrounding whitespace, matching `GET /v1/databases/by-name`.  A match responds `200` with the existing database rather than `201`, and is returned exactly as it stands: the rest of this request — `schemas`, `expires_at`, `default_catalog`, `default_schema` — is neither compared against it nor applied to it. Nothing is created, so this is safe to call on every start-up.
+    #[serde(rename = "if_not_exists", skip_serializing_if = "Option::is_none")]
+    pub if_not_exists: Option<bool>,
     /// Optional free-form display label (for UIs/CLIs). When omitted, a label derived from the database's ID is assigned. Not unique. Not an identifier — databases are always addressed by `id`.  Accepts the legacy `description` key as an alias so clients that predate the rename keep populating this field.
     #[serde(
         rename = "name",
@@ -58,6 +61,7 @@ impl CreateDatabaseRequest {
             default_catalog: None,
             default_schema: None,
             expires_at: None,
+            if_not_exists: None,
             name: None,
             schemas: None,
         }
