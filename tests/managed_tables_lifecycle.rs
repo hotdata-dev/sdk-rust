@@ -5,9 +5,10 @@
 //! small parquet file, load it into the table via load_managed_table, then delete
 //! the table and the database. Self-cleaning — touches no seeded data.
 //!
-//! refresh / get_table_profile / purge_table_cache are deliberately NOT exercised
-//! here: runtimedb rejects all three against an instant database catalog (they are valid
-//! only for real source connections, covered by source_table_refresh_profile).
+//! refresh / get_table_profile are deliberately NOT exercised here: runtimedb
+//! rejects both against an instant database catalog (they are valid only for
+//! real source connections, covered by source_table_refresh_profile).
+//! purge_table_cache, once in that list, has been removed from the API.
 //! The 3-row parquet payload is a committed fixture (tests/fixtures/), so the test
 //! needs no parquet writer at runtime.
 

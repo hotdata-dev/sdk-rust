@@ -16,8 +16,10 @@ Method | HTTP request | Description
 [**fork_database**](DatabasesApi.md#fork_database) | **POST** /v1/databases/{database_id}/fork | Fork database
 [**get_database**](DatabasesApi.md#get_database) | **GET** /v1/databases/{database_id} | Get database
 [**get_database_batch**](DatabasesApi.md#get_database_batch) | **GET** /v1/databases/bulk/{batch_id} | Get a database batch
+[**get_database_lineage**](DatabasesApi.md#get_database_lineage) | **GET** /v1/databases/{database_id}/lineage | Get database lineage
 [**list_databases**](DatabasesApi.md#list_databases) | **GET** /v1/databases | List databases
 [**load_database_table**](DatabasesApi.md#load_database_table) | **POST** /v1/databases/{database_id}/schemas/{schema}/tables/{table}/loads | Load database table from inline data, upload, or query result
+[**lookup_database_by_name**](DatabasesApi.md#lookup_database_by_name) | **GET** /v1/databases/by-name | Look up a database by name
 
 
 
@@ -181,7 +183,7 @@ Name | Type | Description  | Required | Notes
 > models::CreateDatabaseResponse create_database(create_database_request)
 Create database
 
-Create a new database (a metadata-only grouping). A managed default catalog is auto-created and addressable inside the database as `default` (or the optional `default_catalog` name), with a `main` schema pre-declared so `default.main.<table>` works out of the box. The optional `name` is a free-form display label and is not required to be unique; when omitted, a label derived from the new database's ID is assigned. Optional `default_catalog` overrides the name the default catalog answers to; it must be a valid SQL identifier and may not collide with the reserved catalog names `hotdata` or `information_schema`. Optional `schemas` declares additional schemas/tables on the default catalog at create time; declared tables can be loaded via the standard managed-tables-load endpoint targeting `default_connection_id`. Optional `expires_at` sets when the database expires — accepts either an RFC 3339 timestamp or a relative duration suffixed with `h` (hours), `m` (minutes), or `d` (days), e.g. `24h`, `48h`, `90m`, `7d`. When omitted, the database never expires. Expiry is best-effort: the database will not be deleted before `expires_at`, but cleanup may run later than the exact timestamp.
+Create a new database (a metadata-only grouping). A managed default catalog is auto-created and addressable inside the database as `default` (or the optional `default_catalog` name), with a `main` schema pre-declared so `default.main.<table>` works out of the box. The optional `name` is a free-form display label and is not required to be unique; when omitted, a label derived from the new database's ID is assigned. Optional `default_catalog` overrides the name the default catalog answers to; it must be a valid SQL identifier and may not collide with the reserved catalog names `hotdata` or `information_schema`. Optional `schemas` declares additional schemas/tables on the default catalog at create time; declared tables can be loaded via the standard managed-tables-load endpoint targeting `default_connection_id`. Optional `expires_at` sets when the database expires — accepts either an RFC 3339 timestamp or a relative duration suffixed with `h` (hours), `m` (minutes), or `d` (days), e.g. `24h`, `48h`, `90m`, `7d`. When omitted, the database never expires. Expiry is best-effort: the database will not be deleted before `expires_at`, but cleanup may run later than the exact timestamp. Optional `if_not_exists` makes this a get-or-create: when a database already carries the requested `name`, it is returned with status `200` and nothing is created, which lets a client bind to its database on every start-up without first looking one up.
 
 ### Parameters
 
@@ -331,7 +333,7 @@ Name | Type | Description  | Required | Notes
 > models::DatabaseDetailResponse get_database(database_id)
 Get database
 
-Fetch a database by id. The `name` field is a display label only; it is not accepted as an identifier here.
+Fetch a database by id. The `name` field is a display label only and is not accepted as an identifier here; to fetch a database by its name instead, use `GET /v1/databases/by-name`.
 
 ### Parameters
 
@@ -386,12 +388,43 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## get_database_lineage
+
+> models::DatabaseLineageResponse get_database_lineage(database_id, forks_limit)
+Get database lineage
+
+Trace where a database came from and what came from it.  `ancestors` walks the fork chain from this database's immediate source up to the original it descends from, nearest first, and each entry says which state of that source the next database down copied. `forks` lists the databases forked directly from this one, most recently forked first, with `fork_count` giving the true total when the list is only a sample of it.  Lineage is a historical record, not a live link: a fork is an independent database from the moment it is created, and either side can change or be deleted without affecting the other. Deleting either one does not erase the record: a deleted ancestor keeps its place in the chain, a deleted fork still appears among `forks`, and both are marked with `exists` set to false.  A database that was never forked, and was never forked from, answers with empty lists and itself as `root_id`. Forks taken before lineage was recorded carry none: their provenance was never written and cannot be reconstructed.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**database_id** | **String** | Database ID | [required] |
+**forks_limit** | Option<**i32**> | How many of the databases forked from this one to list (1-100, default 25). Values outside the range are clamped. `fork_count` always reports the true total, whatever this is set to. |  |
+
+### Return type
+
+[**models::DatabaseLineageResponse**](DatabaseLineageResponse.md)
+
+### Authorization
+
+[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## list_databases
 
 > models::ListDatabasesResponse list_databases(limit, cursor, search, batch)
 List databases
 
-List databases in the workspace, newest first, one page at a time. When no `limit` is given a default page size is applied, so a single call returns at most one page rather than every database. If the response's `has_more` is true, pass its `next_cursor` value back as the `cursor` query parameter to fetch the next page. Pass `search` to return only databases whose name contains that text (case-insensitive). Pass `batch` with the `batch_id` returned by a bulk-creation call to list only that batch's databases.
+List databases in the workspace, newest first, one page at a time. When no `limit` is given a default page size is applied, so a single call returns at most one page rather than every database. If the response's `has_more` is true, pass its `next_cursor` value back as the `cursor` query parameter to fetch the next page. Pass `search` to return only databases whose name *contains* that text (case-insensitive); to fetch the single database whose name matches exactly, use `GET /v1/databases/by-name` instead. Pass `batch` with the `batch_id` returned by a bulk-creation call to list only that batch's databases.
 
 ### Parameters
 
@@ -447,6 +480,36 @@ Name | Type | Description  | Required | Notes
 ### HTTP request headers
 
 - **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## lookup_database_by_name
+
+> models::DatabaseDetailResponse lookup_database_by_name(name)
+Look up a database by name
+
+Fetch a single database by its exact name. This is the counterpart to the listing's `search` filter, which matches any database whose name merely contains the text.  Matching ignores case for names made of unaccented Latin letters and digits; that much is guaranteed. For names containing other characters — accented letters, or any non-Latin script — whether case is ignored depends on the deployment, so rely on neither: look those up with the capitalisation they were created with.  Returns 404 when no database has that name. A name shared by more than one database returns 409 rather than picking one of them; address those by id.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**name** | **String** | Exact name to look up. Unlike the listing's `search`, which matches any database whose name *contains* the text, this matches the whole name.  Case is ignored for unaccented Latin letters and digits. For other characters, whether case is ignored depends on the deployment, so look those names up with the capitalisation they were created with. | [required] |
+
+### Return type
+
+[**models::DatabaseDetailResponse**](DatabaseDetailResponse.md)
+
+### Authorization
+
+[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

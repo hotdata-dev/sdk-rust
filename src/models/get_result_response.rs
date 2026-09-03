@@ -54,6 +54,14 @@ pub struct GetResultResponse {
     pub rows: Option<Option<Vec<Vec<serde_json::Value>>>>,
     #[serde(rename = "status")]
     pub status: String,
+    /// Grand total rows in the full result, ignoring `offset` and `limit`. Present whenever the result is `ready`, and carrying the same value as the `X-Total-Row-Count` response header.  Compare it against `row_count` to tell whether this body is the whole result: `row_count < total_row_count` means the rest is still there, one page further on. Without it a windowed fetch cannot tell a full result from a truncated one from the body alone.
+    #[serde(
+        rename = "total_row_count",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub total_row_count: Option<Option<i64>>,
 }
 
 impl GetResultResponse {
@@ -67,6 +75,7 @@ impl GetResultResponse {
             row_count: None,
             rows: None,
             status,
+            total_row_count: None,
         }
     }
 }

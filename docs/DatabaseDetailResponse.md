@@ -10,6 +10,7 @@ Name | Type | Description | Notes
 **default_connection_id** | **String** |  | 
 **default_schema** | **String** | Schema that unqualified table names resolve to inside this database's query scope. `main` unless the database declares a single schema or a `default_schema` was set at create time. | 
 **expires_at** | Option<**String**> | When this database expires. | [optional]
+**forked_from** | Option<[**models::ForkedFromInfo**](ForkedFromInfo.md)> |  | [optional]
 **id** | **String** |  | 
 **name** | Option<**String**> |  | [optional]
 

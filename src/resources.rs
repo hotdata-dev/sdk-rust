@@ -61,14 +61,6 @@ impl<'a> ConnectionsApi<'a> {
         apis::connections_api::delete_connection(self.config, connection_id).await
     }
 
-    /// Purge the entire cache for a connection.
-    pub async fn purge_cache(
-        &self,
-        connection_id: &str,
-    ) -> Result<(), Error<apis::connections_api::PurgeConnectionCacheError>> {
-        apis::connections_api::purge_connection_cache(self.config, connection_id).await
-    }
-
     /// Get a profile for an instant database table.
     pub async fn get_table_profile(
         &self,
@@ -107,16 +99,6 @@ impl<'a> ConnectionsApi<'a> {
         table: &str,
     ) -> Result<(), Error<apis::connections_api::DeleteManagedTableError>> {
         apis::connections_api::delete_managed_table(self.config, connection_id, schema, table).await
-    }
-
-    /// Purge the cache for a single table.
-    pub async fn purge_table_cache(
-        &self,
-        connection_id: &str,
-        schema: &str,
-        table: &str,
-    ) -> Result<(), Error<apis::connections_api::PurgeTableCacheError>> {
-        apis::connections_api::purge_table_cache(self.config, connection_id, schema, table).await
     }
 }
 
@@ -209,6 +191,28 @@ impl<'a> DatabasesApi<'a> {
         database_id: &str,
     ) -> Result<models::DatabaseDetailResponse, Error<apis::databases_api::GetDatabaseError>> {
         apis::databases_api::get_database(self.config, database_id).await
+    }
+
+    /// Fetch a database by its exact name (404 when none, 409 when the name is
+    /// shared by more than one database).
+    pub async fn lookup_by_name(
+        &self,
+        name: &str,
+    ) -> Result<models::DatabaseDetailResponse, Error<apis::databases_api::LookupDatabaseByNameError>>
+    {
+        apis::databases_api::lookup_database_by_name(self.config, name).await
+    }
+
+    /// Trace a database's fork lineage: its ancestor chain and the databases
+    /// forked directly from it. `forks_limit` caps the forks listed;
+    /// `fork_count` in the response always reports the true total.
+    pub async fn lineage(
+        &self,
+        database_id: &str,
+        forks_limit: Option<i32>,
+    ) -> Result<models::DatabaseLineageResponse, Error<apis::databases_api::GetDatabaseLineageError>>
+    {
+        apis::databases_api::get_database_lineage(self.config, database_id, forks_limit).await
     }
 
     /// List databases, newest first, one keyset page at a time. Pass `cursor`

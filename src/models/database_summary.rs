@@ -35,6 +35,13 @@ pub struct DatabaseSummary {
         skip_serializing_if = "Option::is_none"
     )]
     pub expires_at: Option<Option<String>>,
+    #[serde(
+        rename = "forked_from",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub forked_from: Option<Option<Box<models::ForkedFromInfo>>>,
     #[serde(rename = "id")]
     pub id: String,
     #[serde(
@@ -54,6 +61,7 @@ impl DatabaseSummary {
             default_catalog,
             default_schema,
             expires_at: None,
+            forked_from: None,
             id,
             name: None,
         }

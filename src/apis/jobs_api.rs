@@ -94,7 +94,7 @@ pub async fn get_job(
     }
 }
 
-/// List background jobs with optional filters by type and status.
+/// List background jobs with optional filters by type and status. Internal maintenance sweeps are never listed here, whatever the filters say; every job this returns is one a caller submitted.
 pub async fn list_jobs(
     configuration: &configuration::Configuration,
     job_type: Option<models::JobType>,
