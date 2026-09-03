@@ -35,9 +35,6 @@ pub struct CreateConnectionRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub secret_name: Option<Option<String>>,
-    /// If true, skip automatic schema discovery after registering the connection. The connection will be created but no tables will be discovered. You can run discovery later via the refresh endpoint.
-    #[serde(rename = "skip_discovery", skip_serializing_if = "Option::is_none")]
-    pub skip_discovery: Option<bool>,
     #[serde(rename = "source_type")]
     pub source_type: String,
 }
@@ -54,7 +51,6 @@ impl CreateConnectionRequest {
             name,
             secret_id: None,
             secret_name: None,
-            skip_discovery: None,
             source_type,
         }
     }

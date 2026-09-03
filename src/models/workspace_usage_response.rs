@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 /// WorkspaceUsageResponse : Response for GET /v1/usage
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct WorkspaceUsageResponse {
-    /// Sum of `bytes_scanned` across all completed/failed query runs since `since`. Null bytes (queries that touched no row data) contribute 0.
+    /// Sum of `bytes_scanned` across all completed/failed query runs since `since`. Null bytes (queries that touched no row data) contribute 0.  This is the storage read the workspace's queries caused, not how much data they covered: a query whose data was already cached contributes little or nothing (see `bytes_scanned` on a query run). Two periods with identical query histories can therefore report different totals, and this figure will not reconcile against a per-query estimate of rows or bytes touched.
     #[serde(rename = "bytes_scanned")]
     pub bytes_scanned: i64,
     /// Number of query runs (succeeded + failed) since `since`.

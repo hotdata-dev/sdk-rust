@@ -94,24 +94,6 @@ pub enum LoadManagedTableError {
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`purge_connection_cache`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum PurgeConnectionCacheError {
-    Status400(models::ApiErrorResponse),
-    Status404(models::ApiErrorResponse),
-    Status409(models::ApiErrorResponse),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`purge_table_cache`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum PurgeTableCacheError {
-    Status404(models::ApiErrorResponse),
-    UnknownValue(serde_json::Value),
-}
-
 /// Declare a new schema (and optionally its tables) on an existing managed catalog after creation. The schema is added to the connection's declaration; declared tables can then be populated via the managed-table load endpoint. Only valid against connections whose source type is `managed`. Identifiers are normalized to lowercase.
 pub async fn add_managed_schema(
     configuration: &configuration::Configuration,
@@ -636,7 +618,7 @@ pub async fn list_connections(
     }
 }
 
-/// Publish data as the new contents of a managed table from one of three sources — provide exactly one. With `data`, CSV text is sent inline in this request, up to 2 MiB; column types are detected from the data unless `columns` declares them, and a larger payload is rejected with 413 and the error code `INLINE_DATA_TOO_LARGE`, at which point the data should be uploaded and loaded by `upload_id` instead. With `upload_id`, a previously-uploaded file is published: CSV, JSON, and Parquet are supported; the format is auto-detected from the upload's `Content-Type` and file contents, or set explicitly via the `format` field. With `result_id`, a persisted query result is copied into the table, so the table keeps its data even after the result expires; a result can be loaded into any number of tables. If the target table (or its schema) has not been declared yet, it is created automatically as part of the load — declaring tables up front is optional. `mode` selects how the data is applied: `replace` overwrites the table's contents, `append` inserts the new rows on top of the existing data. Concurrent loads against the same upload return 409. For an upload or inline data, set `async` to run the load in the background and get back a job ID to poll; add `async_after_ms` to wait briefly for it to finish before falling back to a job ID. A `result_id` load runs synchronously.
+/// Publish data as the new contents of a managed table from one of three sources — provide exactly one. With `data`, CSV text is sent inline in this request, up to 2 MiB; column types are detected from the data unless `columns` declares them, and a larger payload is rejected with 413 and the error code `INLINE_DATA_TOO_LARGE`, at which point the data should be uploaded and loaded by `upload_id` instead. With `upload_id`, a previously-uploaded file is published: CSV, JSON, and Parquet are supported; the format is auto-detected from the upload's `Content-Type` and file contents, or set explicitly via the `format` field. With `result_id`, a persisted query result is copied into the table, so the table keeps its data even after the result expires; a result can be loaded into any number of tables. If the target table (or its schema) has not been declared yet, it is created automatically as part of the load — declaring tables up front is optional. `mode` selects how the data is applied and accepts five values: `replace` makes the uploaded rows the table's entire contents, `append` inserts them on top of the existing data, and `delete`, `update`, and `upsert` match rows by key — removing, replacing, or inserting-or-replacing the matched rows respectively. The three key-matching modes need a key: the one the table was created with, or one given in `key` on the request. Concurrent loads against the same upload return 409. For an upload or inline data, set `async` to run the load in the background and get back a job ID to poll; add `async_after_ms` to wait briefly for it to finish before falling back to a job ID. A `result_id` load runs synchronously.
 pub async fn load_managed_table(
     configuration: &configuration::Configuration,
     connection_id: &str,
@@ -705,124 +687,6 @@ pub async fn load_managed_table(
         let content = resp.text().await?;
         crate::http_log::log_response_body(&content);
         let entity: Option<LoadManagedTableError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent {
-            status,
-            content,
-            entity,
-        }))
-    }
-}
-
-/// Purge all cached data for a connection. The next query against these tables will trigger a fresh sync from the remote source.
-pub async fn purge_connection_cache(
-    configuration: &configuration::Configuration,
-    connection_id: &str,
-) -> Result<(), Error<PurgeConnectionCacheError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_path_connection_id = connection_id;
-
-    let uri_str = format!(
-        "{}/v1/connections/{connection_id}/cache",
-        configuration.base_path,
-        connection_id = crate::apis::urlencode(p_path_connection_id)
-    );
-    let mut req_builder = configuration
-        .client
-        .request(reqwest::Method::DELETE, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
-        let key = apikey.key.clone();
-        let value = match apikey.prefix {
-            Some(ref prefix) => format!("{} {}", prefix, key),
-            None => key,
-        };
-        req_builder = req_builder.header("X-Workspace-Id", value);
-    };
-    if let Some(token) = configuration.resolve_bearer_token().await {
-        req_builder = req_builder.bearer_auth(token);
-    };
-
-    let req = req_builder.build()?;
-    crate::http_log::log_request(&req);
-    // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
-    // shedding) is retried per `configuration.retry` on every generated op, not
-    // just the hand-written query path. See crate::http::execute_retrying.
-    let resp = crate::http::execute_retrying(configuration, req).await?;
-
-    let status = resp.status();
-    crate::http_log::log_response_status(status);
-
-    if !status.is_client_error() && !status.is_server_error() {
-        Ok(())
-    } else {
-        let content = resp.text().await?;
-        crate::http_log::log_response_body(&content);
-        let entity: Option<PurgeConnectionCacheError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent {
-            status,
-            content,
-            entity,
-        }))
-    }
-}
-
-/// Purge the cached data for a single table. The next query will trigger a fresh sync.
-pub async fn purge_table_cache(
-    configuration: &configuration::Configuration,
-    connection_id: &str,
-    schema: &str,
-    table: &str,
-) -> Result<(), Error<PurgeTableCacheError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_path_connection_id = connection_id;
-    let p_path_schema = schema;
-    let p_path_table = table;
-
-    let uri_str = format!(
-        "{}/v1/connections/{connection_id}/tables/{schema}/{table}/cache",
-        configuration.base_path,
-        connection_id = crate::apis::urlencode(p_path_connection_id),
-        schema = crate::apis::urlencode(p_path_schema),
-        table = crate::apis::urlencode(p_path_table)
-    );
-    let mut req_builder = configuration
-        .client
-        .request(reqwest::Method::DELETE, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
-        let key = apikey.key.clone();
-        let value = match apikey.prefix {
-            Some(ref prefix) => format!("{} {}", prefix, key),
-            None => key,
-        };
-        req_builder = req_builder.header("X-Workspace-Id", value);
-    };
-    if let Some(token) = configuration.resolve_bearer_token().await {
-        req_builder = req_builder.bearer_auth(token);
-    };
-
-    let req = req_builder.build()?;
-    crate::http_log::log_request(&req);
-    // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
-    // shedding) is retried per `configuration.retry` on every generated op, not
-    // just the hand-written query path. See crate::http::execute_retrying.
-    let resp = crate::http::execute_retrying(configuration, req).await?;
-
-    let status = resp.status();
-    crate::http_log::log_response_status(status);
-
-    if !status.is_client_error() && !status.is_server_error() {
-        Ok(())
-    } else {
-        let content = resp.text().await?;
-        crate::http_log::log_response_body(&content);
-        let entity: Option<PurgeTableCacheError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

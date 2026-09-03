@@ -41,7 +41,7 @@ pub struct QueryRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub default_catalog: Option<Option<String>>,
-    /// Schema that unqualified table references resolve against within the query's database scope. Defaults to `main` when omitted. Existence is not validated up front — an unknown schema surfaces as a \"table not found\" error at planning time.
+    /// Schema that unqualified table references resolve against within the query's database scope.  Omit it to use the database's own default schema — the `default_schema` chosen when the database was created, or the single schema it declares, and only `main` when it has neither. The database's `default_schema` field (see `GET /v1/databases/{id}`) reports the value in force.  Setting this field overrides that per query, so sending `main` on a database whose data lives in another schema turns a query that works without the field into a \"table not found\" error. Existence is not validated up front — an unknown schema surfaces as a \"table not found\" error at planning time. Fully-qualified references (`<catalog>.<schema>.<table>`) are unaffected.
     #[serde(
         rename = "default_schema",
         default,

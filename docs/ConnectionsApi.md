@@ -13,8 +13,6 @@ Method | HTTP request | Description
 [**get_table_profile**](ConnectionsApi.md#get_table_profile) | **GET** /v1/connections/{connection_id}/tables/{schema}/{table}/profile | Get table profile
 [**list_connections**](ConnectionsApi.md#list_connections) | **GET** /v1/connections | List connections
 [**load_managed_table**](ConnectionsApi.md#load_managed_table) | **POST** /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads | Load managed table from inline data, upload, or query result
-[**purge_connection_cache**](ConnectionsApi.md#purge_connection_cache) | **DELETE** /v1/connections/{connection_id}/cache | Purge connection cache
-[**purge_table_cache**](ConnectionsApi.md#purge_table_cache) | **DELETE** /v1/connections/{connection_id}/tables/{schema}/{table}/cache | Purge table cache
 
 
 
@@ -267,7 +265,7 @@ This endpoint does not need any parameter.
 > models::LoadManagedTableResponse load_managed_table(connection_id, schema, table, load_managed_table_request)
 Load managed table from inline data, upload, or query result
 
-Publish data as the new contents of a managed table from one of three sources — provide exactly one. With `data`, CSV text is sent inline in this request, up to 2 MiB; column types are detected from the data unless `columns` declares them, and a larger payload is rejected with 413 and the error code `INLINE_DATA_TOO_LARGE`, at which point the data should be uploaded and loaded by `upload_id` instead. With `upload_id`, a previously-uploaded file is published: CSV, JSON, and Parquet are supported; the format is auto-detected from the upload's `Content-Type` and file contents, or set explicitly via the `format` field. With `result_id`, a persisted query result is copied into the table, so the table keeps its data even after the result expires; a result can be loaded into any number of tables. If the target table (or its schema) has not been declared yet, it is created automatically as part of the load — declaring tables up front is optional. `mode` selects how the data is applied: `replace` overwrites the table's contents, `append` inserts the new rows on top of the existing data. Concurrent loads against the same upload return 409. For an upload or inline data, set `async` to run the load in the background and get back a job ID to poll; add `async_after_ms` to wait briefly for it to finish before falling back to a job ID. A `result_id` load runs synchronously.
+Publish data as the new contents of a managed table from one of three sources — provide exactly one. With `data`, CSV text is sent inline in this request, up to 2 MiB; column types are detected from the data unless `columns` declares them, and a larger payload is rejected with 413 and the error code `INLINE_DATA_TOO_LARGE`, at which point the data should be uploaded and loaded by `upload_id` instead. With `upload_id`, a previously-uploaded file is published: CSV, JSON, and Parquet are supported; the format is auto-detected from the upload's `Content-Type` and file contents, or set explicitly via the `format` field. With `result_id`, a persisted query result is copied into the table, so the table keeps its data even after the result expires; a result can be loaded into any number of tables. If the target table (or its schema) has not been declared yet, it is created automatically as part of the load — declaring tables up front is optional. `mode` selects how the data is applied and accepts five values: `replace` makes the uploaded rows the table's entire contents, `append` inserts them on top of the existing data, and `delete`, `update`, and `upsert` match rows by key — removing, replacing, or inserting-or-replacing the matched rows respectively. The three key-matching modes need a key: the one the table was created with, or one given in `key` on the request. Concurrent loads against the same upload return 409. For an upload or inline data, set `async` to run the load in the background and get back a job ID to poll; add `async_after_ms` to wait briefly for it to finish before falling back to a job ID. A `result_id` load runs synchronously.
 
 ### Parameters
 
@@ -290,68 +288,6 @@ Name | Type | Description  | Required | Notes
 ### HTTP request headers
 
 - **Content-Type**: application/json
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
-## purge_connection_cache
-
-> purge_connection_cache(connection_id)
-Purge connection cache
-
-Purge all cached data for a connection. The next query against these tables will trigger a fresh sync from the remote source.
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**connection_id** | **String** | Connection ID | [required] |
-
-### Return type
-
- (empty response body)
-
-### Authorization
-
-[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
-
-### HTTP request headers
-
-- **Content-Type**: Not defined
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
-## purge_table_cache
-
-> purge_table_cache(connection_id, schema, table)
-Purge table cache
-
-Purge the cached data for a single table. The next query will trigger a fresh sync.
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**connection_id** | **String** | Connection ID | [required] |
-**schema** | **String** | Schema name | [required] |
-**table** | **String** | Table name | [required] |
-
-### Return type
-
- (empty response body)
-
-### Authorization
-
-[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
-
-### HTTP request headers
-
-- **Content-Type**: Not defined
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

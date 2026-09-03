@@ -44,6 +44,7 @@ docs/DatabaseCountResponse.md
 docs/DatabaseDefaultSchemaDecl.md
 docs/DatabaseDefaultTableDecl.md
 docs/DatabaseDetailResponse.md
+docs/DatabaseLineageResponse.md
 docs/DatabaseSummary.md
 docs/DatabasesApi.md
 docs/DeleteDatabaseBatchResponse.md
@@ -56,6 +57,7 @@ docs/FinalizeUploadPart.md
 docs/FinalizeUploadRequest.md
 docs/FinalizeUploadResponse.md
 docs/ForkDatabaseRequest.md
+docs/ForkedFromInfo.md
 docs/GetConnectionResponse.md
 docs/GetDatabaseContextResponse.md
 docs/GetResultResponse.md
@@ -70,6 +72,8 @@ docs/JobStatus.md
 docs/JobStatusResponse.md
 docs/JobType.md
 docs/JobsApi.md
+docs/LineageAncestorInfo.md
+docs/LineageForkInfo.md
 docs/ListConnectionsResponse.md
 docs/ListDatabaseContextsResponse.md
 docs/ListDatabasesResponse.md
@@ -180,6 +184,7 @@ src/models/database_count_response.rs
 src/models/database_default_schema_decl.rs
 src/models/database_default_table_decl.rs
 src/models/database_detail_response.rs
+src/models/database_lineage_response.rs
 src/models/database_summary.rs
 src/models/delete_database_batch_response.rs
 src/models/discovery_status.rs
@@ -190,6 +195,7 @@ src/models/finalize_upload_part.rs
 src/models/finalize_upload_request.rs
 src/models/finalize_upload_response.rs
 src/models/fork_database_request.rs
+src/models/forked_from_info.rs
 src/models/get_connection_response.rs
 src/models/get_database_context_response.rs
 src/models/get_result_response.rs
@@ -201,6 +207,8 @@ src/models/job_result.rs
 src/models/job_status.rs
 src/models/job_status_response.rs
 src/models/job_type.rs
+src/models/lineage_ancestor_info.rs
+src/models/lineage_fork_info.rs
 src/models/list_connections_response.rs
 src/models/list_database_contexts_response.rs
 src/models/list_databases_response.rs

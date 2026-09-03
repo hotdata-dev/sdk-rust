@@ -49,7 +49,7 @@ pub struct BulkCreateDatabasesRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub idempotency_key: Option<Option<String>>,
-    /// Optional display-label pattern for each database. `{index}` is replaced with the database's zero-based position — for example `tenant-{index}` produces `tenant-0`, `tenant-1`, and so on. When omitted, each database is labelled from its own ID. Labels are not identifiers and are not required to be unique.
+    /// Optional display-label pattern for each database. Must contain `{index}`, which is replaced with the database's zero-based position, padded with leading zeros to the width of the batch's largest index — with a `count` of 100, `tenant-{index}` produces `tenant-00` through `tenant-99`. A pattern without `{index}` is rejected, since every database in the batch would be given the same label.  Each label also carries a suffix identifying the batch, so repeating the same pattern on a later call does not reuse labels from this one. When omitted, each database is labelled from its own ID.
     #[serde(
         rename = "name_template",
         default,
