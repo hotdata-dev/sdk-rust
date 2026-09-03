@@ -10,6 +10,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.15.0] - 2026-09-02
 
+### Added
+
+- Fork lineage. `databases().lineage(database_id, forks_limit)` wraps the new
+  `GET /v1/databases/{database_id}/lineage` — a database's ancestor chain and
+  the databases forked directly from it (`DatabaseLineageResponse`,
+  `LineageAncestorInfo`, `LineageForkInfo`). Database create/fork/get/list
+  responses carry an optional `forked_from: ForkedFromInfo` recording the
+  source's id, its label at fork time, the copied `snapshot_id`, and
+  `forked_at`. Forks created before the server recorded lineage carry none.
+- `databases().lookup_by_name(name)` wraps `GET /v1/databases/by-name`: fetch a
+  database by its exact name — 404 when none, 409 when the name is shared.
+- `CreateDatabaseRequest.if_not_exists` and the `CreateDatabaseResponse.created`
+  flag it reports through; `GetResultResponse.total_row_count`; optional
+  `key_determines` on managed-table declarations.
+
+### Changed
+
+- Fork naming: an omitted fork `name` now defaults to the source's label plus a
+  short suffix derived from the fork's own id, so the two stay distinguishable.
+- docs: adopt "instant database" terminology in doc comments and test comments;
+  public API names (e.g. `load_managed_table`, `source_type: managed`) are
+  unchanged.
+
 ### Removed
 
 - **Breaking:** the Secrets, Refresh, and Connection Types endpoints were retired
@@ -21,16 +44,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** `connections().check_health` /
   `connections_api::check_connection_health` and `ConnectionHealthResponse` are
   removed.
+- **Breaking:** the table/connection cache-purge endpoints are gone:
+  `connections().purge_cache`, `connections().purge_table_cache`, and the
+  generated `connections_api::purge_connection_cache` /
+  `connections_api::purge_table_cache` functions.
 - **Breaking:** the `JobType::DataRefreshTable` / `JobType::DataRefreshConnection`
   and `JobResult::TableRefreshResult` / `JobResult::ConnectionRefreshResult`
   variants are removed. Note `JobResult::default()` now produces
   `IndexInfoResponse` (previously `TableRefreshResult`).
-
-### Changed
-
-- feat(databases): add lineage and exact-name lookup endpoints
-- chore(databases): clarify fork naming behavior
-- docs: adopt "instant database" terminology in doc comments and test comments; public API names (e.g. `load_managed_table`, `source_type: managed`) are unchanged
 
 ## [0.14.0] - 2026-08-20
 
