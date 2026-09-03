@@ -1,8 +1,9 @@
 //! Scenario: connections_read.
 //!
-//! Read-only lifecycle ops on the seeded connection — get, list, health check,
-//! and cache purge. Does not create or delete connections in prod (would
-//! require real datastore credentials in CI secrets).
+//! Read-only lifecycle ops on the seeded connection — get and list. Does not
+//! create or delete connections in prod (would require real datastore
+//! credentials in CI secrets). purge_connection_cache, once exercised here,
+//! has been removed from the API.
 
 mod common;
 
@@ -31,9 +32,4 @@ async fn connections_read() {
         listing.connections.iter().any(|c| c.id == connection_id),
         "seeded connection {connection_id} not in list_connections"
     );
-
-    // purge_connection_cache returns () on success.
-    connections_api::purge_connection_cache(config, &connection_id)
-        .await
-        .expect("purge_connection_cache should succeed");
 }
