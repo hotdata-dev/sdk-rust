@@ -23,6 +23,9 @@ pub struct TableInfo {
     pub columns: Option<Option<Vec<models::ColumnInfo>>>,
     #[serde(rename = "connection")]
     pub connection: String,
+    /// Columns the table declares constant for a given key: for every row, any other row sharing its key holds the same value of these columns.  Declaring this lets a keyed mutation narrow its search for prior versions to the values the upload carries. Empty when none is declared, which is the unrestricted search.  Unlike `partition_by` and `sorted_by` this is NOT fixed at creation — it changes only which files a mutation opens, never how rows are written — so read it here rather than assuming a declaration took effect.
+    #[serde(rename = "constant_per_key")]
+    pub constant_per_key: Vec<String>,
     #[serde(
         rename = "last_sync",
         default,
@@ -48,6 +51,7 @@ impl TableInfo {
     /// Single table metadata
     pub fn new(
         connection: String,
+        constant_per_key: Vec<String>,
         partition_by: Vec<models::TablePartitionKey>,
         schema: String,
         sorted_by: Vec<models::TableSortKey>,
@@ -57,6 +61,7 @@ impl TableInfo {
         TableInfo {
             columns: None,
             connection,
+            constant_per_key,
             last_sync: None,
             partition_by,
             schema,
