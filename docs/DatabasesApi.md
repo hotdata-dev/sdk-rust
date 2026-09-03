@@ -20,6 +20,7 @@ Method | HTTP request | Description
 [**list_databases**](DatabasesApi.md#list_databases) | **GET** /v1/databases | List databases
 [**load_database_table**](DatabasesApi.md#load_database_table) | **POST** /v1/databases/{database_id}/schemas/{schema}/tables/{table}/loads | Load database table from inline data, upload, or query result
 [**lookup_database_by_name**](DatabasesApi.md#lookup_database_by_name) | **GET** /v1/databases/by-name | Look up a database by name
+[**set_database_table_constant_per_key**](DatabasesApi.md#set_database_table_constant_per_key) | **PUT** /v1/databases/{database_id}/schemas/{schema}/tables/{table}/constant-per-key | Declare which columns are constant per key
 
 
 
@@ -510,6 +511,39 @@ Name | Type | Description  | Required | Notes
 ### HTTP request headers
 
 - **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## set_database_table_constant_per_key
+
+> models::ManagedTableConstantPerKeyResponse set_database_table_constant_per_key(database_id, schema, table, update_managed_table_request)
+Declare which columns are constant per key
+
+Replace the columns a table declares constant for a given key: for every row, any other row sharing its key holds the same value of these columns. Declaring this lets a keyed mutation (`delete`, `update`, `upsert`) narrow its search for prior versions to the values the upload carries.  Unlike `partition_by` and `sorted_by`, this is NOT fixed when the table is created — it changes only which files a mutation opens, never how rows are written — so a populated table can adopt it with no rewrite, taking effect on the next load. Send an empty array to revoke it.  **Correctness-affecting, not a hint.** If the assertion is false, a keyed mutation supersedes one version of a key and appends beside another, silently duplicating it. Declare it only where the invariant is established.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**database_id** | **String** | Database ID | [required] |
+**schema** | **String** | Schema name | [required] |
+**table** | **String** | Table name | [required] |
+**update_managed_table_request** | [**UpdateManagedTableRequest**](UpdateManagedTableRequest.md) |  | [required] |
+
+### Return type
+
+[**models::ManagedTableConstantPerKeyResponse**](ManagedTableConstantPerKeyResponse.md)
+
+### Authorization
+
+[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
