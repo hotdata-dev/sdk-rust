@@ -208,6 +208,10 @@ Query results can be fetched as an [Apache Arrow](https://arrow.apache.org/) IPC
 hotdata = { version = "0.1", features = ["arrow"] }
 ```
 
+`ArrowResult` hands back `arrow` types, so a crate that names them must depend
+on **arrow 59** — the same major this SDK uses. Two arrow majors in one build
+are distinct types and will not compile together.
+
 ```rust
 use hotdata::prelude::*;
 
