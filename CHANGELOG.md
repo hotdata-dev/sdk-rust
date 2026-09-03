@@ -7,13 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [0.16.0] - 2026-09-03
+
 ### Changed
 
 - **`arrow` feature: arrow 55 -> 59.** Breaking for callers of that feature:
   `ArrowResult` hands back `RecordBatch` and `SchemaRef`, so a crate naming
   those types must move to arrow 59 too, or the two majors will not compile
   together. Without the feature, nothing changes.
-
 
 ## [0.15.0] - 2026-09-02
 
