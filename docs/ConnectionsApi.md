@@ -13,6 +13,7 @@ Method | HTTP request | Description
 [**get_table_profile**](ConnectionsApi.md#get_table_profile) | **GET** /v1/connections/{connection_id}/tables/{schema}/{table}/profile | Get table profile
 [**list_connections**](ConnectionsApi.md#list_connections) | **GET** /v1/connections | List connections
 [**load_managed_table**](ConnectionsApi.md#load_managed_table) | **POST** /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/loads | Load managed table from inline data, upload, or query result
+[**set_managed_table_constant_per_key**](ConnectionsApi.md#set_managed_table_constant_per_key) | **PUT** /v1/connections/{connection_id}/schemas/{schema}/tables/{table}/constant-per-key | Declare which columns are constant per key
 
 
 
@@ -280,6 +281,39 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::LoadManagedTableResponse**](LoadManagedTableResponse.md)
+
+### Authorization
+
+[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## set_managed_table_constant_per_key
+
+> models::ManagedTableConstantPerKeyResponse set_managed_table_constant_per_key(connection_id, schema, table, update_managed_table_request)
+Declare which columns are constant per key
+
+Replace the columns a table declares constant for a given key: for every row, any other row sharing its key holds the same value of these columns. Declaring this lets a keyed mutation (`delete`, `update`, `upsert`) narrow its search for prior versions to the values the upload carries, which prunes far harder than the key alone when the key's own file statistics do not discriminate.  Unlike `partition_by` and `sorted_by`, this is NOT fixed when the table is created. It changes only which files a mutation opens, never how rows are written, so nothing stored becomes wrong when it changes and a populated table can adopt it with no rewrite. It takes effect on the next load.  Send an empty array to revoke it, restoring the unrestricted search — this is the way to undo a declaration that turns out to be false.  **This is correctness-affecting, not a hint.** If the assertion is false, a keyed mutation supersedes one version of a key and appends beside another, silently duplicating it, and the pruning conceals its own evidence because the file holding the missed row is never opened. Declare it only where the invariant is established.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**connection_id** | **String** | Connection ID | [required] |
+**schema** | **String** | Schema name | [required] |
+**table** | **String** | Table name | [required] |
+**update_managed_table_request** | [**UpdateManagedTableRequest**](UpdateManagedTableRequest.md) |  | [required] |
+
+### Return type
+
+[**models::ManagedTableConstantPerKeyResponse**](ManagedTableConstantPerKeyResponse.md)
 
 ### Authorization
 
