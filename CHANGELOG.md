@@ -9,16 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Breaking (with the `arrow` feature): arrow 55 -> 59.** `ArrowResult` exposes
-  `RecordBatch` and `SchemaRef` in its public API, so a caller using the `arrow`
-  feature has to move to arrow 59 in step — arrow types from two different
-  major versions are distinct types and will not compile together. Callers not
-  using the feature are unaffected.
-
-  This aligns the version the SDK decodes with the one the service encodes with.
-  The two rendered identically before, so nothing was broken; the point is that
-  nothing pinned them together, and a future arrow release changing how a nested
-  value is written would have gone unnoticed on either side of the wire.
+- **`arrow` feature: arrow 55 -> 59.** Breaking for callers of that feature:
+  `ArrowResult` hands back `RecordBatch` and `SchemaRef`, so a crate naming
+  those types must move to arrow 59 too, or the two majors will not compile
+  together. Without the feature, nothing changes.
 
 
 ## [0.15.0] - 2026-09-02
