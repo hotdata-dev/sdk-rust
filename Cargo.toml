@@ -25,9 +25,9 @@ async-trait = "^0.1"
 bytes = "^1"
 futures-core = "^0.3"
 log = "^0.4"
-arrow-ipc = { version = "55", optional = true }
-arrow-array = { version = "55", optional = true }
-arrow-schema = { version = "55", optional = true }
+arrow-ipc = { version = "59", optional = true }
+arrow-array = { version = "59", optional = true }
+arrow-schema = { version = "59", optional = true }
 
 [features]
 default = ["native-tls"]
