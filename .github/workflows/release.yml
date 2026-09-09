@@ -11,13 +11,16 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: write
+# Deny everything by default; each job opts into only what it needs.
+permissions: {}
 
 jobs:
   release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
+    permissions:
+      # Required to create the GitHub Release for the tag.
+      contents: write
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
     steps:
