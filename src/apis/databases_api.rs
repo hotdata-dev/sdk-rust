@@ -156,6 +156,16 @@ pub enum LookupDatabaseByNameError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`set_database_table_constant_per_key`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SetDatabaseTableConstantPerKeyError {
+    Status400(models::ApiErrorResponse),
+    Status404(models::ApiErrorResponse),
+    Status409(models::ApiErrorResponse),
+    UnknownValue(serde_json::Value),
+}
+
 /// Declare a new schema (and optionally its tables) on the database's auto-created default catalog after creation. The schema becomes reachable inside the database scope (e.g. `default.<schema>.<table>` and `information_schema.schemata`) without the caller naming the database's default connection. Identifiers are normalized to lowercase.
 pub async fn add_database_schema(
     configuration: &configuration::Configuration,
@@ -425,7 +435,7 @@ pub async fn bulk_create_databases(
     }
 }
 
-/// Return the total number of databases in the workspace. This is the whole-workspace total, not a page size: the `count` field on the listing reports how many rows that one page returned, so totalling a workspace from `GET /v1/databases` means walking every page. Pass `search` to count only databases whose name contains that text (case-insensitive), or `batch` with the `batch_id` returned by a bulk-creation call to count only that batch's databases. The filters mean exactly what they mean on the listing, so a count and a listing given the same filters describe the same set.
+/// Return the total number of databases in the workspace. This is the whole-workspace total, not a page size: the `count` field on the listing reports how many rows that one page returned, so totalling a workspace from `GET /v1/databases` means walking every page. Pass `search` to count only databases whose name contains that text, ignoring the case of unaccented Latin letters and digits, or `batch` with the `batch_id` returned by a bulk-creation call to count only that batch's databases. The filters mean exactly what they mean on the listing, so a count and a listing given the same filters describe the same set.
 pub async fn count_databases(
     configuration: &configuration::Configuration,
     search: Option<&str>,
@@ -1016,7 +1026,7 @@ pub async fn get_database_lineage(
     }
 }
 
-/// List databases in the workspace, newest first, one page at a time. When no `limit` is given a default page size is applied, so a single call returns at most one page rather than every database. If the response's `has_more` is true, pass its `next_cursor` value back as the `cursor` query parameter to fetch the next page. Pass `search` to return only databases whose name *contains* that text (case-insensitive); to fetch the single database whose name matches exactly, use `GET /v1/databases/by-name` instead. Pass `batch` with the `batch_id` returned by a bulk-creation call to list only that batch's databases.
+/// List databases in the workspace, newest first, one page at a time. When no `limit` is given a default page size is applied, so a single call returns at most one page rather than every database. If the response's `has_more` is true, pass its `next_cursor` value back as the `cursor` query parameter to fetch the next page. Pass `search` to return only databases whose name *contains* that text, ignoring the case of unaccented Latin letters and digits; to fetch the single database whose name matches exactly, use `GET /v1/databases/by-name` instead. Pass `batch` with the `batch_id` returned by a bulk-creation call to list only that batch's databases.
 pub async fn list_databases(
     configuration: &configuration::Configuration,
     limit: Option<i32>,
@@ -1173,7 +1183,7 @@ pub async fn load_database_table(
     }
 }
 
-/// Fetch a single database by its exact name. This is the counterpart to the listing's `search` filter, which matches any database whose name merely contains the text.  Matching ignores case for names made of unaccented Latin letters and digits; that much is guaranteed. For names containing other characters — accented letters, or any non-Latin script — whether case is ignored depends on the deployment, so rely on neither: look those up with the capitalisation they were created with.  Returns 404 when no database has that name. A name shared by more than one database returns 409 rather than picking one of them; address those by id.
+/// Fetch a single database by its exact name. This is the counterpart to the listing's `search` filter, which matches any database whose name merely contains the text.  Matching ignores case for unaccented Latin letters and digits, and only for those. Every other character has to match exactly, so a name containing an accented letter or a non-Latin script must be looked up with the capitalisation it was created with.  Returns 404 when no database has that name. A name shared by more than one database returns 409 rather than picking one of them; address those by id.
 pub async fn lookup_database_by_name(
     configuration: &configuration::Configuration,
     name: &str,
@@ -1228,6 +1238,83 @@ pub async fn lookup_database_by_name(
         let content = resp.text().await?;
         crate::http_log::log_response_body(&content);
         let entity: Option<LookupDatabaseByNameError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Replace the columns a table declares constant for a given key: for every row, any other row sharing its key holds the same value of these columns. Declaring this lets a keyed mutation (`delete`, `update`, `upsert`) narrow its search for prior versions to the values the upload carries.  Unlike `partition_by` and `sorted_by`, this is NOT fixed when the table is created — it changes only which files a mutation opens, never how rows are written — so a populated table can adopt it with no rewrite, taking effect on the next load. Send an empty array to revoke it.  **Correctness-affecting, not a hint.** If the assertion is false, a keyed mutation supersedes one version of a key and appends beside another, silently duplicating it. Declare it only where the invariant is established.
+pub async fn set_database_table_constant_per_key(
+    configuration: &configuration::Configuration,
+    database_id: &str,
+    schema: &str,
+    table: &str,
+    update_managed_table_request: models::UpdateManagedTableRequest,
+) -> Result<models::ManagedTableConstantPerKeyResponse, Error<SetDatabaseTableConstantPerKeyError>>
+{
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_path_database_id = database_id;
+    let p_path_schema = schema;
+    let p_path_table = table;
+    let p_body_update_managed_table_request = update_managed_table_request;
+
+    let uri_str = format!(
+        "{}/v1/databases/{database_id}/schemas/{schema}/tables/{table}/constant-per-key",
+        configuration.base_path,
+        database_id = crate::apis::urlencode(p_path_database_id),
+        schema = crate::apis::urlencode(p_path_schema),
+        table = crate::apis::urlencode(p_path_table)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
+        let key = apikey.key.clone();
+        let value = match apikey.prefix {
+            Some(ref prefix) => format!("{} {}", prefix, key),
+            None => key,
+        };
+        req_builder = req_builder.header("X-Workspace-Id", value);
+    };
+    if let Some(token) = configuration.resolve_bearer_token().await {
+        req_builder = req_builder.bearer_auth(token);
+    };
+    req_builder = req_builder.json(&p_body_update_managed_table_request);
+
+    let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
+    // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
+    // shedding) is retried per `configuration.retry` on every generated op, not
+    // just the hand-written query path. See crate::http::execute_retrying.
+    let resp = crate::http::execute_retrying(configuration, req).await?;
+
+    let status = resp.status();
+    crate::http_log::log_response_status(status);
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ManagedTableConstantPerKeyResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ManagedTableConstantPerKeyResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        let entity: Option<SetDatabaseTableConstantPerKeyError> =
+            serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
