@@ -20,6 +20,7 @@ Method | HTTP request | Description
 [**list_databases**](DatabasesApi.md#list_databases) | **GET** /v1/databases | List databases
 [**load_database_table**](DatabasesApi.md#load_database_table) | **POST** /v1/databases/{database_id}/schemas/{schema}/tables/{table}/loads | Load database table from inline data, upload, or query result
 [**lookup_database_by_name**](DatabasesApi.md#lookup_database_by_name) | **GET** /v1/databases/by-name | Look up a database by name
+[**set_database_table_constant_per_key**](DatabasesApi.md#set_database_table_constant_per_key) | **PUT** /v1/databases/{database_id}/schemas/{schema}/tables/{table}/constant-per-key | Declare which columns are constant per key
 
 
 
@@ -152,7 +153,7 @@ Name | Type | Description  | Required | Notes
 > models::DatabaseCountResponse count_databases(search, batch)
 Count databases
 
-Return the total number of databases in the workspace. This is the whole-workspace total, not a page size: the `count` field on the listing reports how many rows that one page returned, so totalling a workspace from `GET /v1/databases` means walking every page. Pass `search` to count only databases whose name contains that text (case-insensitive), or `batch` with the `batch_id` returned by a bulk-creation call to count only that batch's databases. The filters mean exactly what they mean on the listing, so a count and a listing given the same filters describe the same set.
+Return the total number of databases in the workspace. This is the whole-workspace total, not a page size: the `count` field on the listing reports how many rows that one page returned, so totalling a workspace from `GET /v1/databases` means walking every page. Pass `search` to count only databases whose name contains that text, ignoring the case of unaccented Latin letters and digits, or `batch` with the `batch_id` returned by a bulk-creation call to count only that batch's databases. The filters mean exactly what they mean on the listing, so a count and a listing given the same filters describe the same set.
 
 ### Parameters
 
@@ -424,7 +425,7 @@ Name | Type | Description  | Required | Notes
 > models::ListDatabasesResponse list_databases(limit, cursor, search, batch)
 List databases
 
-List databases in the workspace, newest first, one page at a time. When no `limit` is given a default page size is applied, so a single call returns at most one page rather than every database. If the response's `has_more` is true, pass its `next_cursor` value back as the `cursor` query parameter to fetch the next page. Pass `search` to return only databases whose name *contains* that text (case-insensitive); to fetch the single database whose name matches exactly, use `GET /v1/databases/by-name` instead. Pass `batch` with the `batch_id` returned by a bulk-creation call to list only that batch's databases.
+List databases in the workspace, newest first, one page at a time. When no `limit` is given a default page size is applied, so a single call returns at most one page rather than every database. If the response's `has_more` is true, pass its `next_cursor` value back as the `cursor` query parameter to fetch the next page. Pass `search` to return only databases whose name *contains* that text, ignoring the case of unaccented Latin letters and digits; to fetch the single database whose name matches exactly, use `GET /v1/databases/by-name` instead. Pass `batch` with the `batch_id` returned by a bulk-creation call to list only that batch's databases.
 
 ### Parameters
 
@@ -490,14 +491,14 @@ Name | Type | Description  | Required | Notes
 > models::DatabaseDetailResponse lookup_database_by_name(name)
 Look up a database by name
 
-Fetch a single database by its exact name. This is the counterpart to the listing's `search` filter, which matches any database whose name merely contains the text.  Matching ignores case for names made of unaccented Latin letters and digits; that much is guaranteed. For names containing other characters — accented letters, or any non-Latin script — whether case is ignored depends on the deployment, so rely on neither: look those up with the capitalisation they were created with.  Returns 404 when no database has that name. A name shared by more than one database returns 409 rather than picking one of them; address those by id.
+Fetch a single database by its exact name. This is the counterpart to the listing's `search` filter, which matches any database whose name merely contains the text.  Matching ignores case for unaccented Latin letters and digits, and only for those. Every other character has to match exactly, so a name containing an accented letter or a non-Latin script must be looked up with the capitalisation it was created with.  Returns 404 when no database has that name. A name shared by more than one database returns 409 rather than picking one of them; address those by id.
 
 ### Parameters
 
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**name** | **String** | Exact name to look up. Unlike the listing's `search`, which matches any database whose name *contains* the text, this matches the whole name.  Case is ignored for unaccented Latin letters and digits. For other characters, whether case is ignored depends on the deployment, so look those names up with the capitalisation they were created with. | [required] |
+**name** | **String** | Exact name to look up. Unlike the listing's `search`, which matches any database whose name *contains* the text, this matches the whole name.  Case is ignored for unaccented Latin letters and digits, and only for those. Every other character has to match exactly, so look a name holding one up with the capitalisation it was created with. | [required] |
 
 ### Return type
 
@@ -510,6 +511,39 @@ Name | Type | Description  | Required | Notes
 ### HTTP request headers
 
 - **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## set_database_table_constant_per_key
+
+> models::ManagedTableConstantPerKeyResponse set_database_table_constant_per_key(database_id, schema, table, update_managed_table_request)
+Declare which columns are constant per key
+
+Replace the columns a table declares constant for a given key: for every row, any other row sharing its key holds the same value of these columns. Declaring this lets a keyed mutation (`delete`, `update`, `upsert`) narrow its search for prior versions to the values the upload carries.  Unlike `partition_by` and `sorted_by`, this is NOT fixed when the table is created — it changes only which files a mutation opens, never how rows are written — so a populated table can adopt it with no rewrite, taking effect on the next load. Send an empty array to revoke it.  **Correctness-affecting, not a hint.** If the assertion is false, a keyed mutation supersedes one version of a key and appends beside another, silently duplicating it. Declare it only where the invariant is established.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**database_id** | **String** | Database ID | [required] |
+**schema** | **String** | Schema name | [required] |
+**table** | **String** | Table name | [required] |
+**update_managed_table_request** | [**UpdateManagedTableRequest**](UpdateManagedTableRequest.md) |  | [required] |
+
+### Return type
+
+[**models::ManagedTableConstantPerKeyResponse**](ManagedTableConstantPerKeyResponse.md)
+
+### Authorization
+
+[WorkspaceId](../README.md#WorkspaceId), [BearerAuth](../README.md#BearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

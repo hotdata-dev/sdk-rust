@@ -89,6 +89,7 @@ docs/ListWorkspacesResponse.md
 docs/LoadManagedTableRequest.md
 docs/LoadManagedTableResponse.md
 docs/ManagedSchemaResponse.md
+docs/ManagedTableConstantPerKeyResponse.md
 docs/ManagedTableResponse.md
 docs/MintUploadPartsRequest.md
 docs/MintUploadPartsResponse.md
@@ -115,6 +116,7 @@ docs/TemporalProfileDetail.md
 docs/TextProfileDetail.md
 docs/UpdateEmbeddingProviderRequest.md
 docs/UpdateEmbeddingProviderResponse.md
+docs/UpdateManagedTableRequest.md
 docs/UpdateSavedQueryRequest.md
 docs/UploadSessionResponse.md
 docs/UploadsApi.md
@@ -224,6 +226,7 @@ src/models/list_workspaces_response.rs
 src/models/load_managed_table_request.rs
 src/models/load_managed_table_response.rs
 src/models/managed_schema_response.rs
+src/models/managed_table_constant_per_key_response.rs
 src/models/managed_table_response.rs
 src/models/mint_upload_parts_request.rs
 src/models/mint_upload_parts_response.rs
@@ -247,6 +250,7 @@ src/models/temporal_profile_detail.rs
 src/models/text_profile_detail.rs
 src/models/update_embedding_provider_request.rs
 src/models/update_embedding_provider_response.rs
+src/models/update_managed_table_request.rs
 src/models/update_saved_query_request.rs
 src/models/upload_session_response.rs
 src/models/upsert_database_context_request.rs

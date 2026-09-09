@@ -15,6 +15,7 @@
 | ResultRetention | result_retention |
 | DucklakeCompaction | ducklake_compaction |
 | DucklakeTableCompaction | ducklake_table_compaction |
+| TableConstantsUpdate | table_constants_update |
 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
