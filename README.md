@@ -14,7 +14,7 @@ Add the crate to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-hotdata = "0.1"
+hotdata = "0.16"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
@@ -29,7 +29,7 @@ By default the crate builds against `native-tls`. To use `rustls` instead:
 
 ```toml
 [dependencies]
-hotdata = { version = "0.1", default-features = false, features = ["rustls"] }
+hotdata = { version = "0.16", default-features = false, features = ["rustls"] }
 ```
 
 ## Authentication
@@ -193,8 +193,10 @@ Errors from generated operations are returned as `hotdata::Error<T>`; builder
 and configuration failures are `hotdata::ClientError`. The enhanced `query`
 family returns `hotdata::QueryError` — `Overloaded` (429 retries exhausted),
 `Submit` (the underlying request failed), `AsyncRequested` (use `submit_query`
-for `async` queries), and `Result(ResultError)` for truncation auto-follow
-failures (`TooLarge` / `Timeout` / `Incomplete` / …). Result-polling and
+for `async` queries), `Async` (the server fell back to asynchronous execution
+with a 202; the acknowledgement is passed through), `Poll` (an API error while
+polling during auto-follow), and `Result(ResultError)` for truncation
+auto-follow failures (`TooLarge` / `Timeout` / `Incomplete` / …). Result-polling and
 one-call helpers return `hotdata::AwaitResultError` / `hotdata::QueryToArrowError`.
 The SDK's own error enums are `#[non_exhaustive]`, so match them with a wildcard
 arm.
@@ -205,7 +207,7 @@ Query results can be fetched as an [Apache Arrow](https://arrow.apache.org/) IPC
 
 ```toml
 [dependencies]
-hotdata = { version = "0.1", features = ["arrow"] }
+hotdata = { version = "0.16", features = ["arrow"] }
 ```
 
 `ArrowResult` hands back `arrow` types, so a crate that names them must depend
