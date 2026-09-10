@@ -101,13 +101,18 @@ impl JsonCell {
             return None;
         }
         let text = self.as_json_str().trim();
-        // `kind` said String, so the text is a quoted JSON string.
+        // `kind` said String, so the quotes are there. Substituting `""` on a
+        // failed strip would read as a real empty cell, the same invented
+        // value `to_value` refuses to produce.
         let inner = text
             .strip_prefix('"')
             .and_then(|t| t.strip_suffix('"'))
-            .unwrap_or_default();
+            .expect("a String JsonCell is quoted: every constructor validates through RawValue");
         if inner.contains('\\') {
-            serde_json::from_str::<String>(text).ok().map(Cow::Owned)
+            // `None` here would say "not a string" about a cell that is one.
+            let decoded: String = serde_json::from_str(text)
+                .expect("a String JsonCell decodes: every constructor validates through RawValue");
+            Some(Cow::Owned(decoded))
         } else {
             Some(Cow::Borrowed(inner))
         }
