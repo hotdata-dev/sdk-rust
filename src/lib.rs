@@ -52,8 +52,8 @@ pub use query::{
 };
 pub use resources::{
     ConnectionsApi, DatabaseContextApi, DatabasesApi, EmbeddingProvidersApi, IndexesApi,
-    InformationSchemaApi, JobsApi, QueryApi, QueryRunsApi, ResultsApi, SavedQueriesApi,
-    UploadsApi, WorkspacesApi,
+    InformationSchemaApi, JobsApi, QueryApi, QueryRunsApi, ResultsApi, SavedQueriesApi, UploadsApi,
+    WorkspacesApi,
 };
 pub use status::{QueryRunStatus, QueryRunStatusExt, ResultStatus, ResultStatusExt};
 pub use uploads::{

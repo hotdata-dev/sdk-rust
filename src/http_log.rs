@@ -266,10 +266,7 @@ mod tests {
     #[test]
     fn mask_credential_long_shows_head_and_tail() {
         assert_eq!(mask_credential("abcdefghijkl"), "abcd...ijkl");
-        assert_eq!(
-            mask_credential("hd_0123456789abcdef"),
-            "hd_0...cdef"
-        );
+        assert_eq!(mask_credential("hd_0123456789abcdef"), "hd_0...cdef");
     }
 
     #[test]
@@ -331,7 +328,10 @@ mod tests {
         assert_eq!(v["secret"], "<redacted>");
         assert_eq!(v["keep"], "visible");
         for leak in ["p4ssw0rd", "tkn", "leak-a", "leak-b"] {
-            assert!(!out.contains(leak), "leaked {leak} via structured value:\n{out}");
+            assert!(
+                !out.contains(leak),
+                "leaked {leak} via structured value:\n{out}"
+            );
         }
     }
 
@@ -345,8 +345,14 @@ mod tests {
         })
         .to_string();
         let out = redact_body(body.as_bytes());
-        assert!(!out.contains("supersecretvalue123"), "secret value leaked:\n{out}");
-        assert!(!out.contains("sk-abcdef0123456789"), "api_key leaked:\n{out}");
+        assert!(
+            !out.contains("supersecretvalue123"),
+            "secret value leaked:\n{out}"
+        );
+        assert!(
+            !out.contains("sk-abcdef0123456789"),
+            "api_key leaked:\n{out}"
+        );
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
         assert_eq!(v["name"], "openai-key");
         assert_eq!(v["value"], "supe...e123");
@@ -404,7 +410,11 @@ mod tests {
         let body = serde_json::json!({ "rows": big }).to_string();
         assert!(body.len() > MAX_BODY_LEN);
         let out = redact_body(body.as_bytes());
-        assert!(out.len() <= MAX_BODY_LEN + 64, "json body not capped: {} bytes", out.len());
+        assert!(
+            out.len() <= MAX_BODY_LEN + 64,
+            "json body not capped: {} bytes",
+            out.len()
+        );
         assert!(out.contains("bytes total]"));
     }
 }

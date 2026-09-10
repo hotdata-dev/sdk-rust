@@ -672,24 +672,24 @@ pub(crate) async fn wait_for_result(
             match results_api::get_result(config, result_id, x_database_id, None, Some(0), None)
                 .await
             {
-            Ok(result) => result,
-            // A failed result is delivered as HTTP 409: the generated client
-            // raises on any non-2xx rather than returning status="failed". The
-            // GetResultResponse body — and its error_message — rides on the
-            // typed Status409 entity.
-            Err(Error::ResponseError(rc)) if rc.status == StatusCode::CONFLICT => {
-                let error_message = match rc.entity {
-                    Some(GetResultError::Status409(r)) => r.error_message.flatten(),
-                    _ => None,
-                };
-                return Err(ResultError::Failed {
-                    result_id: result_id.to_owned(),
-                    error_message,
+                Ok(result) => result,
+                // A failed result is delivered as HTTP 409: the generated client
+                // raises on any non-2xx rather than returning status="failed". The
+                // GetResultResponse body — and its error_message — rides on the
+                // typed Status409 entity.
+                Err(Error::ResponseError(rc)) if rc.status == StatusCode::CONFLICT => {
+                    let error_message = match rc.entity {
+                        Some(GetResultError::Status409(r)) => r.error_message.flatten(),
+                        _ => None,
+                    };
+                    return Err(ResultError::Failed {
+                        result_id: result_id.to_owned(),
+                        error_message,
+                    }
+                    .into());
                 }
-                .into());
-            }
-            Err(e) => return Err(QueryError::Poll(e)),
-        };
+                Err(e) => return Err(QueryError::Poll(e)),
+            };
 
         match ResultStatus::parse(&result.status) {
             ResultStatus::Ready => return Ok(result),

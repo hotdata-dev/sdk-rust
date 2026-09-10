@@ -188,7 +188,9 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 /// Resolve a database to scope the query tour to: `HOTDATA_DATABASE` if set,
 /// otherwise the first database visible in the workspace (`None` if there are
 /// none).
-async fn resolve_database_id(client: &Client) -> Result<Option<String>, Box<dyn std::error::Error>> {
+async fn resolve_database_id(
+    client: &Client,
+) -> Result<Option<String>, Box<dyn std::error::Error>> {
     if let Ok(id) = std::env::var("HOTDATA_DATABASE") {
         if !id.is_empty() {
             return Ok(Some(id));

@@ -6,6 +6,8 @@
 //! so the generator emits `Vec<Vec<models::JsonCell>>` for the `rows` fields
 //! and never writes this file. See `.openapi-generator-ignore`.
 
+use std::borrow::Cow;
+
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 
@@ -89,10 +91,25 @@ impl JsonCell {
     /// The contents of a JSON string cell, unescaped. `None` for every other
     /// kind — including a number, whose text is available from
     /// [`as_json_str`](Self::as_json_str).
-    pub fn as_str(&self) -> Option<String> {
-        match self.kind() {
-            JsonCellKind::String => serde_json::from_str(self.as_json_str()).ok(),
-            _ => None,
+    ///
+    /// Borrows out of the stored text for a string with no escape sequence,
+    /// which is the common case; only an escaped string is decoded into an
+    /// owned `String`. Reading one string column down a large result
+    /// therefore allocates per escaped value rather than per row.
+    pub fn as_str(&self) -> Option<Cow<'_, str>> {
+        if self.kind() != JsonCellKind::String {
+            return None;
+        }
+        let text = self.as_json_str().trim();
+        // `kind` said String, so the text is a quoted JSON string.
+        let inner = text
+            .strip_prefix('"')
+            .and_then(|t| t.strip_suffix('"'))
+            .unwrap_or_default();
+        if inner.contains('\\') {
+            serde_json::from_str::<String>(text).ok().map(Cow::Owned)
+        } else {
+            Some(Cow::Borrowed(inner))
         }
     }
 
@@ -114,8 +131,17 @@ impl JsonCell {
     /// avoid — so prefer [`as_json_str`](Self::as_json_str) wherever the text
     /// will do, and reach for this only when a caller genuinely needs
     /// `serde_json::Value`.
+    ///
+    /// # Panics
+    ///
+    /// If the stored text is not valid JSON, which a cell cannot hold: every
+    /// constructor goes through `RawValue`, which validates. A failure here is
+    /// a broken invariant, not a bad cell. It panics rather than substituting
+    /// `Value::Null`, which would be indistinguishable from a cell that really
+    /// is null.
     pub fn to_value(&self) -> serde_json::Value {
-        serde_json::from_str(self.as_json_str()).unwrap_or(serde_json::Value::Null)
+        serde_json::from_str(self.as_json_str())
+            .expect("a JsonCell holds valid JSON: every constructor validates through RawValue")
     }
 }
 
@@ -204,6 +230,24 @@ mod tests {
         assert_eq!(s.as_str().as_deref(), Some("a\"b\nc"));
         let n = JsonCell::from_json_text("12".to_owned()).unwrap();
         assert_eq!(n.as_str(), None);
+    }
+
+    /// Only an escaped string allocates; the common case borrows.
+    ///
+    /// `serde_json::Value::as_str` handed back a borrowed `&str`, so returning
+    /// an owned `String` here would add one allocation per row to any caller
+    /// reading a string column down a large result.
+    #[test]
+    fn as_str_borrows_unless_the_text_is_escaped() {
+        let plain = JsonCell::from_json_text(r#""hello""#.to_owned()).unwrap();
+        assert!(matches!(plain.as_str(), Some(Cow::Borrowed("hello"))));
+
+        let empty = JsonCell::from_json_text(r#""""#.to_owned()).unwrap();
+        assert!(matches!(empty.as_str(), Some(Cow::Borrowed(""))));
+
+        let escaped = JsonCell::from_json_text(r#""a\"b""#.to_owned()).unwrap();
+        assert!(matches!(escaped.as_str(), Some(Cow::Owned(_))));
+        assert_eq!(escaped.as_str().as_deref(), Some("a\"b"));
     }
 
     /// Descending into an array keeps each element's text, so a wide decimal
