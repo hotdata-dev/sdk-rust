@@ -14,7 +14,7 @@ Add the crate to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-hotdata = "0.16"
+hotdata = "0.17"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
@@ -29,7 +29,7 @@ By default the crate builds against `native-tls`. To use `rustls` instead:
 
 ```toml
 [dependencies]
-hotdata = { version = "0.16", default-features = false, features = ["rustls"] }
+hotdata = { version = "0.17", default-features = false, features = ["rustls"] }
 ```
 
 ## Authentication
@@ -207,7 +207,7 @@ Query results can be fetched as an [Apache Arrow](https://arrow.apache.org/) IPC
 
 ```toml
 [dependencies]
-hotdata = { version = "0.16", features = ["arrow"] }
+hotdata = { version = "0.17", features = ["arrow"] }
 ```
 
 `ArrowResult` hands back `arrow` types, so a crate that names them must depend

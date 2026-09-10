@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [0.17.0] - 2026-09-10
+
 ### Fixed
 
 - **Query results no longer round wide numbers.** A JSON number in a result row
@@ -29,7 +32,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `JsonCell::from(serde_json::json!(...))`.
   `serde_json` is the only supported format for a `JsonCell` — it round-trips
   through a `RawValue`, which other serde formats do not recognise.
-
 
 ## [0.16.0] - 2026-09-03
 
