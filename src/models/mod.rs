@@ -130,6 +130,8 @@ pub mod job_status_response;
 pub use self::job_status_response::JobStatusResponse;
 pub mod job_type;
 pub use self::job_type::JobType;
+pub mod json_cell;
+pub use self::json_cell::JsonCell;
 pub mod lineage_ancestor_info;
 pub use self::lineage_ancestor_info::LineageAncestorInfo;
 pub mod lineage_fork_info;

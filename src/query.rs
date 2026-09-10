@@ -55,7 +55,6 @@
 use std::time::{Duration, Instant};
 
 use reqwest::StatusCode;
-use serde_json::Value;
 
 use crate::apis::configuration::Configuration;
 use crate::apis::query_api::QueryError as GeneratedQueryError;
@@ -63,7 +62,9 @@ use crate::apis::results_api::GetResultError;
 use crate::apis::{query_runs_api, results_api, Error, ResponseContent};
 use crate::client::WORKSPACE_ID_HEADER;
 use crate::http::{backoff_delay, is_pre_response_transport_error, parse_retry_after};
-use crate::models::{AsyncQueryResponse, QueryRequest, QueryResponse, ResultsFormatQuery};
+use crate::models::{
+    AsyncQueryResponse, JsonCell, QueryRequest, QueryResponse, ResultsFormatQuery,
+};
 use crate::status::ResultStatus;
 
 /// HTTP 429: too many concurrent queries (admission shedding). The server tags
@@ -805,9 +806,9 @@ async fn fetch_all_rows(
     x_database_id: &str,
     total: Option<i64>,
     qc: &QueryConfig,
-) -> Result<Vec<Vec<Value>>, QueryError> {
+) -> Result<Vec<Vec<JsonCell>>, QueryError> {
     let page_size = effective_page_size(qc.poll.page_size);
-    let mut rows: Vec<Vec<Value>> = Vec::new();
+    let mut rows: Vec<Vec<JsonCell>> = Vec::new();
     let mut byte_estimate: u64 = 0;
     let mut offset: i64 = 0;
     loop {
@@ -912,7 +913,7 @@ fn checked_offset(offset: i64, result_id: &str) -> Result<i32, ResultError> {
 /// Sums stringified cell lengths plus small per-cell/per-row overhead. A
 /// conservative ceiling *signal*, not exact accounting — good enough to stop a
 /// wide result before it exhausts RAM, cheap enough to run per page.
-fn estimate_rows_bytes(batch: &[Vec<Value>]) -> u64 {
+fn estimate_rows_bytes(batch: &[Vec<JsonCell>]) -> u64 {
     let mut total: u64 = 0;
     for row in batch {
         for cell in row {
@@ -924,12 +925,11 @@ fn estimate_rows_bytes(batch: &[Vec<Value>]) -> u64 {
 }
 
 /// Approximate the stringified length of a single JSON cell.
-fn cell_len(v: &Value) -> u64 {
-    match v {
-        Value::Null => 4, // "null"
-        Value::String(s) => s.chars().count() as u64,
-        other => other.to_string().len() as u64,
-    }
+///
+/// The cell already holds its JSON text, so this is that text's length — the
+/// bytes the row occupied on the wire, which is what the guard is pricing.
+fn cell_len(v: &JsonCell) -> u64 {
+    v.as_json_str().len() as u64
 }
 
 #[cfg(test)]
@@ -939,7 +939,7 @@ mod tests {
     use crate::client::Client;
     #[cfg(unix)]
     use crate::test_support::reset_then_ok_server;
-    use serde_json::json;
+    use serde_json::{json, Value};
     use wiremock::matchers::{header, method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -1217,10 +1217,85 @@ mod tests {
             .await
             .expect("auto-follow should succeed");
         assert_eq!(resp.rows.len(), 3);
-        assert_eq!(resp.rows[2], vec![json!(3)]);
+        assert_eq!(resp.rows[2], vec![JsonCell::from(json!(3))]);
         // truncated stays true; total backfilled / preserved.
         assert!(resp.truncated);
         assert_eq!(resp.total_row_count.flatten(), Some(3));
+    }
+
+    // --- decimal precision --------------------------------------------------
+
+    /// The exact text of a `DECIMAL(38,2)` at full width: 22 significant
+    /// digits, five more than an `f64` can carry.
+    const WIDE_DECIMAL: &str = "99999999999999999999.99";
+
+    /// An inline (non-truncated) 200 keeps every digit of a wide decimal.
+    ///
+    /// The body is sent as raw text rather than through `json!`, which would
+    /// round the literal before the test could send it — the same rounding
+    /// this is checking the client no longer does.
+    #[tokio::test]
+    async fn a_wide_decimal_survives_the_inline_path() {
+        let server = MockServer::start().await;
+        let body = format!(
+            r#"{{"columns":["w"],"execution_time_ms":1,"nullable":[false],
+               "preview_row_count":1,"query_run_id":"qrun1","row_count":1,
+               "rows":[[{WIDE_DECIMAL}]],"truncated":false,"total_row_count":1}}"#
+        );
+        Mock::given(method("POST"))
+            .and(path("/v1/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_raw(body, "application/json"))
+            .mount(&server)
+            .await;
+
+        let client = test_client(&server.uri(), fast_config());
+        let resp = client.query(req()).await.expect("query should succeed");
+        assert_eq!(resp.rows[0][0].as_json_str(), WIDE_DECIMAL);
+        // And it goes back out as an unquoted number, not a string.
+        assert_eq!(
+            serde_json::to_string(&resp.rows).unwrap(),
+            format!("[[{WIDE_DECIMAL}]]")
+        );
+    }
+
+    /// The paginated `GET /results/{id}` follow-up keeps them too: the inline
+    /// preview is discarded on that path, so the digits have to survive a
+    /// second, differently-shaped response body.
+    #[tokio::test]
+    async fn a_wide_decimal_survives_result_pagination() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(preview_json(
+                true,
+                Some("rslt1"),
+                Some(1),
+            )))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/v1/results/rslt1"))
+            .and(query_param("limit", "0"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "result_id": "rslt1", "status": "ready"
+            })))
+            .mount(&server)
+            .await;
+        let page = format!(r#"{{"result_id":"rslt1","status":"ready","rows":[[{WIDE_DECIMAL}]]}}"#);
+        Mock::given(method("GET"))
+            .and(path("/v1/results/rslt1"))
+            .and(query_param("offset", "0"))
+            .respond_with(ResponseTemplate::new(200).set_body_raw(page, "application/json"))
+            .mount(&server)
+            .await;
+
+        let client = test_client(&server.uri(), fast_config());
+        let resp = client
+            .query(req())
+            .await
+            .expect("auto-follow should succeed");
+        assert_eq!(resp.rows.len(), 1);
+        assert_eq!(resp.rows[0][0].as_json_str(), WIDE_DECIMAL);
     }
 
     /// Regression (#84 / database-scoped results): a truncated result followed
@@ -1661,8 +1736,8 @@ mod tests {
 
     #[test]
     fn byte_estimate_is_positive_and_grows() {
-        let small = estimate_rows_bytes(&[vec![json!(1)]]);
-        let big = estimate_rows_bytes(&[vec![json!("aaaaaaaaaa")]]);
+        let small = estimate_rows_bytes(&[vec![JsonCell::from(json!(1))]]);
+        let big = estimate_rows_bytes(&[vec![JsonCell::from(json!("aaaaaaaaaa"))]]);
         assert!(small > 0);
         assert!(big > small);
     }

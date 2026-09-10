@@ -101,7 +101,12 @@ async fn query_async_polling() {
         );
         if result.status == "ready" {
             assert_eq!(result.row_count, Some(Some(1)));
-            assert_eq!(result.rows, Some(Some(vec![vec![serde_json::json!(1)]])));
+            assert_eq!(
+                result.rows,
+                Some(Some(vec![vec![hotdata::JsonCell::from(
+                    serde_json::json!(1)
+                )]]))
+            );
         }
 
         // ResultInfo (list_results) exposes the id as `id`, not `result_id`.

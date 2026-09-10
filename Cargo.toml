@@ -1,6 +1,6 @@
 [package]
 name = "hotdata"
-version = "0.16.0"
+version = "0.17.0"
 authors = ["developers@hotdata.dev"]
 description = "Powerful data platform API for datasets, queries, and analytics."
 license = "MIT"
@@ -15,7 +15,14 @@ categories = ["api-bindings", "asynchronous", "database"]
 [dependencies]
 serde = { version = "^1.0", features = ["derive"] }
 serde_with = { version = "^3.8", default-features = false, features = ["base64", "std", "macros"] }
-serde_json = "^1.0"
+# `raw_value` carries each result-row cell as its JSON text (see
+# src/models/json_cell.rs), so a decimal wider than an f64 keeps every digit
+# instead of being rounded into a `Value`'s number. Deliberately NOT
+# `arbitrary_precision`: that feature is crate-wide and changes how every
+# `serde_json::Number` serializes, which corrupts non-JSON formats for
+# downstreams. `raw_value` changes nothing for code that does not name
+# `RawValue`.
+serde_json = { version = "^1.0", features = ["raw_value"] }
 serde_repr = "^0.1"
 url = "^2.5"
 tokio = { version = "^1.46.0", features = ["fs", "sync", "rt", "macros", "time"] }
