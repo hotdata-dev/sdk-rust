@@ -7,6 +7,11 @@ cd "$ROOT"
 PKG_NAME="hotdata"
 
 die() { echo "error: $*" >&2; exit 1; }
+
+# The one definition of an explicit version, shared by the argument check and
+# the branch that takes the argument verbatim, so the two cannot drift apart.
+readonly VERSION_RE='^[0-9]+\.[0-9]+\.[0-9]+$'
+readonly BUMP_KIND_RE='^(patch|minor|major)$'
 need() { command -v "$1" >/dev/null 2>&1 || die "$1 is required"; }
 
 usage() {
@@ -118,26 +123,35 @@ update_changelog() {
 cmd_prepare() {
   local bump="${1:-}"
   [[ -n "$bump" ]] || { usage; die "missing bump kind or explicit version"; }
+  # Check the argument before any branch switch below, so a typo exits without
+  # moving the caller off the branch they invoked from. Failures that depend on
+  # the base branch's version — an unchanged version, a pre-release suffix —
+  # can only be found after the checkout.
+  [[ "$bump" =~ $BUMP_KIND_RE || "$bump" =~ $VERSION_RE ]] \
+    || { usage; die "unknown bump kind: $bump"; }
   need gh
   need python3
   need git
   ensure_clean
 
   local current new base branch
-  current="$(get_version)"
-  [[ -n "$current" ]] || die "could not read current version from Cargo.toml"
-  if [[ "$bump" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    new="$bump"
-  else
-    new="$(bump_version "$bump" "$current")"
-  fi
-  [[ "$new" != "$current" ]] || die "new version ($new) equals current ($current)"
-
   base="$(default_branch)"
   git fetch origin "$base"
   git checkout "$base"
   git pull --ff-only origin "$base"
   ensure_clean
+
+  # Read the version from the base branch, not from whatever branch the script
+  # was invoked on. The bump is computed from it, so reading it first numbers
+  # the release off unrelated history.
+  current="$(get_version)"
+  [[ -n "$current" ]] || die "could not read current version from Cargo.toml"
+  if [[ "$bump" =~ $VERSION_RE ]]; then
+    new="$bump"
+  else
+    new="$(bump_version "$bump" "$current")"
+  fi
+  [[ "$new" != "$current" ]] || die "new version ($new) equals current ($current)"
 
   set_version "$new"
   update_changelog "$new"
