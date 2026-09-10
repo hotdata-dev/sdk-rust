@@ -500,9 +500,10 @@ mod tests {
             },
         );
 
-        let req_builder = configuration
-            .client
-            .request(reqwest::Method::GET, "https://api.hotdata.dev/v1/results/abc");
+        let req_builder = configuration.client.request(
+            reqwest::Method::GET,
+            "https://api.hotdata.dev/v1/results/abc",
+        );
         let req = apply_apikey_headers(req_builder, &configuration)
             .build()
             .unwrap();

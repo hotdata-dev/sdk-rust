@@ -93,7 +93,10 @@ async fn debug_logs_redact_request_and_response() {
 
     // Request line + status line, CLI-style markers.
     assert!(logs.contains(">>> GET"), "missing request line:\n{logs}");
-    assert!(logs.contains(">>> POST"), "missing POST request line:\n{logs}");
+    assert!(
+        logs.contains(">>> POST"),
+        "missing POST request line:\n{logs}"
+    );
     assert!(logs.contains("<<< 200"), "missing response status:\n{logs}");
 
     // The Authorization header is logged with the scheme preserved but the

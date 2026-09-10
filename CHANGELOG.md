@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Query results no longer round wide numbers.** A JSON number in a result row
+  was parsed into a `serde_json::Value`, which has no arbitrary-precision
+  number: anything needing more than ~17 significant digits — a `DECIMAL(38,2)`
+  at full width, for instance — arrived already rounded, so a value the service
+  sent as `99999999999999999999.99` reached callers as `1e20`. Rows now carry
+  each cell's JSON text.
+
+### Changed
+
+- **Breaking: result rows are `Vec<Vec<JsonCell>>`, not
+  `Vec<Vec<serde_json::Value>>`.** `QueryResponse::rows` and
+  `GetResultResponse::rows` (and `QueryResponse::new`) carry the new
+  `JsonCell`, which holds a cell's JSON text and serializes back to exactly
+  those bytes. Read a cell with `as_json_str()` (lossless), `as_str()`,
+  `as_array()`, `is_null()` or `kind()`; `to_value()` returns the old
+  `serde_json::Value`, with the old rounding, for code not ready to move.
+  Comparisons against a literal become
+  `JsonCell::from(serde_json::json!(...))`.
+  `serde_json` is the only supported format for a `JsonCell` — it round-trips
+  through a `RawValue`, which other serde formats do not recognise.
+
 
 ## [0.16.0] - 2026-09-03
 

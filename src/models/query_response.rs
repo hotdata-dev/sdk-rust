@@ -40,7 +40,7 @@ pub struct QueryResponse {
     pub row_count: i32,
     /// Array of rows, where each row is an array of column values. Values can be strings, numbers, booleans, or null.
     #[serde(rename = "rows")]
-    pub rows: Vec<Vec<serde_json::Value>>,
+    pub rows: Vec<Vec<models::JsonCell>>,
     /// Grand total rows in the full result. Present (and equal to `preview_row_count`) when the whole result fit in this response; `null` while a truncated result is still being persisted. When `null`, read the authoritative total from `GET /v1/query-runs/{id}` (`row_count`) or the `X-Total-Row-Count` header on `GET /v1/results/{id}`.
     #[serde(
         rename = "total_row_count",
@@ -71,7 +71,7 @@ impl QueryResponse {
         preview_row_count: i64,
         query_run_id: String,
         row_count: i32,
-        rows: Vec<Vec<serde_json::Value>>,
+        rows: Vec<Vec<models::JsonCell>>,
         truncated: bool,
     ) -> QueryResponse {
         QueryResponse {

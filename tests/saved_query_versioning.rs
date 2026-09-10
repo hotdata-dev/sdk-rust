@@ -76,7 +76,7 @@ async fn saved_query_versioning() {
     assert_eq!(executed.row_count, 1);
     assert_eq!(
         executed.rows,
-        vec![vec![serde_json::json!(3)]],
+        vec![vec![hotdata::JsonCell::from(serde_json::json!(3))]],
         "execute_saved_query should run the latest SQL (SELECT 3)"
     );
 

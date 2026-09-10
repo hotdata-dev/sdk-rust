@@ -60,8 +60,17 @@ jobs:
       # is preserved here and additionally protected by .openapi-generator-ignore
       # so the generator re-emits src/apis and src/models in place without
       # clobbering the regen-immune modules or Cargo.toml.
+      #
+      # src/models/json_cell.rs is the one hand-written file inside a
+      # generator-owned subtree, so it is spared by name. The generator is told
+      # (via --import-mappings below) that JsonCell is supplied externally: it
+      # emits the `rows` field types and the src/models/mod.rs entry for it but
+      # never the file, so deleting it here would leave the regenerated tree
+      # declaring a module that no longer exists.
       - name: Clean generated source
-        run: rm -rf src/apis src/models docs
+        run: |
+          rm -rf src/apis docs
+          find src/models -type f -name '*.rs' ! -name 'json_cell.rs' -delete
 
       # Read (do NOT bump) the current crate version. A regen is just a set of
       # changes; which release ships them — and the bump kind — is decided later
@@ -130,12 +139,22 @@ jobs:
           # default to true, which emits chrono::DateTime for date-time fields.
           # The crate has no chrono dependency and the ergonomic layer + tests
           # treat dates as String (as 7.20.0 generated them), so keep String.
+          #
+          # The JsonCell mappings make every result-row cell a
+          # `models::JsonCell` instead of a `serde_json::Value`, which would
+          # round any decimal wider than an f64 at parse time. The normalizer
+          # above names the cell schema; --type-mappings substitutes the type
+          # and --import-mappings marks it externally supplied, so the
+          # generator emits the field types and the mod.rs entry but leaves
+          # src/models/json_cell.rs (hand-written) alone.
           npx @openapitools/openapi-generator-cli generate \
             -i openapi.yaml \
             -g rust \
             -o . \
             -t .openapi-generator-templates \
             --additional-properties=packageName=hotdata,packageVersion=$PACKAGE_VERSION,library=reqwest,supportAsync=true,useChrono=false \
+            --type-mappings=JsonCell=JsonCell \
+            --import-mappings=JsonCell=crate::models::JsonCell \
             --skip-validate-spec
 
       # The 7.22.0 generator emits compact, non-rustfmt output, which buries real
@@ -167,7 +186,7 @@ jobs:
           fail=0
 
           # 1. Hand-written, regen-immune modules must exist.
-          for f in src/lib.rs src/auth.rs src/arrow.rs src/client.rs src/resources.rs src/field.rs src/status.rs src/http_log.rs; do
+          for f in src/lib.rs src/auth.rs src/arrow.rs src/client.rs src/resources.rs src/field.rs src/status.rs src/http_log.rs src/models/json_cell.rs; do
             if [ ! -f "$f" ]; then
               echo "::error::$f is missing (regen clobbered the ergonomic layer)"
               fail=1
@@ -243,7 +262,23 @@ jobs:
             fail=1
           fi
 
-          # 5. The request/response debug-logging hooks must have survived the
+          # 5. Result rows must still be typed as the precision-preserving cell.
+          #    The generator emits `serde_json::Value` for an unnamed cell
+          #    schema, which rounds a decimal wider than an f64 while parsing
+          #    the response body. That still compiles and still returns rows,
+          #    so a regen that lost the mapping would ship silently wrong
+          #    numbers. Both halves are checked: the field type, and the
+          #    mod.rs entry that resolves it to the hand-written module.
+          if grep -rq 'Vec<Vec<serde_json::Value>>' src/models/; then
+            echo "::error::a generated model types result rows as serde_json::Value (JsonCell type-mapping drift; wide decimals will be rounded)"
+            fail=1
+          fi
+          if ! grep -q 'pub use self::json_cell::JsonCell;' src/models/mod.rs; then
+            echo "::error::src/models/mod.rs no longer re-exports JsonCell (JsonCell import-mapping drift)"
+            fail=1
+          fi
+
+          # 6. The request/response debug-logging hooks must have survived the
           #    generator. api.mustache emits crate::http_log::log_request +
           #    log_response_status/_body at every op (issue #135).
           if ! grep -rq 'crate::http_log::log_request' src/apis/; then

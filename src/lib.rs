@@ -43,14 +43,17 @@ pub use auth::{BearerTokenError, BearerTokenProvider};
 #[cfg(feature = "arrow")]
 pub use client::QueryToArrowError;
 pub use client::{AwaitResultError, Client, ClientBuilder, ClientError, PollConfig, QueryOutcome};
+// The hand-written cell type behind every `rows` field. Re-exported here
+// because src/models/mod.rs is generated and lists only the type itself.
+pub use models::json_cell::{JsonCell, JsonCellKind};
 pub use query::{
     PollPolicy, QueryConfig, QueryError, ResultError, RetryPolicy, TooLargeKind,
     DEFAULT_MAX_AUTO_BYTES, DEFAULT_MAX_AUTO_ROWS, OVERLOADED_ERROR_CODE,
 };
 pub use resources::{
     ConnectionsApi, DatabaseContextApi, DatabasesApi, EmbeddingProvidersApi, IndexesApi,
-    InformationSchemaApi, JobsApi, QueryApi, QueryRunsApi, ResultsApi, SavedQueriesApi,
-    UploadsApi, WorkspacesApi,
+    InformationSchemaApi, JobsApi, QueryApi, QueryRunsApi, ResultsApi, SavedQueriesApi, UploadsApi,
+    WorkspacesApi,
 };
 pub use status::{QueryRunStatus, QueryRunStatusExt, ResultStatus, ResultStatusExt};
 pub use uploads::{
@@ -71,6 +74,7 @@ pub mod prelude {
     pub use crate::arrow::{ArrowError, ArrowResult};
     pub use crate::client::{Client, ClientBuilder, PollConfig, QueryOutcome};
     pub use crate::field;
+    pub use crate::models::json_cell::{JsonCell, JsonCellKind};
     pub use crate::models::*;
     pub use crate::query::{
         PollPolicy, QueryConfig, QueryError, ResultError, RetryPolicy, TooLargeKind,

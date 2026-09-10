@@ -80,9 +80,10 @@ async fn query_async_polling() {
     );
     assert_eq!(run.row_count, Some(Some(1)));
 
-    let runs_listing = query_runs_api::list_query_runs(config, &database_id, Some(50), None, None, None)
-        .await
-        .expect("list_query_runs should succeed");
+    let runs_listing =
+        query_runs_api::list_query_runs(config, &database_id, Some(50), None, None, None)
+            .await
+            .expect("list_query_runs should succeed");
     assert!(
         runs_listing.query_runs.iter().any(|r| r.id == query_run_id),
         "query run {query_run_id} not surfaced by list_query_runs"
@@ -101,7 +102,12 @@ async fn query_async_polling() {
         );
         if result.status == "ready" {
             assert_eq!(result.row_count, Some(Some(1)));
-            assert_eq!(result.rows, Some(Some(vec![vec![serde_json::json!(1)]])));
+            assert_eq!(
+                result.rows,
+                Some(Some(vec![vec![hotdata::JsonCell::from(
+                    serde_json::json!(1)
+                )]]))
+            );
         }
 
         // ResultInfo (list_results) exposes the id as `id`, not `result_id`.
