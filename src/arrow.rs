@@ -1094,18 +1094,14 @@ mod tests {
             .expect("the schema is intact, so opening succeeds");
 
         // Drain to the failure.
-        let mut first_err = None;
-        loop {
+        let first_err = loop {
             match stream.next_batch().await {
                 Ok(Some(_)) => continue,
                 Ok(None) => panic!("a truncated body must not report a clean end of stream"),
-                Err(e) => {
-                    first_err = Some(e);
-                    break;
-                }
+                Err(e) => break e,
             }
-        }
-        assert!(matches!(first_err, Some(ArrowError::Ipc(_))));
+        };
+        assert!(matches!(first_err, ArrowError::Ipc(_)));
 
         // Reading on must report the same failure, not `Ok(None)`.
         for attempt in 0..3 {
