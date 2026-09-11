@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `open_result_arrow` and `ArrowResultStream`: fetch a result as an Arrow IPC
+  stream decoded directly off the socket, so peak memory is one record batch
+  rather than the whole result. `get_result_arrow` and `stream_result_arrow`
+  both collect the entire body first and are unchanged. Also available as
+  `Client::open_result_arrow`.
 
 ## [0.17.0] - 2026-09-10
 

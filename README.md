@@ -246,7 +246,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-Both methods accept `offset` and `limit` for pagination, and both carry the same authentication and workspace headers as the generated operations. They return `ArrowError::NotReady` if the result is still pending or processing — poll `client.get_result(result_id, database_id)` until its status is `ready` first. `ArrowResult` also surfaces the `X-Total-Row-Count` header (`total_row_count`) and the `rel="next"` pagination `Link` (`next_link`).
+A third, `open_result_arrow`, decodes straight off the socket: it pulls body chunks as batches are asked for, so peak memory is one record batch rather than the whole result. Use it for a result larger than memory — the other two collect the entire body before returning. Its schema is available before the first batch, and the pooled connection stays checked out until the stream is drained or dropped.
+
+```rust
+let mut stream = client
+    .open_result_arrow(&result_id, &database_id, None, None)
+    .await?;
+println!("columns: {:?}", stream.schema().fields());
+while let Some(batch) = stream.next_batch().await? {
+    // ... one batch at a time; the rest is still on the wire
+}
+```
+
+All three accept `offset` and `limit` for pagination, and all carry the same authentication and workspace headers as the generated operations. They return `ArrowError::NotReady` if the result is still pending or processing — poll `client.get_result(result_id, database_id)` until its status is `ready` first. `ArrowResult` also surfaces the `X-Total-Row-Count` header (`total_row_count`) and the `rel="next"` pagination `Link` (`next_link`).
 
 To run a query and get its result as Arrow in a single call — submit, await
 `ready`, and decode — use `query_to_arrow`:

@@ -13,7 +13,7 @@
 //! adds `Accept: application/vnd.apache.arrow.stream` plus `?format=arrow`, and
 //! decodes the resulting IPC stream with `arrow-ipc`.
 //!
-//! Two entry points are provided:
+//! Three entry points are provided:
 //!
 //! * [`get_result_arrow`] — buffers the full IPC stream and returns all
 //!   [`RecordBatch`]es (the Rust analog of pyarrow `Table`; Rust has no
@@ -22,6 +22,11 @@
 //!   [`RecordBatch`] at a time, mirroring pyarrow's
 //!   `RecordBatchStreamReader`. The body is still collected once (reqwest's
 //!   async body is not a blocking `Read`); decoding is then lazy per batch.
+//! * [`open_result_arrow`] — returns an [`ArrowResultStream`] that decodes
+//!   straight off the socket, pulling body chunks as batches are asked for.
+//!   Peak memory is one record batch rather than the whole result, which makes
+//!   it the entry point for a result larger than memory. The trade is that the
+//!   pooled connection stays checked out until the stream is drained.
 //!
 //! Enable with the `arrow` cargo feature (mirrors Python's `[arrow]` extra):
 //!
@@ -375,8 +380,14 @@ impl ArrowResultStream {
                 // refcount bump, not a copy.
                 Some(bytes) => self.pending = Buffer::from(bytes),
                 None => {
-                    self.done = true;
+                    // `finish` first: a body that ended mid-message must keep
+                    // erroring. Setting `done` before it would make a second
+                    // call return `Ok(None)`, so a caller that logged the error
+                    // and read on would see a truncated download as a clean end
+                    // of stream. An exhausted body keeps yielding `None`, so the
+                    // loop reaches `finish` again on every later call.
                     self.decoder.finish()?;
+                    self.done = true;
                     return Ok(None);
                 }
             }
@@ -1067,6 +1078,44 @@ mod tests {
             matches!(err, Some(ArrowError::Ipc(_))),
             "a truncated body must surface as an IPC error, got {err:?}"
         );
+    }
+
+    /// A truncated body must keep failing. If the stream marked itself done
+    /// before confirming a clean end, a caller that logged the first error and
+    /// read on would be told the stream ended normally — a short download
+    /// silently becoming a complete result.
+    #[tokio::test]
+    async fn a_cut_short_body_keeps_erroring_on_every_later_call() {
+        let (ipc, _schema) = make_ipc_stream();
+        let truncated = &ipc[..ipc.len() - 16];
+
+        let mut stream = open_chunks(vec![Bytes::copy_from_slice(truncated)])
+            .await
+            .expect("the schema is intact, so opening succeeds");
+
+        // Drain to the failure.
+        let mut first_err = None;
+        loop {
+            match stream.next_batch().await {
+                Ok(Some(_)) => continue,
+                Ok(None) => panic!("a truncated body must not report a clean end of stream"),
+                Err(e) => {
+                    first_err = Some(e);
+                    break;
+                }
+            }
+        }
+        assert!(matches!(first_err, Some(ArrowError::Ipc(_))));
+
+        // Reading on must report the same failure, not `Ok(None)`.
+        for attempt in 0..3 {
+            match stream.next_batch().await {
+                Err(ArrowError::Ipc(_)) => {}
+                other => panic!(
+                    "call {attempt} after a truncated body must repeat the error, got {other:?}"
+                ),
+            }
+        }
     }
 
     #[tokio::test]
