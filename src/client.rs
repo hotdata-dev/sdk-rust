@@ -561,6 +561,24 @@ impl Client {
         crate::arrow::stream_result_arrow(&self.configuration, id, database_id, offset, limit).await
     }
 
+    /// Open a result as an Arrow IPC stream decoded off the socket.
+    ///
+    /// Peak memory is one record batch rather than the whole result, so this is
+    /// the path for a result larger than memory. See
+    /// [`crate::arrow::open_result_arrow`] for the connection trade-off.
+    ///
+    /// Requires the `arrow` cargo feature.
+    #[cfg(feature = "arrow")]
+    pub async fn open_result_arrow(
+        &self,
+        id: &str,
+        database_id: &str,
+        offset: Option<i64>,
+        limit: Option<i64>,
+    ) -> Result<crate::arrow::ArrowResultStream, crate::arrow::ArrowError> {
+        crate::arrow::open_result_arrow(&self.configuration, id, database_id, offset, limit).await
+    }
+
     // --- Resource handles -----------------------------------------------------
     //
     // Grouped, ergonomic accessors over the generated `apis::*_api` free
