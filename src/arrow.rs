@@ -1084,6 +1084,40 @@ mod tests {
     /// before confirming a clean end, a caller that logged the first error and
     /// read on would be told the stream ended normally — a short download
     /// silently becoming a complete result.
+    /// `read_all` must carry every batch *and* the metadata headers into the
+    /// returned `ArrowResult`. A dropped field here would hand back
+    /// metadata-free results on every call.
+    #[tokio::test]
+    async fn streaming_reader_read_all_carries_batches_and_metadata() {
+        let (ipc, schema) = make_ipc_stream();
+        let expected = StreamReader::try_new(Cursor::new(Bytes::from(ipc.clone())), None)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+
+        let stream = open_from_source(
+            ChunkSource::Chunks(vec![Bytes::from(ipc)].into_iter()),
+            Some(5),
+            Some("https://api.hotdata.dev/v1/results/abc?offset=5".to_string()),
+        )
+        .await
+        .unwrap();
+
+        let result = stream.read_all().await.expect("draining should succeed");
+        assert_eq!(
+            result.batches, expected,
+            "every batch must reach the result"
+        );
+        assert_eq!(result.num_rows(), 5);
+        assert_eq!(result.schema, schema);
+        assert_eq!(result.total_row_count, Some(5), "X-Total-Row-Count dropped");
+        assert_eq!(
+            result.next_link.as_deref(),
+            Some("https://api.hotdata.dev/v1/results/abc?offset=5"),
+            "the rel=next Link dropped"
+        );
+    }
+
     #[tokio::test]
     async fn a_cut_short_body_keeps_erroring_on_every_later_call() {
         let (ipc, _schema) = make_ipc_stream();

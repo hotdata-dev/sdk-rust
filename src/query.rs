@@ -274,9 +274,13 @@ pub enum ResultError {
         deadline: Duration,
     },
     /// Auto-follow would materialize more than the guard allows, on either axis.
-    /// Stream the result instead via
-    /// [`Client::stream_result_arrow`](crate::Client::stream_result_arrow), or
-    /// raise (or set to `None`) the relevant guard.
+    /// Read the result instead via
+    /// [`Client::open_result_arrow`](crate::Client::open_result_arrow), which
+    /// decodes off the socket and holds one record batch at a time, or raise
+    /// (or set to `None`) the relevant guard.
+    ///
+    /// Not `stream_result_arrow`: that one collects the whole body before
+    /// decoding, so it would materialize exactly what this guard refused.
     TooLarge {
         /// The result id that exceeded the guard.
         result_id: String,
@@ -338,7 +342,7 @@ impl std::fmt::Display for ResultError {
                 write!(
                     f,
                     "result {result_id} exceeds the auto-materialize limit: {desc}. \
-                     Stream it with Client::stream_result_arrow, or raise (or set to \
+                     Read it with Client::open_result_arrow, or raise (or set to \
                      None) {}.",
                     kind.knob()
                 )
