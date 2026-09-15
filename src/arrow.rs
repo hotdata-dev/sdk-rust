@@ -1080,10 +1080,6 @@ mod tests {
         );
     }
 
-    /// A truncated body must keep failing. If the stream marked itself done
-    /// before confirming a clean end, a caller that logged the first error and
-    /// read on would be told the stream ended normally — a short download
-    /// silently becoming a complete result.
     /// `read_all` must carry every batch *and* the metadata headers into the
     /// returned `ArrowResult`. A dropped field here would hand back
     /// metadata-free results on every call.
@@ -1118,6 +1114,10 @@ mod tests {
         );
     }
 
+    /// A truncated body must keep failing. If the stream marked itself done
+    /// before confirming a clean end, a caller that logged the first error and
+    /// read on would be told the stream ended normally — a short download
+    /// silently becoming a complete result.
     #[tokio::test]
     async fn a_cut_short_body_keeps_erroring_on_every_later_call() {
         let (ipc, _schema) = make_ipc_stream();
