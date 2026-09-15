@@ -36,8 +36,8 @@ pub use apis::configuration::{ApiKey, BasicAuth, Configuration};
 pub use apis::Error;
 #[cfg(feature = "arrow")]
 pub use arrow::{
-    get_result_arrow, stream_result_arrow, ArrowBatchStream, ArrowError, ArrowResult,
-    ARROW_STREAM_MEDIA_TYPE,
+    get_result_arrow, open_result_arrow, stream_result_arrow, ArrowBatchStream, ArrowError,
+    ArrowResult, ArrowResultStream, ARROW_STREAM_MEDIA_TYPE,
 };
 pub use auth::{BearerTokenError, BearerTokenProvider};
 #[cfg(feature = "arrow")]

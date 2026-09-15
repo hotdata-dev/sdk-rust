@@ -33,6 +33,10 @@ bytes = "^1"
 futures-core = "^0.3"
 log = "^0.4"
 arrow-ipc = { version = "59", optional = true }
+# Only for `Buffer`, which `arrow-ipc`'s push decoder names in its public
+# signature and does not re-export. Backs the zero-copy handoff from a reqwest
+# body chunk (`bytes::Bytes`) to `StreamDecoder::decode`.
+arrow-buffer = { version = "59", optional = true }
 arrow-array = { version = "59", optional = true }
 arrow-schema = { version = "59", optional = true }
 
@@ -40,7 +44,7 @@ arrow-schema = { version = "59", optional = true }
 default = ["native-tls"]
 native-tls = ["reqwest/native-tls"]
 rustls = ["reqwest/rustls"]
-arrow = ["dep:arrow-ipc", "dep:arrow-array", "dep:arrow-schema"]
+arrow = ["dep:arrow-ipc", "dep:arrow-array", "dep:arrow-schema", "dep:arrow-buffer"]
 
 [dev-dependencies]
 tokio = { version = "^1.46.0", features = ["rt-multi-thread", "macros", "time"] }
