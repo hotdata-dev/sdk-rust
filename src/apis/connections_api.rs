@@ -94,6 +94,16 @@ pub enum LoadManagedTableError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`set_managed_table_constant_per_key`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SetManagedTableConstantPerKeyError {
+    Status400(models::ApiErrorResponse),
+    Status404(models::ApiErrorResponse),
+    Status409(models::ApiErrorResponse),
+    UnknownValue(serde_json::Value),
+}
+
 /// Declare a new schema (and optionally its tables) on an existing managed catalog after creation. The schema is added to the connection's declaration; declared tables can then be populated via the managed-table load endpoint. Only valid against connections whose source type is `managed`. Identifiers are normalized to lowercase.
 pub async fn add_managed_schema(
     configuration: &configuration::Configuration,
@@ -687,6 +697,82 @@ pub async fn load_managed_table(
         let content = resp.text().await?;
         crate::http_log::log_response_body(&content);
         let entity: Option<LoadManagedTableError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Replace the columns a table declares constant for a given key: for every row, any other row sharing its key holds the same value of these columns. Declaring this lets a keyed mutation (`delete`, `update`, `upsert`) narrow its search for prior versions to the values the upload carries, which prunes far harder than the key alone when the key's own file statistics do not discriminate.  Unlike `partition_by` and `sorted_by`, this is NOT fixed when the table is created. It changes only which files a mutation opens, never how rows are written, so nothing stored becomes wrong when it changes and a populated table can adopt it with no rewrite. It takes effect on the next load.  Send an empty array to revoke it, restoring the unrestricted search — this is the way to undo a declaration that turns out to be false.  **This is correctness-affecting, not a hint.** If the assertion is false, a keyed mutation supersedes one version of a key and appends beside another, silently duplicating it, and the pruning conceals its own evidence because the file holding the missed row is never opened. Declare it only where the invariant is established.
+pub async fn set_managed_table_constant_per_key(
+    configuration: &configuration::Configuration,
+    connection_id: &str,
+    schema: &str,
+    table: &str,
+    update_managed_table_request: models::UpdateManagedTableRequest,
+) -> Result<models::ManagedTableConstantPerKeyResponse, Error<SetManagedTableConstantPerKeyError>> {
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_path_connection_id = connection_id;
+    let p_path_schema = schema;
+    let p_path_table = table;
+    let p_body_update_managed_table_request = update_managed_table_request;
+
+    let uri_str = format!(
+        "{}/v1/connections/{connection_id}/schemas/{schema}/tables/{table}/constant-per-key",
+        configuration.base_path,
+        connection_id = crate::apis::urlencode(p_path_connection_id),
+        schema = crate::apis::urlencode(p_path_schema),
+        table = crate::apis::urlencode(p_path_table)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
+        let key = apikey.key.clone();
+        let value = match apikey.prefix {
+            Some(ref prefix) => format!("{} {}", prefix, key),
+            None => key,
+        };
+        req_builder = req_builder.header("X-Workspace-Id", value);
+    };
+    if let Some(token) = configuration.resolve_bearer_token().await {
+        req_builder = req_builder.bearer_auth(token);
+    };
+    req_builder = req_builder.json(&p_body_update_managed_table_request);
+
+    let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
+    // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
+    // shedding) is retried per `configuration.retry` on every generated op, not
+    // just the hand-written query path. See crate::http::execute_retrying.
+    let resp = crate::http::execute_retrying(configuration, req).await?;
+
+    let status = resp.status();
+    crate::http_log::log_response_status(status);
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ManagedTableConstantPerKeyResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ManagedTableConstantPerKeyResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        let entity: Option<SetManagedTableConstantPerKeyError> =
+            serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
