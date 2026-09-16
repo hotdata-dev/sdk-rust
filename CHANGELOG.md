@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- feat(indexes): add vector_precision field to index operations
 
 ## [0.18.0] - 2026-09-15
 
