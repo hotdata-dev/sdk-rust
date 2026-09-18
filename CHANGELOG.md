@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [0.18.1] - 2026-09-18
+
 ### Fixed
 
 - **Responses are now requested compressed.** The crate builds `reqwest` with
@@ -17,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   paginated listings). The `gzip` feature is now enabled, so all request paths
   negotiate gzip and decode it transparently. The presigned storage `PUT`
   deliberately opts back out, keeping its header-bare, signature-safe contract.
+- **A storage client that cannot be built now fails with its real cause.** The
+  presigned-upload path fell back to `unwrap_or_default()`, which resolves to
+  `reqwest::Client::new()` — itself an `expect` on the same construction — so
+  the fallback panicked with an unrelated message instead of yielding a client,
+  and had it ever returned one, that client would have negotiated gzip with no
+  connect timeout, undoing both guarantees the storage client exists to provide.
 
 ## [0.18.0] - 2026-09-15
 
