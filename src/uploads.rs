@@ -1195,9 +1195,24 @@ fn storage_client() -> reqwest::Client {
                 // bounds only connection establishment, not the transfer, so a
                 // dead endpoint fails fast into the retry/outer loop.
                 .connect_timeout(STORAGE_CONNECT_TIMEOUT)
+                // Keeps the "no default headers" promise above literal. The
+                // crate enables reqwest's `gzip` feature so the *API* client
+                // negotiates compressed responses, and that feature turns auto
+                // gzip on for every client built in the process — including this
+                // one, which would then add `Accept-Encoding` to a presigned
+                // `PUT`. A signed URL commits to a header set; anything the SDK
+                // adds on top risks the same `403 SignatureDoesNotMatch` this
+                // client exists to avoid. Nothing is given up: a `PUT` answers
+                // with an empty body or a short ack, so there is no payload to
+                // compress.
+                .no_gzip()
                 .build()
                 // Falls back to a plain default client if the builder somehow
-                // fails (e.g. no TLS backend); still header-bare.
+                // fails (e.g. no TLS backend). Note this fallback is NOT
+                // header-bare in the gzip sense — `Client::default()` negotiates
+                // gzip when the feature is on — but it is only reachable when
+                // client construction itself fails, at which point uploads are
+                // broken regardless.
                 .unwrap_or_default()
         })
         .clone()

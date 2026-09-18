@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Responses are now requested compressed.** The crate builds `reqwest` with
+  `default-features = false` and had no compression feature enabled, which is
+  what gates both the automatic `Accept-Encoding` request header and the
+  transparent decode of the reply — so every request went out asking for
+  full-size bytes, on exactly the largest responses (query result cells and
+  paginated listings). The `gzip` feature is now enabled, so all request paths
+  negotiate gzip and decode it transparently. The presigned storage `PUT`
+  deliberately opts back out, keeping its header-bare, signature-safe contract.
 
 ## [0.18.0] - 2026-09-15
 
