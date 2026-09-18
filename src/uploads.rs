@@ -1207,13 +1207,17 @@ fn storage_client() -> reqwest::Client {
                 // compress.
                 .no_gzip()
                 .build()
-                // Falls back to a plain default client if the builder somehow
-                // fails (e.g. no TLS backend). Note this fallback is NOT
-                // header-bare in the gzip sense — `Client::default()` negotiates
-                // gzip when the feature is on — but it is only reachable when
-                // client construction itself fails, at which point uploads are
-                // broken regardless.
-                .unwrap_or_default()
+                // Deliberately not `unwrap_or_default()`. That resolves to
+                // `reqwest::Client::default()` -> `Client::new()`, which is
+                // itself `ClientBuilder::new().build().expect(..)` — so it
+                // panics on exactly the condition that would send us down the
+                // fallback (a TLS backend that will not initialize). The
+                // "fallback" could therefore never hand back a usable client.
+                // Worse, in any case where it did, it would be a client that
+                // negotiates gzip and has no connect timeout — quietly undoing
+                // both guarantees this one exists to provide. Fail loudly,
+                // naming the real cause.
+                .expect("building the bare storage client should not fail")
         })
         .clone()
 }
