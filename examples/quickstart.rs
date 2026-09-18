@@ -269,12 +269,19 @@ fn print_arrow(arrow: &ArrowResult) {
 /// Stubs used when the `arrow` feature is disabled, so the call sites in `run`
 /// type-check either way.
 #[cfg(not(feature = "arrow"))]
-async fn fetch_arrow(_client: &Client, _result_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+async fn fetch_arrow(
+    _client: &Client,
+    _database_id: &str,
+    _result_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("(build with --features arrow to fetch results as Arrow record batches)");
     Ok(())
 }
 
 #[cfg(not(feature = "arrow"))]
-async fn one_shot_arrow(_client: &Client) -> Result<(), Box<dyn std::error::Error>> {
+async fn one_shot_arrow(
+    _client: &Client,
+    _database_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
