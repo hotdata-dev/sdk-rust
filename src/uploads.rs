@@ -1195,10 +1195,29 @@ fn storage_client() -> reqwest::Client {
                 // bounds only connection establishment, not the transfer, so a
                 // dead endpoint fails fast into the retry/outer loop.
                 .connect_timeout(STORAGE_CONNECT_TIMEOUT)
+                // Keeps the "no default headers" promise above literal. The
+                // crate enables reqwest's `gzip` feature so the *API* client
+                // negotiates compressed responses, and that feature turns auto
+                // gzip on for every client built in the process — including this
+                // one, which would then add `Accept-Encoding` to a presigned
+                // `PUT`. A signed URL commits to a header set; anything the SDK
+                // adds on top risks the same `403 SignatureDoesNotMatch` this
+                // client exists to avoid. Nothing is given up: a `PUT` answers
+                // with an empty body or a short ack, so there is no payload to
+                // compress.
+                .no_gzip()
                 .build()
-                // Falls back to a plain default client if the builder somehow
-                // fails (e.g. no TLS backend); still header-bare.
-                .unwrap_or_default()
+                // Deliberately not `unwrap_or_default()`. That resolves to
+                // `reqwest::Client::default()` -> `Client::new()`, which is
+                // itself `ClientBuilder::new().build().expect(..)` — so it
+                // panics on exactly the condition that would send us down the
+                // fallback (a TLS backend that will not initialize). The
+                // "fallback" could therefore never hand back a usable client.
+                // Worse, in any case where it did, it would be a client that
+                // negotiates gzip and has no connect timeout — quietly undoing
+                // both guarantees this one exists to provide. Fail loudly,
+                // naming the real cause.
+                .expect("building the bare storage client should not fail")
         })
         .clone()
 }

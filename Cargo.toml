@@ -27,7 +27,18 @@ serde_repr = "^0.1"
 url = "^2.5"
 tokio = { version = "^1.46.0", features = ["fs", "sync", "rt", "macros", "time"] }
 tokio-util = { version = "^0.7", features = ["codec"] }
-reqwest = { version = "^0.13", default-features = false, features = ["json", "multipart", "stream", "query", "form"] }
+# `gzip` is what makes reqwest negotiate compressed responses: the feature gates
+# both the automatic `Accept-Encoding: gzip` request header and the transparent
+# decode of the reply. Without it (this crate sets `default-features = false`,
+# so nothing enables it implicitly) every request asked for full-size bytes,
+# which is costly on exactly the largest responses — query result cells and
+# paginated listings. Enabling the feature is sufficient: reqwest's
+# `ClientBuilder` defaults auto-gzip on whenever it is compiled in, so both
+# client construction sites pick it up with no code change. Deliberately gzip
+# only, not `brotli`/`zstd`: gzip is universally supported and adds no codec
+# the tree does not already carry, and the ratio gained by the others does not
+# pay for the extra dependency surface a library forces on every downstream.
+reqwest = { version = "^0.13", default-features = false, features = ["json", "multipart", "stream", "query", "form", "gzip"] }
 async-trait = "^0.1"
 bytes = "^1"
 futures-core = "^0.3"
@@ -56,6 +67,10 @@ uuid = { version = "1", features = ["v4"] }
 # the TLS backend comes from the crate's own `native-tls`/`rustls` features via
 # Cargo feature unification.
 reqwest = { version = "^0.13", default-features = false }
+# Builds a genuinely gzip-encoded response body in tests/response_compression.rs,
+# so the decode is proven end to end rather than inferred from a request header.
+# Not a new link in the tree: reqwest's own gzip support pulls flate2 in already.
+flate2 = "^1"
 
 [package.metadata.docs.rs]
 all-features = true
