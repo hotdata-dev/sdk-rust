@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- chore(databases): clarify default_connection_id usage and catalog attachment rules
 
 ## [0.18.1] - 2026-09-18
 
