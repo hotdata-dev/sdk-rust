@@ -27,6 +27,7 @@ pub struct DatabaseDetailResponse {
     /// Name the database's default catalog answers to inside its query scope (`default` unless overridden at create time).
     #[serde(rename = "default_catalog")]
     pub default_catalog: String,
+    /// Id of the connection backing this database's `default` catalog. Pass it as `connection_id` to `POST /v1/databases/{other}/catalogs` to attach this database's catalog into another database. In SQL, address the catalog as `default` inside an `X-Database-Id` scope, not by id.
     #[serde(rename = "default_connection_id")]
     pub default_connection_id: String,
     /// Schema that unqualified table names resolve to inside this database's query scope. `main` unless the database declares a single schema or a `default_schema` was set at create time.
