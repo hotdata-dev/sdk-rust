@@ -73,6 +73,9 @@ pub struct CreateIndexRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub output_column: Option<Option<String>>,
+    /// How precisely a vector index stores each number of a vector. Lower precision shrinks the index so a larger table can be indexed within the same memory, and lets searches run on a smaller instance. Omit this field to store vectors at the same precision as the column, which is the default.  The quality figures below come from one benchmark — 1536-dimension text embeddings, cosine distance, default search settings — and are a guide, not a guarantee. Other models, dimensions, distance metrics and data distributions behave differently, so measure on your own data before moving a production index to a lower precision.  `float32` — on a `float64` column this halves the index. Widely used embedding models emit 32-bit values, so for those nothing is lost; vectors that genuinely carry more than 32 bits of precision will lose some.  `float16` — half the memory of `float32`. In that benchmark its results matched `float32` to within 0.1 percentage points.  `float8` — a quarter of the memory of `float32`. In that benchmark it scored about 4 percentage points below `float32`, and raising the search effort did not close the gap, so treat the reduction as permanent for a given index.  `float64` — accepted only for a column that already holds double-precision values; it cannot add precision the stored data does not have.  Changing this means dropping the index and creating it again. It affects only the index: the table's own values are never altered, and text columns indexed with a generated embedding are not re-embedded.
+    #[serde(rename = "vector_precision", skip_serializing_if = "Option::is_none")]
+    pub vector_precision: Option<VectorPrecision>,
 }
 
 impl CreateIndexRequest {
@@ -89,6 +92,7 @@ impl CreateIndexRequest {
             index_type: None,
             metric: None,
             output_column: None,
+            vector_precision: None,
         }
     }
 }
@@ -106,5 +110,23 @@ pub enum IndexType {
 impl Default for IndexType {
     fn default() -> IndexType {
         Self::Sorted
+    }
+}
+/// How precisely a vector index stores each number of a vector. Lower precision shrinks the index so a larger table can be indexed within the same memory, and lets searches run on a smaller instance. Omit this field to store vectors at the same precision as the column, which is the default.  The quality figures below come from one benchmark — 1536-dimension text embeddings, cosine distance, default search settings — and are a guide, not a guarantee. Other models, dimensions, distance metrics and data distributions behave differently, so measure on your own data before moving a production index to a lower precision.  `float32` — on a `float64` column this halves the index. Widely used embedding models emit 32-bit values, so for those nothing is lost; vectors that genuinely carry more than 32 bits of precision will lose some.  `float16` — half the memory of `float32`. In that benchmark its results matched `float32` to within 0.1 percentage points.  `float8` — a quarter of the memory of `float32`. In that benchmark it scored about 4 percentage points below `float32`, and raising the search effort did not close the gap, so treat the reduction as permanent for a given index.  `float64` — accepted only for a column that already holds double-precision values; it cannot add precision the stored data does not have.  Changing this means dropping the index and creating it again. It affects only the index: the table's own values are never altered, and text columns indexed with a generated embedding are not re-embedded.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+pub enum VectorPrecision {
+    #[serde(rename = "float64")]
+    Float64,
+    #[serde(rename = "float32")]
+    Float32,
+    #[serde(rename = "float16")]
+    Float16,
+    #[serde(rename = "float8")]
+    Float8,
+}
+
+impl Default for VectorPrecision {
+    fn default() -> VectorPrecision {
+        Self::Float64
     }
 }

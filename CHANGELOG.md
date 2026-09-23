@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- chore(databases): simplify fork error description
 
 ## [0.18.1] - 2026-09-18
 
