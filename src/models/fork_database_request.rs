@@ -14,6 +14,14 @@ use serde::{Deserialize, Serialize};
 /// ForkDatabaseRequest : Request body for POST /databases/{database_id}/fork
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ForkDatabaseRequest {
+    /// Optional note saying why the fork is being taken — for example \"backfill test before the March migration\". It is kept with the record of the fork and returned wherever that record appears: `forked_from` on the fork, and the fork's entry in both databases' lineage. Surrounding whitespace is trimmed, and an empty value is treated as absent. At most 4096 bytes; line breaks and tabs are allowed, other control characters are not.
+    #[serde(
+        rename = "description",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub description: Option<Option<String>>,
     /// When the fork expires. Accepts either an RFC 3339 timestamp (e.g. `\"2026-06-01T00:00:00Z\"`) or a relative duration suffixed with `h` (hours), `m` (minutes), or `d` (days) — for example `\"24h\"` or `\"7d\"`. When omitted, a still-future expiry on the source is carried over; otherwise the fork never expires.
     #[serde(
         rename = "expires_at",
@@ -36,6 +44,7 @@ impl ForkDatabaseRequest {
     /// Request body for POST /databases/{database_id}/fork
     pub fn new() -> ForkDatabaseRequest {
         ForkDatabaseRequest {
+            description: None,
             expires_at: None,
             name: None,
         }

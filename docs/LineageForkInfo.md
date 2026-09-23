@@ -5,6 +5,7 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **database_id** | **String** |  | 
+**description** | Option<**String**> | Why the fork was taken, as given when it was created. Absent when none was given. | [optional]
 **exists** | **bool** | False once the fork has been deleted. The record of it is kept either way, so a source can still account for everything taken from it. | 
 **forked_at** | Option<**String**> | When the fork was taken. | [optional]
 **name** | Option<**String**> | Absent once the fork has been deleted — only the record of it remains. | [optional]

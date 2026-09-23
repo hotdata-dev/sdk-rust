@@ -16,6 +16,14 @@ use serde::{Deserialize, Serialize};
 pub struct LineageForkInfo {
     #[serde(rename = "database_id")]
     pub database_id: String,
+    /// Why the fork was taken, as given when it was created. Absent when none was given.
+    #[serde(
+        rename = "description",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub description: Option<Option<String>>,
     /// False once the fork has been deleted. The record of it is kept either way, so a source can still account for everything taken from it.
     #[serde(rename = "exists")]
     pub exists: bool,
@@ -50,6 +58,7 @@ impl LineageForkInfo {
     pub fn new(database_id: String, exists: bool) -> LineageForkInfo {
         LineageForkInfo {
             database_id,
+            description: None,
             exists,
             forked_at: None,
             name: None,

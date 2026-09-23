@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- feat(databases): add description field to fork lineage
 - chore(databases): simplify fork error description
 
 ## [0.18.1] - 2026-09-18
