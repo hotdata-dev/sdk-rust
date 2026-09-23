@@ -17,6 +17,14 @@ pub struct ForkedFromInfo {
     /// ID of the database that was forked. The database may since have been deleted — the record outlives it — so this is not guaranteed to resolve.
     #[serde(rename = "database_id")]
     pub database_id: String,
+    /// Why the fork was taken, as given when it was created. Absent when none was given.
+    #[serde(
+        rename = "description",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub description: Option<Option<String>>,
     /// When the fork was taken.
     #[serde(
         rename = "forked_at",
@@ -48,6 +56,7 @@ impl ForkedFromInfo {
     pub fn new(database_id: String) -> ForkedFromInfo {
         ForkedFromInfo {
             database_id,
+            description: None,
             forked_at: None,
             name: None,
             snapshot_id: None,

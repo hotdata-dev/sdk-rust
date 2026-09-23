@@ -16,6 +16,14 @@ use serde::{Deserialize, Serialize};
 pub struct LineageAncestorInfo {
     #[serde(rename = "database_id")]
     pub database_id: String,
+    /// Why the next database down the chain was forked from it, as given at the time. Absent when none was given.
+    #[serde(
+        rename = "description",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub description: Option<Option<String>>,
     /// False once the ancestor has been deleted. Its place in the chain is kept either way, and the ancestry continues past it.
     #[serde(rename = "exists")]
     pub exists: bool,
@@ -50,6 +58,7 @@ impl LineageAncestorInfo {
     pub fn new(database_id: String, exists: bool) -> LineageAncestorInfo {
         LineageAncestorInfo {
             database_id,
+            description: None,
             exists,
             forked_at: None,
             name: None,
