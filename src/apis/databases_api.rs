@@ -74,6 +74,7 @@ pub enum CreateDatabaseError {
 #[serde(untagged)]
 pub enum DeleteDatabaseError {
     Status404(models::ApiErrorResponse),
+    Status409(models::ApiErrorResponse),
     UnknownValue(serde_json::Value),
 }
 
@@ -101,6 +102,7 @@ pub enum DetachDatabaseCatalogError {
 pub enum ForkDatabaseError {
     Status400(models::ApiErrorResponse),
     Status404(models::ApiErrorResponse),
+    Status409(models::ApiErrorResponse),
     UnknownValue(serde_json::Value),
 }
 
@@ -150,6 +152,16 @@ pub enum LoadDatabaseTableError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum LookupDatabaseByNameError {
+    Status400(models::ApiErrorResponse),
+    Status404(models::ApiErrorResponse),
+    Status409(models::ApiErrorResponse),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`set_database_table_constant_per_key`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SetDatabaseTableConstantPerKeyError {
     Status400(models::ApiErrorResponse),
     Status404(models::ApiErrorResponse),
     Status409(models::ApiErrorResponse),
@@ -301,7 +313,7 @@ pub async fn add_database_table(
     }
 }
 
-/// Attach an existing connection (catalog) to a database with an optional alias. Inside the database the catalog is reachable as the alias (when set) or its original name.
+/// Attach a catalog to a database so its tables are queryable alongside the database's own. Pass another database's `default_connection_id` as `connection_id` to read across the two in one query. Inside the database the catalog answers to `alias` when set, otherwise to the name it already answers to in its own scope. That name may not be `default`, a reserved name, or this database's own default catalog name — so attaching a database that kept the stock `default` catalog needs an `alias`. Attaching is read-only and copies nothing: loads still target the database's own default catalog, and detaching withdraws visibility rather than deleting data. A database's own default catalog is always attached and cannot be attached again. Attaching is not transitive — a database sees the catalog it attached, not that catalog's own attachments.
 pub async fn attach_database_catalog(
     configuration: &configuration::Configuration,
     database_id: &str,
@@ -425,7 +437,7 @@ pub async fn bulk_create_databases(
     }
 }
 
-/// Return the total number of databases in the workspace. This is the whole-workspace total, not a page size: the `count` field on the listing reports how many rows that one page returned, so totalling a workspace from `GET /v1/databases` means walking every page. Pass `search` to count only databases whose name contains that text (case-insensitive), or `batch` with the `batch_id` returned by a bulk-creation call to count only that batch's databases. The filters mean exactly what they mean on the listing, so a count and a listing given the same filters describe the same set.
+/// Return the total number of databases in the workspace. This is the whole-workspace total, not a page size: the `count` field on the listing reports how many rows that one page returned, so totalling a workspace from `GET /v1/databases` means walking every page. Pass `search` to count only databases whose name contains that text, ignoring the case of unaccented Latin letters and digits, or `batch` with the `batch_id` returned by a bulk-creation call to count only that batch's databases. The filters mean exactly what they mean on the listing, so a count and a listing given the same filters describe the same set.
 pub async fn count_databases(
     configuration: &configuration::Configuration,
     search: Option<&str>,
@@ -560,7 +572,7 @@ pub async fn create_database(
     }
 }
 
-/// Delete a database and its auto-created default catalog. Attached catalogs are detached (their underlying connections are not deleted).
+/// Delete a database and its auto-created default catalog. Catalogs attached to it are detached (the catalogs themselves are not deleted). Refused while another database attaches this one's catalog — detach it there first — unless this database is past its `expires_at`, in which case it can be deleted regardless and the attaching database loses the catalog. A database that attaches one should watch that date.
 pub async fn delete_database(
     configuration: &configuration::Configuration,
     database_id: &str,
@@ -742,7 +754,7 @@ pub async fn detach_database_catalog(
     }
 }
 
-/// Create a new database that is an independent fork of an existing one. The fork has its own default catalog and contains the same schemas, tables, and data as the source; the source is left unchanged. External catalogs attached to the source are re-attached to the fork. Optional `name` sets the fork's display label; when omitted, the fork takes the source's label followed by a short suffix derived from the fork's own ID, so the two stay distinguishable. Optional `expires_at` sets when the fork expires — accepts an RFC 3339 timestamp or a relative duration suffixed with `h` (hours), `m` (minutes), or `d` (days), e.g. `24h`, `90m`, `7d`. When omitted, a still-future expiry on the source is carried over; otherwise the fork never expires. Any indexes on the source's tables are not carried over.
+/// Create a new database that is an independent fork of an existing one. The fork has its own default catalog and contains the same schemas, tables, and data as the source; the source is left unchanged. External catalogs attached to the source are re-attached to the fork. Optional `name` sets the fork's display label; when omitted, the fork takes the source's label followed by a short suffix derived from the fork's own ID, so the two stay distinguishable. Optional `expires_at` sets when the fork expires — accepts an RFC 3339 timestamp or a relative duration suffixed with `h` (hours), `m` (minutes), or `d` (days), e.g. `24h`, `90m`, `7d`. When omitted, a still-future expiry on the source is carried over; otherwise the fork never expires. Any indexes on the source's tables are not carried over. A fork adds no stored bytes at first, because it starts out sharing the source's storage. Routine maintenance can later rewrite a shared table into the fork's own storage, and the fork is billed for that copy from then on. Whether and when that happens depends on the table, so a fork that is only read can keep sharing indefinitely.
 pub async fn fork_database(
     configuration: &configuration::Configuration,
     database_id: &str,
@@ -1016,7 +1028,7 @@ pub async fn get_database_lineage(
     }
 }
 
-/// List databases in the workspace, newest first, one page at a time. When no `limit` is given a default page size is applied, so a single call returns at most one page rather than every database. If the response's `has_more` is true, pass its `next_cursor` value back as the `cursor` query parameter to fetch the next page. Pass `search` to return only databases whose name *contains* that text (case-insensitive); to fetch the single database whose name matches exactly, use `GET /v1/databases/by-name` instead. Pass `batch` with the `batch_id` returned by a bulk-creation call to list only that batch's databases.
+/// List databases in the workspace, newest first, one page at a time. When no `limit` is given a default page size is applied, so a single call returns at most one page rather than every database. If the response's `has_more` is true, pass its `next_cursor` value back as the `cursor` query parameter to fetch the next page. Pass `search` to return only databases whose name *contains* that text, ignoring the case of unaccented Latin letters and digits; to fetch the single database whose name matches exactly, use `GET /v1/databases/by-name` instead. Pass `batch` with the `batch_id` returned by a bulk-creation call to list only that batch's databases.
 pub async fn list_databases(
     configuration: &configuration::Configuration,
     limit: Option<i32>,
@@ -1173,7 +1185,7 @@ pub async fn load_database_table(
     }
 }
 
-/// Fetch a single database by its exact name. This is the counterpart to the listing's `search` filter, which matches any database whose name merely contains the text.  Matching ignores case for names made of unaccented Latin letters and digits; that much is guaranteed. For names containing other characters — accented letters, or any non-Latin script — whether case is ignored depends on the deployment, so rely on neither: look those up with the capitalisation they were created with.  Returns 404 when no database has that name. A name shared by more than one database returns 409 rather than picking one of them; address those by id.
+/// Fetch a single database by its exact name. This is the counterpart to the listing's `search` filter, which matches any database whose name merely contains the text.  Matching ignores case for unaccented Latin letters and digits, and only for those. Every other character has to match exactly, so a name containing an accented letter or a non-Latin script must be looked up with the capitalisation it was created with.  Returns 404 when no database has that name. A name shared by more than one database returns 409 rather than picking one of them; address those by id.
 pub async fn lookup_database_by_name(
     configuration: &configuration::Configuration,
     name: &str,
@@ -1228,6 +1240,83 @@ pub async fn lookup_database_by_name(
         let content = resp.text().await?;
         crate::http_log::log_response_body(&content);
         let entity: Option<LookupDatabaseByNameError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Replace the columns a table declares constant for a given key: for every row, any other row sharing its key holds the same value of these columns. Declaring this lets a keyed mutation (`delete`, `update`, `upsert`) narrow its search for prior versions to the values the upload carries.  Unlike `partition_by` and `sorted_by`, this is NOT fixed when the table is created — it changes only which files a mutation opens, never how rows are written — so a populated table can adopt it with no rewrite, taking effect on the next load. Send an empty array to revoke it.  **Correctness-affecting, not a hint.** If the assertion is false, a keyed mutation supersedes one version of a key and appends beside another, silently duplicating it. Declare it only where the invariant is established.
+pub async fn set_database_table_constant_per_key(
+    configuration: &configuration::Configuration,
+    database_id: &str,
+    schema: &str,
+    table: &str,
+    update_managed_table_request: models::UpdateManagedTableRequest,
+) -> Result<models::ManagedTableConstantPerKeyResponse, Error<SetDatabaseTableConstantPerKeyError>>
+{
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_path_database_id = database_id;
+    let p_path_schema = schema;
+    let p_path_table = table;
+    let p_body_update_managed_table_request = update_managed_table_request;
+
+    let uri_str = format!(
+        "{}/v1/databases/{database_id}/schemas/{schema}/tables/{table}/constant-per-key",
+        configuration.base_path,
+        database_id = crate::apis::urlencode(p_path_database_id),
+        schema = crate::apis::urlencode(p_path_schema),
+        table = crate::apis::urlencode(p_path_table)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(apikey) = configuration.api_keys.get("X-Workspace-Id") {
+        let key = apikey.key.clone();
+        let value = match apikey.prefix {
+            Some(ref prefix) => format!("{} {}", prefix, key),
+            None => key,
+        };
+        req_builder = req_builder.header("X-Workspace-Id", value);
+    };
+    if let Some(token) = configuration.resolve_bearer_token().await {
+        req_builder = req_builder.bearer_auth(token);
+    };
+    req_builder = req_builder.json(&p_body_update_managed_table_request);
+
+    let req = req_builder.build()?;
+    crate::http_log::log_request(&req);
+    // Route through the shared retry helper so HTTP 429 (OVERLOADED admission
+    // shedding) is retried per `configuration.retry` on every generated op, not
+    // just the hand-written query path. See crate::http::execute_retrying.
+    let resp = crate::http::execute_retrying(configuration, req).await?;
+
+    let status = resp.status();
+    crate::http_log::log_response_status(status);
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ManagedTableConstantPerKeyResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ManagedTableConstantPerKeyResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        let entity: Option<SetDatabaseTableConstantPerKeyError> =
+            serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

@@ -42,6 +42,14 @@ pub struct IndexInfoResponse {
     pub status: models::IndexStatus,
     #[serde(rename = "updated_at")]
     pub updated_at: String,
+    /// How precisely this vector index stores each number of a vector, when it was created with an explicit precision. Absent means it stores at the same precision as the column, which is the default. Also absent for BM25 and sorted indexes.
+    #[serde(
+        rename = "vector_precision",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub vector_precision: Option<Option<String>>,
 }
 
 impl IndexInfoResponse {
@@ -63,6 +71,7 @@ impl IndexInfoResponse {
             source_column: None,
             status,
             updated_at,
+            vector_precision: None,
         }
     }
 }
