@@ -7,10 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [0.19.0] - 2026-09-23
+
+### Added
+
+- **Fork descriptions.** `ForkDatabaseRequest` has an optional `description`.
+  It records why the fork was taken, and you can set it only at fork time.
+  The server returns it on `ForkedFromInfo`, `LineageAncestorInfo` and
+  `LineageForkInfo`. On an ancestor entry, it describes the fork taken from
+  that ancestor (the next generation down).
+- **Constant-per-key after table creation.** Two new operations change the
+  declaration on an existing table: `set_database_table_constant_per_key` and
+  `set_managed_table_constant_per_key`. Both take an
+  `UpdateManagedTableRequest` and return a
+  `ManagedTableConstantPerKeyResponse`. `TableInfo` now reports
+  `constant_per_key`. `JobType` has a new `TableConstantsUpdate` variant.
+- **Vector index precision.** `CreateIndexRequest` has an optional
+  `vector_precision` field of type `VectorPrecision` (`float64`, `float32`,
+  `float16` or `float8`). `IndexInfoResponse` and `IndexEntryResponse` report
+  it.
+
 ### Changed
 
-- feat(databases): add description field to fork lineage
-- chore(databases): simplify fork error description
+- **Breaking:** `key_determines` is now `constant_per_key` on
+  `AddManagedTableDecl`, `AddManagedTableRequest` and
+  `DatabaseDefaultTableDecl`. This matches the server, which rejects the old
+  name.
+- **Breaking:** some generated models have new public fields, for example
+  `ForkDatabaseRequest.description` and `TableInfo.constant_per_key`. Code
+  that builds these structs as literals must set the new fields. To avoid
+  this in the future, start from `::new()` or `..Default::default()`.
+- The API documentation now covers more detail: fork error cases,
+  `default_connection_id` and catalog attachment rules, the 16 GiB upload
+  limit, and case matching in database name search.
 
 ## [0.18.1] - 2026-09-18
 
