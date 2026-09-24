@@ -16,6 +16,7 @@
 | DucklakeCompaction | ducklake_compaction |
 | DucklakeTableCompaction | ducklake_table_compaction |
 | TableConstantsUpdate | table_constants_update |
+| DatabaseFork | database_fork |
 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
