@@ -17,6 +17,7 @@ use serde::{de::Error as _, Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetJobError {
+    Status403(models::ApiErrorResponse),
     Status404(models::ApiErrorResponse),
     UnknownValue(serde_json::Value),
 }
