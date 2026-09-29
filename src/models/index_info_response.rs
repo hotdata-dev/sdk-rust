@@ -14,6 +14,14 @@ use serde::{Deserialize, Serialize};
 /// IndexInfoResponse : Result payload for a `create_index` job, and response for index endpoints.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IndexInfoResponse {
+    /// How this vector index organises the vectors it searches: `hnsw` or `ivf`. Absent for BM25 and sorted indexes.
+    #[serde(
+        rename = "algorithm",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub algorithm: Option<Option<String>>,
     #[serde(rename = "columns")]
     pub columns: Vec<String>,
     #[serde(rename = "created_at")]
@@ -30,6 +38,14 @@ pub struct IndexInfoResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub metric: Option<Option<String>>,
+    /// How much of an `ivf` index a search reads, as a fraction greater than 0 and at most 1, when it was created with an explicit one. Absent means the server's default. Also absent for every other kind of index.
+    #[serde(
+        rename = "probe_fraction",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub probe_fraction: Option<Option<f64>>,
     /// Source text column for an embedding-backed vector index. A query searches it via `vector_distance(<source_column>, …)`; the indexed `columns` hold the generated embedding column instead. Absent for BM25, sorted, and direct (existing-column) vector indexes.
     #[serde(
         rename = "source_column",
@@ -63,11 +79,13 @@ impl IndexInfoResponse {
         updated_at: String,
     ) -> IndexInfoResponse {
         IndexInfoResponse {
+            algorithm: None,
             columns,
             created_at,
             index_name,
             index_type,
             metric: None,
+            probe_fraction: None,
             source_column: None,
             status,
             updated_at,

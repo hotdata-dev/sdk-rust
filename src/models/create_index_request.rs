@@ -14,6 +14,9 @@ use serde::{Deserialize, Serialize};
 /// CreateIndexRequest : Request body for POST .../indexes  One constraint spans the whole table rather than this request alone: a vector index that generates its own embeddings — that is, one created with `embedding_provider_id` — has to be the only index on its table. So a table that already carries any index (sorted, full-text, or vector) will not accept an embedding-backed vector index, and a table that already carries an embedding-backed vector index will not accept any further index of any type. To move between the two arrangements, drop what is there first. Plan for it when designing a table: combining full-text search with generated embeddings on one table is not possible, so use a separate table for the second index, or supply the embeddings yourself.  A vector index over a column that already holds vectors — no `embedding_provider_id` — is not affected and coexists with other indexes normally.  Embedding generation also rewrites the table to add its generated column, and that rewrite cannot preserve a declared partition or sort order. An embedding-backed vector index is therefore refused on a table declaring either.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CreateIndexRequest {
+    /// How a vector index organises the vectors it searches. Omit this field for `hnsw`, which is the default.  `hnsw` — builds a graph of the vectors and keeps it in memory. Searches are very fast, and the memory a search needs grows with the whole table, so a large enough table cannot be served at all.  `ivf` — groups the vectors into clusters and reads only the clusters nearest the search. Searches are considerably slower than `hnsw`, and the memory a search needs follows how much of the index it reads rather than the size of the table, so a table far too large for `hnsw` can still be searched. It keeps a copy of the table's rows beside the vectors so a search is answered without reading the table; that copy is extra storage, and how much depends on `vector_precision`, which decides how compactly the copied vectors are held. Available for columns that already hold vectors, with the `l2` and `cosine` metrics.
+    #[serde(rename = "algorithm", skip_serializing_if = "Option::is_none")]
+    pub algorithm: Option<Algorithm>,
     /// When true, create the index as a background job and return a job ID for polling.
     #[serde(rename = "async", skip_serializing_if = "Option::is_none")]
     pub r#async: Option<bool>,
@@ -65,6 +68,14 @@ pub struct CreateIndexRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub metric: Option<Option<String>>,
+    /// Number of clusters an `ivf` index divides the vectors into. More clusters means each one holds fewer vectors, so a search of the same effort reads less data. Omit this to let the number be chosen from the table's size.
+    #[serde(
+        rename = "nlist",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub nlist: Option<Option<i32>>,
     /// Custom name for the generated embedding column. Defaults to `{column}_embedding`.
     #[serde(
         rename = "output_column",
@@ -73,7 +84,15 @@ pub struct CreateIndexRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub output_column: Option<Option<String>>,
-    /// How precisely a vector index stores each number of a vector. Lower precision shrinks the index so a larger table can be indexed within the same memory, and lets searches run on a smaller instance. Omit this field to store vectors at the same precision as the column, which is the default.  The quality figures below come from one benchmark — 1536-dimension text embeddings, cosine distance, default search settings — and are a guide, not a guarantee. Other models, dimensions, distance metrics and data distributions behave differently, so measure on your own data before moving a production index to a lower precision.  `float32` — on a `float64` column this halves the index. Widely used embedding models emit 32-bit values, so for those nothing is lost; vectors that genuinely carry more than 32 bits of precision will lose some.  `float16` — half the memory of `float32`. In that benchmark its results matched `float32` to within 0.1 percentage points.  `float8` — a quarter of the memory of `float32`. In that benchmark it scored about 4 percentage points below `float32`, and raising the search effort did not close the gap, so treat the reduction as permanent for a given index.  `float64` — accepted only for a column that already holds double-precision values; it cannot add precision the stored data does not have.  Changing this means dropping the index and creating it again. It affects only the index: the table's own values are never altered, and text columns indexed with a generated embedding are not re-embedded.
+    /// How much of an `ivf` index a search reads, as a fraction greater than 0 and at most 1. Higher finds more of the true nearest neighbours and takes longer. This is a fraction rather than a number of clusters on purpose: the same number of clusters is a different share of the index whenever `nlist` changes, and results would quietly get worse. Omit this for the server's default.
+    #[serde(
+        rename = "probe_fraction",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub probe_fraction: Option<Option<f64>>,
+    /// How precisely a vector index stores each number of a vector. Lower precision shrinks the index so a larger table can be indexed within the same memory, and lets searches run on a smaller instance. For an `ivf` index it also shrinks what every search reads, because a search reads part of that stored copy.  Omit this field to get each algorithm's own default: an `hnsw` index stores vectors at the same precision as the column, and an `ivf` index stores them as `int8`.  The quality figures below come from one benchmark — 1536-dimension text embeddings, cosine distance, default search settings — and are a guide, not a guarantee. Other models, dimensions, distance metrics and data distributions behave differently, so measure on your own data before moving a production index to a lower precision.  `float32` — on a `float64` column this halves the index. Widely used embedding models emit 32-bit values, so for those nothing is lost; vectors that genuinely carry more than 32 bits of precision will lose some.  `float16` — half the memory of `float32`. In that benchmark its results matched `float32` to within 0.1 percentage points.  `float8` — a quarter of the memory of `float32`. In that benchmark it scored about 4 percentage points below `float32`, and raising the search effort did not close the gap, so treat the reduction as permanent for a given index.  `float64` — accepted only for a column that already holds double-precision values; it cannot add precision the stored data does not have.  `int8` — for an `ivf` index only, and its default. A quarter of the size of `float32`, which is a quarter of the bytes every search reads. On the benchmark this index was designed against it found about 99.5% of the neighbours an exact search finds. With `cosine` that accuracy holds however widely your vectors vary in magnitude; with `l2` it falls as they spread — around 93% of the neighbours once the largest magnitude is about 16 times the smallest, and lower beyond that. Use `float32` instead to store the column as written, at four times the size and four times the bytes per search.  An `ivf` index accepts `int8` and `float32` only: it stores its copy as a table, and the remaining values have no column type to be stored in or are no smaller than `int8`. An `hnsw` index accepts everything except `int8`; `float8` is its 8-bit option.  Changing this means dropping the index and creating it again. It affects only the index: the table's own values are never altered, and text columns indexed with a generated embedding are not re-embedded.
     #[serde(rename = "vector_precision", skip_serializing_if = "Option::is_none")]
     pub vector_precision: Option<VectorPrecision>,
 }
@@ -82,6 +101,7 @@ impl CreateIndexRequest {
     /// Request body for POST .../indexes  One constraint spans the whole table rather than this request alone: a vector index that generates its own embeddings — that is, one created with `embedding_provider_id` — has to be the only index on its table. So a table that already carries any index (sorted, full-text, or vector) will not accept an embedding-backed vector index, and a table that already carries an embedding-backed vector index will not accept any further index of any type. To move between the two arrangements, drop what is there first. Plan for it when designing a table: combining full-text search with generated embeddings on one table is not possible, so use a separate table for the second index, or supply the embeddings yourself.  A vector index over a column that already holds vectors — no `embedding_provider_id` — is not affected and coexists with other indexes normally.  Embedding generation also rewrites the table to add its generated column, and that rewrite cannot preserve a declared partition or sort order. An embedding-backed vector index is therefore refused on a table declaring either.
     pub fn new(columns: Vec<String>, index_name: String) -> CreateIndexRequest {
         CreateIndexRequest {
+            algorithm: None,
             r#async: None,
             async_after_ms: None,
             columns,
@@ -91,9 +111,25 @@ impl CreateIndexRequest {
             index_name,
             index_type: None,
             metric: None,
+            nlist: None,
             output_column: None,
+            probe_fraction: None,
             vector_precision: None,
         }
+    }
+}
+/// How a vector index organises the vectors it searches. Omit this field for `hnsw`, which is the default.  `hnsw` — builds a graph of the vectors and keeps it in memory. Searches are very fast, and the memory a search needs grows with the whole table, so a large enough table cannot be served at all.  `ivf` — groups the vectors into clusters and reads only the clusters nearest the search. Searches are considerably slower than `hnsw`, and the memory a search needs follows how much of the index it reads rather than the size of the table, so a table far too large for `hnsw` can still be searched. It keeps a copy of the table's rows beside the vectors so a search is answered without reading the table; that copy is extra storage, and how much depends on `vector_precision`, which decides how compactly the copied vectors are held. Available for columns that already hold vectors, with the `l2` and `cosine` metrics.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+pub enum Algorithm {
+    #[serde(rename = "hnsw")]
+    Hnsw,
+    #[serde(rename = "ivf")]
+    Ivf,
+}
+
+impl Default for Algorithm {
+    fn default() -> Algorithm {
+        Self::Hnsw
     }
 }
 /// Index type. `sorted` supports range queries, `bm25` full-text search, and `vector` similarity search.
@@ -112,7 +148,7 @@ impl Default for IndexType {
         Self::Sorted
     }
 }
-/// How precisely a vector index stores each number of a vector. Lower precision shrinks the index so a larger table can be indexed within the same memory, and lets searches run on a smaller instance. Omit this field to store vectors at the same precision as the column, which is the default.  The quality figures below come from one benchmark — 1536-dimension text embeddings, cosine distance, default search settings — and are a guide, not a guarantee. Other models, dimensions, distance metrics and data distributions behave differently, so measure on your own data before moving a production index to a lower precision.  `float32` — on a `float64` column this halves the index. Widely used embedding models emit 32-bit values, so for those nothing is lost; vectors that genuinely carry more than 32 bits of precision will lose some.  `float16` — half the memory of `float32`. In that benchmark its results matched `float32` to within 0.1 percentage points.  `float8` — a quarter of the memory of `float32`. In that benchmark it scored about 4 percentage points below `float32`, and raising the search effort did not close the gap, so treat the reduction as permanent for a given index.  `float64` — accepted only for a column that already holds double-precision values; it cannot add precision the stored data does not have.  Changing this means dropping the index and creating it again. It affects only the index: the table's own values are never altered, and text columns indexed with a generated embedding are not re-embedded.
+/// How precisely a vector index stores each number of a vector. Lower precision shrinks the index so a larger table can be indexed within the same memory, and lets searches run on a smaller instance. For an `ivf` index it also shrinks what every search reads, because a search reads part of that stored copy.  Omit this field to get each algorithm's own default: an `hnsw` index stores vectors at the same precision as the column, and an `ivf` index stores them as `int8`.  The quality figures below come from one benchmark — 1536-dimension text embeddings, cosine distance, default search settings — and are a guide, not a guarantee. Other models, dimensions, distance metrics and data distributions behave differently, so measure on your own data before moving a production index to a lower precision.  `float32` — on a `float64` column this halves the index. Widely used embedding models emit 32-bit values, so for those nothing is lost; vectors that genuinely carry more than 32 bits of precision will lose some.  `float16` — half the memory of `float32`. In that benchmark its results matched `float32` to within 0.1 percentage points.  `float8` — a quarter of the memory of `float32`. In that benchmark it scored about 4 percentage points below `float32`, and raising the search effort did not close the gap, so treat the reduction as permanent for a given index.  `float64` — accepted only for a column that already holds double-precision values; it cannot add precision the stored data does not have.  `int8` — for an `ivf` index only, and its default. A quarter of the size of `float32`, which is a quarter of the bytes every search reads. On the benchmark this index was designed against it found about 99.5% of the neighbours an exact search finds. With `cosine` that accuracy holds however widely your vectors vary in magnitude; with `l2` it falls as they spread — around 93% of the neighbours once the largest magnitude is about 16 times the smallest, and lower beyond that. Use `float32` instead to store the column as written, at four times the size and four times the bytes per search.  An `ivf` index accepts `int8` and `float32` only: it stores its copy as a table, and the remaining values have no column type to be stored in or are no smaller than `int8`. An `hnsw` index accepts everything except `int8`; `float8` is its 8-bit option.  Changing this means dropping the index and creating it again. It affects only the index: the table's own values are never altered, and text columns indexed with a generated embedding are not re-embedded.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum VectorPrecision {
     #[serde(rename = "float64")]
@@ -123,6 +159,8 @@ pub enum VectorPrecision {
     Float16,
     #[serde(rename = "float8")]
     Float8,
+    #[serde(rename = "int8")]
+    Int8,
 }
 
 impl Default for VectorPrecision {

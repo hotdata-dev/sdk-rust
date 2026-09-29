@@ -14,6 +14,9 @@ use serde::{Deserialize, Serialize};
 /// IndexEntryResponse : One index in a cross-table listing: the index itself plus the connection, schema, and table it belongs to.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IndexEntryResponse {
+    /// How this vector index organises the vectors it searches: `hnsw` or `ivf`. Absent for BM25 and sorted indexes.
+    #[serde(rename = "algorithm", skip_serializing_if = "Option::is_none")]
+    pub algorithm: Option<String>,
     #[serde(rename = "columns")]
     pub columns: Vec<String>,
     #[serde(rename = "created_at")]
@@ -25,6 +28,9 @@ pub struct IndexEntryResponse {
     /// Distance metric this index was built with. Only present for vector indexes.
     #[serde(rename = "metric", skip_serializing_if = "Option::is_none")]
     pub metric: Option<String>,
+    /// How much of an `ivf` index a search reads, as a fraction greater than 0 and at most 1, when it was created with an explicit one. Absent means the server's default. Also absent for every other kind of index.
+    #[serde(rename = "probe_fraction", skip_serializing_if = "Option::is_none")]
+    pub probe_fraction: Option<f64>,
     /// Source text column for an embedding-backed vector index. A query searches it via `vector_distance(<source_column>, …)`; the indexed `columns` hold the generated embedding column instead. Absent for BM25, sorted, and direct (existing-column) vector indexes.
     #[serde(rename = "source_column", skip_serializing_if = "Option::is_none")]
     pub source_column: Option<String>,
@@ -61,11 +67,13 @@ impl IndexEntryResponse {
         table_name: String,
     ) -> IndexEntryResponse {
         IndexEntryResponse {
+            algorithm: None,
             columns,
             created_at,
             index_name,
             index_type,
             metric: None,
+            probe_fraction: None,
             source_column: None,
             status,
             updated_at,
