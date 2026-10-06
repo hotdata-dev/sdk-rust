@@ -40,7 +40,7 @@ tokio-util = { version = "^0.7", features = ["codec"] }
 # pay for the extra dependency surface a library forces on every downstream.
 reqwest = { version = "^0.13", default-features = false, features = ["json", "multipart", "stream", "query", "form", "gzip"] }
 async-trait = "^0.1"
-bytes = "^1"
+bytes = "^1.12.1"
 futures-core = "^0.3"
 log = "^0.4"
 arrow-ipc = { version = "59", optional = true }
