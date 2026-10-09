@@ -76,7 +76,7 @@ Name | Type | Description  | Required | Notes
 > models::FinalizeUploadResponse finalize_upload_handler(upload_id, x_upload_finalize_token, finalize_upload_request)
 Finalize upload
 
-Confirm that a file has been uploaded and make it usable as managed-table contents. Supply the `finalize_token` returned when the session was created, in the `X-Upload-Finalize-Token` header. When you declared a size at create time, the uploaded file's size is validated against it and a mismatch is rejected. An upload created without a declared size is finalized from its uploaded parts; it must be non-empty and is rejected if it exceeds the maximum upload size (16 GiB by default, the same for every file format). Finalize is exactly-once: a second finalize of the same upload is rejected.
+Confirm that a file has been uploaded and make it usable as managed-table contents. Supply the `finalize_token` returned when the session was created, in the `X-Upload-Finalize-Token` header. When you declared a size at create time, the uploaded file's size is validated against it and a mismatch is rejected. An upload created without a declared size is finalized from its uploaded parts; it must be non-empty and is rejected if it exceeds the maximum upload size (16 GiB by default, the same for every file format). Finalize is exactly-once: a second finalize of the same upload is rejected.  Load a finalized upload within 7 days (by default). An upload that has not been loaded by then is deleted, and loading it afterwards fails as not found.
 
 ### Parameters
 

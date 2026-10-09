@@ -28,7 +28,10 @@ pub struct IndexEntryResponse {
     /// Distance metric this index was built with. Only present for vector indexes.
     #[serde(rename = "metric", skip_serializing_if = "Option::is_none")]
     pub metric: Option<String>,
-    /// How much of an `ivf` index a search reads, as a fraction greater than 0 and at most 1, when it was created with an explicit one. Absent means the server's default. Also absent for every other kind of index.
+    /// Number of clusters an `ivf` index was built with. This can be smaller than the `nlist` requested when the index was created, because the number is capped by how many vectors the clusters were fitted to. Absent for every other kind of index.
+    #[serde(rename = "nlist", skip_serializing_if = "Option::is_none")]
+    pub nlist: Option<i64>,
+    /// How much of an `ivf` index a search reads, as a fraction greater than 0 and at most 1, when the index was created with one. When absent, the server chooses how much each search reads: a width measured on this index's own data when it was built, scaled to the number of results a search asks for, or a server default when no measurement could be made. Absent for every other kind of index.
     #[serde(rename = "probe_fraction", skip_serializing_if = "Option::is_none")]
     pub probe_fraction: Option<f64>,
     /// Source text column for an embedding-backed vector index. A query searches it via `vector_distance(<source_column>, …)`; the indexed `columns` hold the generated embedding column instead. Absent for BM25, sorted, and direct (existing-column) vector indexes.
@@ -38,7 +41,7 @@ pub struct IndexEntryResponse {
     pub status: models::IndexStatus,
     #[serde(rename = "updated_at")]
     pub updated_at: String,
-    /// How precisely this vector index stores each number of a vector, when it was created with an explicit precision. Absent means it stores at the same precision as the column, which is the default. Also absent for BM25 and sorted indexes.
+    /// How precisely this vector index stores each number of a vector. Always present for an `ivf` index, which stores `int8` unless it was created with another precision. For an `hnsw` index it is present only when the index was created with an explicit precision; absent means it stores at the same precision as the column. Absent for BM25 and sorted indexes.
     #[serde(rename = "vector_precision", skip_serializing_if = "Option::is_none")]
     pub vector_precision: Option<String>,
     #[serde(
@@ -73,6 +76,7 @@ impl IndexEntryResponse {
             index_name,
             index_type,
             metric: None,
+            nlist: None,
             probe_fraction: None,
             source_column: None,
             status,
