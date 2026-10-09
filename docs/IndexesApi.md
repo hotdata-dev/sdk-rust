@@ -16,14 +16,14 @@ Method | HTTP request | Description
 > models::IndexInfoResponse create_index(connection_id, schema, table, create_index_request)
 Create an index on a table
 
-Create a sorted, BM25 full-text, or vector index on a cached table. A table can hold several indexes, with one exception: a vector index that generates its own embeddings (created with `embedding_provider_id`) must be the only index on its table, so it cannot be added alongside an existing index and no further index can be added alongside it. The request body describes the rule in full.
+Create a sorted, BM25 full-text, or vector index on a table. The table must have data loaded. A table can hold several indexes, with two limits: it holds at most one vector index, whichever algorithm it uses; and a vector index that generates its own embeddings (created with `embedding_provider_id`) must be the only index on its table, so it cannot be added alongside an existing index and no further index can be added alongside it. A request that breaks either limit is refused with 400, including when `async` is set. The request body describes the rules in full.
 
 ### Parameters
 
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**connection_id** | **String** | Connection ID | [required] |
+**connection_id** | **String** | The database's `default_connection_id`, as returned when the database is created or fetched | [required] |
 **schema** | **String** | Schema name | [required] |
 **table** | **String** | Table name | [required] |
 **create_index_request** | [**CreateIndexRequest**](CreateIndexRequest.md) |  | [required] |
@@ -49,14 +49,14 @@ Name | Type | Description  | Required | Notes
 > delete_index(connection_id, schema, table, index_name)
 Delete an index
 
-Delete a specific index from a cached table.
+Delete a specific index from a table.
 
 ### Parameters
 
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**connection_id** | **String** | Connection ID | [required] |
+**connection_id** | **String** | The database's `default_connection_id`, as returned when the database is created or fetched | [required] |
 **schema** | **String** | Schema name | [required] |
 **table** | **String** | Table name | [required] |
 **index_name** | **String** | Index name | [required] |
@@ -82,14 +82,14 @@ Name | Type | Description  | Required | Notes
 > models::ListIndexesResponse list_indexes(connection_id, schema, table)
 List indexes on a table
 
-List all indexes created on a cached table.
+List all indexes created on a table.
 
 ### Parameters
 
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**connection_id** | **String** | Connection ID | [required] |
+**connection_id** | **String** | The database's `default_connection_id`, as returned when the database is created or fetched | [required] |
 **schema** | **String** | Schema name | [required] |
 **table** | **String** | Table name | [required] |
 
