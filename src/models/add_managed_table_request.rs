@@ -25,7 +25,7 @@ pub struct AddManagedTableRequest {
     /// Partition keys for this table, applied in order. Omit for no partitioning. Declared when the table is created and fixed thereafter.
     #[serde(rename = "partition_by", skip_serializing_if = "Option::is_none")]
     pub partition_by: Option<Vec<models::TablePartitionKey>>,
-    /// Sort keys for this table, applied in order. Omit for no sort order. Declared when the table is created and fixed thereafter.
+    /// Sort keys for this table, applied in order. Omit for no sort order. Declared when the table is created and fixed thereafter. A table with a sort order cannot be indexed: creating any index on it is refused, so leave this empty on a table you plan to search.
     #[serde(rename = "sorted_by", skip_serializing_if = "Option::is_none")]
     pub sorted_by: Option<Vec<models::TableSortKey>>,
 }
