@@ -28,6 +28,7 @@ pub enum CreateIndexError {
 #[serde(untagged)]
 pub enum DeleteIndexError {
     Status404(models::ApiErrorResponse),
+    Status409(models::ApiErrorResponse),
     Status500(models::ApiErrorResponse),
     UnknownValue(serde_json::Value),
 }
@@ -128,7 +129,7 @@ pub async fn create_index(
     }
 }
 
-/// Delete a specific index from a table.
+/// Delete a specific index from a table. An index cannot be deleted while a load into its table is running; that request gets 409 and can be retried once the load finishes. Deleting a vector index that generated its own embeddings keeps the generated column as an ordinary column of the table.
 pub async fn delete_index(
     configuration: &configuration::Configuration,
     connection_id: &str,
