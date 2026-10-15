@@ -13,7 +13,7 @@ Method | HTTP request | Description
 > models::QueryResponse query(query_request, x_database_id)
 Execute SQL query
 
-Execute a SQL query scoped to a database. A database is the only window into catalogs: the query sees only that database's auto `default` catalog plus any catalogs explicitly attached to it. Select the database with EITHER the `X-Database-Id` header OR the `database_id` body field (exactly one must be given; if both are sent and disagree, that's a 400). Use standard Postgres-compatible SQL; reference the default catalog as `default.<schema>.<table>` (or just `<schema>.<table>` / `<table>`) and attached catalogs by their alias. Results are returned inline and a `result_id` is provided for later retrieval via the Results API.  Set `async: true` to execute asynchronously — returns a query run ID for polling. Optionally set `async_after_ms` to attempt synchronous execution first, falling back to async if the query exceeds the timeout.
+Execute a SQL query scoped to a database. A database is the only window into catalogs: the query sees only that database's auto `default` catalog plus any catalogs explicitly attached to it. Select the database with EITHER the `X-Database-Id` header OR the `database_id` body field (exactly one must be given; if both are sent and disagree, that's a 400). Use standard Postgres-compatible SQL; reference the default catalog as `default.<schema>.<table>` (or just `<schema>.<table>` / `<table>`) and attached catalogs by their alias. Results are returned inline and a `result_id` is provided for later retrieval via the Results API.  Set `async: true` to execute asynchronously — returns a query run ID for polling. Optionally set `async_after_ms` to attempt synchronous execution first, falling back to async if the query exceeds the timeout.  To receive the rows as an Arrow IPC stream instead of JSON, send `Accept: application/vnd.apache.arrow.stream` (without also listing `application/json`). A query that completes within the request then returns 200 with an Arrow IPC stream body (schema, record batches, end-of-stream), and the values the JSON body would carry are sent as response headers: `X-Query-Run-Id`, `X-Result-Id` (when the result was saved), `X-Total-Row-Count`, `X-Execution-Time-Ms`, and `X-Query-Warning` (when there is a warning). Arrow keeps `±Inf` and `NaN` float values as they are. An Arrow response always holds the whole result: if the result is larger than an inline response can hold, the request returns 202 with the query run ticket and an `X-Result-Id` header instead, and the full result is read from `GET /v1/results/{id}?format=arrow` once it is ready. A query that goes async, and every error, return the same JSON bodies as without the header.
 
 ### Parameters
 
@@ -34,7 +34,7 @@ Name | Type | Description  | Required | Notes
 ### HTTP request headers
 
 - **Content-Type**: application/json
-- **Accept**: application/json
+- **Accept**: application/json, application/vnd.apache.arrow.stream
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
