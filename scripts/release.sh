@@ -20,11 +20,11 @@ Usage:
   ./scripts/release.sh prepare [patch|minor|major|X.Y.Z]
   ./scripts/release.sh publish
 
-Workflow:
-  1. Move notes from [Unreleased] in CHANGELOG.md (or add them there).
-  2. ./scripts/release.sh prepare patch
-  3. Merge the release PR.
-  4. ./scripts/release.sh publish
+Workflow (normally run by .github/workflows/cut-release.yml):
+  1. Add notes under [Unreleased] in CHANGELOG.md.
+  2. gh workflow run cut-release.yml -f bump=patch   (runs `prepare`)
+  3. The release PR auto-merges once CI and the review gate pass.
+  4. Merging the release/vX.Y.Z PR runs `publish` in CI.
 
 Tag push triggers the crates.io publish and GitHub Release creation in CI.
 EOF
@@ -164,9 +164,9 @@ cmd_prepare() {
   git push -u origin "$branch"
   gh pr create --base "$base" --head "$branch" \
     --title "chore: release ${PKG_NAME} v${new}" \
-    --body "Release **${PKG_NAME} v${new}**: version bumped in \`Cargo.toml\` and \`CHANGELOG.md\` updated. After merge, run \`./scripts/release.sh publish\` from a clean \`${base}\` checkout."
+    --body "Release **${PKG_NAME} v${new}**: version bumped in \`Cargo.toml\` and \`CHANGELOG.md\` updated. On merge, the \`Cut Release\` workflow tags \`${base}\` with \`v${new}\`, which publishes to crates.io and creates the GitHub Release."
 
-  echo "Prepared ${PKG_NAME} v${new}. Merge the PR, then run: ./scripts/release.sh publish"
+  echo "Prepared ${PKG_NAME} v${new}. Merging the PR tags and publishes it from CI."
 }
 
 cmd_publish() {
