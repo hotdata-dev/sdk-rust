@@ -145,6 +145,7 @@ pub enum LoadDatabaseTableError {
     Status404(models::ApiErrorResponse),
     Status409(models::ApiErrorResponse),
     Status413(models::ApiErrorResponse),
+    Status503(models::ApiErrorResponse),
     UnknownValue(serde_json::Value),
 }
 
