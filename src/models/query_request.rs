@@ -49,7 +49,7 @@ pub struct QueryRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub default_schema: Option<Option<String>>,
-    /// SQL dialect the `sql` field is written in. One of `hotsql` (the default), `duckdb`, `postgres`, or `snowflake`. When set to anything other than `hotsql`, the query is translated to HotSQL before it runs, so you can use idioms from that dialect (for example Snowflake `IFF(...)` or Postgres `MOD(a, b)`). Write statements are accepted on the same terms as in HotSQL: refused unless the instance accepts SQL writes. An unrecognized value is rejected with a 400.
+    /// SQL dialect the `sql` field is written in. One of `hotsql` (the default), `duckdb`, `postgres`, or `snowflake`. When set to anything other than `hotsql`, the query is translated to HotSQL before it runs, so you can use idioms from that dialect (for example Snowflake `IFF(...)` or Postgres `MOD(a, b)`). Write statements are accepted on the same terms as in HotSQL. An unrecognized value is rejected with a 400.
     #[serde(
         rename = "dialect",
         default,
