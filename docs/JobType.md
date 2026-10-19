@@ -15,6 +15,7 @@
 | ResultRetention | result_retention |
 | DucklakeCompaction | ducklake_compaction |
 | DucklakeTableCompaction | ducklake_table_compaction |
+| IvfRebalanceSweep | ivf_rebalance_sweep |
 | TableConstantsUpdate | table_constants_update |
 | DatabaseFork | database_fork |
 
