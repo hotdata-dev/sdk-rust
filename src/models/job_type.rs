@@ -37,6 +37,8 @@ pub enum JobType {
     DucklakeCompaction,
     #[serde(rename = "ducklake_table_compaction")]
     DucklakeTableCompaction,
+    #[serde(rename = "ivf_rebalance_sweep")]
+    IvfRebalanceSweep,
     #[serde(rename = "table_constants_update")]
     TableConstantsUpdate,
     #[serde(rename = "database_fork")]
@@ -57,6 +59,7 @@ impl std::fmt::Display for JobType {
             Self::ResultRetention => write!(f, "result_retention"),
             Self::DucklakeCompaction => write!(f, "ducklake_compaction"),
             Self::DucklakeTableCompaction => write!(f, "ducklake_table_compaction"),
+            Self::IvfRebalanceSweep => write!(f, "ivf_rebalance_sweep"),
             Self::TableConstantsUpdate => write!(f, "table_constants_update"),
             Self::DatabaseFork => write!(f, "database_fork"),
         }
