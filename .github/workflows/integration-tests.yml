@@ -12,8 +12,8 @@ permissions:
 
 jobs:
   # Parity check runs on every PR and push: confirms every scenario in
-  # www.hotdata.dev/api/test-scenarios.yaml has a matching test file in this
-  # repo. www.hotdata.dev is private, so we fetch via the GitHub App token —
+  # hotdata-dev/www api/test-scenarios.yaml has a matching test file in this
+  # repo. hotdata-dev/www is private, so we fetch via the GitHub App token —
   # same pattern as regenerate.yml. sdk-rust convention: tests/<name>.rs.
   # Scenarios listing 'rust' in optional_for are skipped (per-scenario rollout).
   scenario-parity:
@@ -38,7 +38,7 @@ jobs:
           curl -sS -f -L \
             -H "Accept: application/vnd.github.v3.raw" \
             -H "Authorization: Bearer $GH_TOKEN" \
-            https://api.github.com/repos/hotdata-dev/www.hotdata.dev/contents/api/test-scenarios.yaml \
+            https://api.github.com/repos/hotdata-dev/www/contents/api/test-scenarios.yaml \
             -o test-scenarios.yaml
       - name: Check parity
         run: |

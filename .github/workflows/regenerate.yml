@@ -60,7 +60,7 @@ jobs:
           curl -sS -f -L \
             -H "Accept: application/vnd.github.v3.raw" \
             -H "Authorization: Bearer $GH_TOKEN" \
-            https://api.github.com/repos/hotdata-dev/www.hotdata.dev/contents/api/openapi.yaml \
+            https://api.github.com/repos/hotdata-dev/www/contents/api/openapi.yaml \
             -o openapi.yaml
 
       # OpenAPI 3.1 lets a `$ref` carry sibling keywords (e.g. a per-branch
@@ -334,7 +334,7 @@ jobs:
           curl -sS -f -L \
             -H "Accept: application/vnd.github.v3.raw" \
             -H "Authorization: Bearer $GH_TOKEN" \
-            https://api.github.com/repos/hotdata-dev/www.hotdata.dev/contents/api/test-scenarios.yaml \
+            https://api.github.com/repos/hotdata-dev/www/contents/api/test-scenarios.yaml \
             -o test-scenarios.yaml
           python3 - <<'PY'
           import sys, pathlib, re
