@@ -25,9 +25,21 @@ jobs:
           client-id: Iv23liKBX2RYMoZIYuKa
           private-key: ${{ secrets.HOTDATA_AUTOMATION_PRIVATE_KEY }}
           owner: hotdata-dev
-          repositories: sdk-rust,www
+          repositories: sdk-rust
           permission-contents: write
           permission-pull-requests: write
+
+      # Separate read-only token for the private www repo (spec + scenarios),
+      # so the write token above never reaches it.
+      - name: Generate www read token
+        id: www-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: Iv23liKBX2RYMoZIYuKa
+          private-key: ${{ secrets.HOTDATA_AUTOMATION_PRIVATE_KEY }}
+          owner: hotdata-dev
+          repositories: www
+          permission-contents: read
 
       # create-pull-request configures its own auth from its `token` input, so
       # don't leave the app token in .git/config for the generator/cargo steps.
@@ -43,7 +55,7 @@ jobs:
 
       - name: Fetch merged OpenAPI spec
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.www-token.outputs.token }}
         run: |
           curl -sS -f -L \
             -H "Accept: application/vnd.github.v3.raw" \
@@ -317,7 +329,7 @@ jobs:
       # land); the enforcing gate lives in integration-tests.yml.
       - name: Check integration test scenario parity
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.www-token.outputs.token }}
         run: |
           curl -sS -f -L \
             -H "Accept: application/vnd.github.v3.raw" \
