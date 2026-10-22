@@ -25,7 +25,7 @@ jobs:
           client-id: Iv23liKBX2RYMoZIYuKa
           private-key: ${{ secrets.HOTDATA_AUTOMATION_PRIVATE_KEY }}
           owner: hotdata-dev
-          repositories: sdk-rust,www.hotdata.dev
+          repositories: sdk-rust,www
           permission-contents: write
           permission-pull-requests: write
 
