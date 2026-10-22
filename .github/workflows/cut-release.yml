@@ -48,12 +48,17 @@ jobs:
           client-id: Iv23liKBX2RYMoZIYuKa
           private-key: ${{ secrets.HOTDATA_AUTOMATION_PRIVATE_KEY }}
           owner: hotdata-dev
+          repositories: sdk-rust
+          permission-contents: write
+          permission-pull-requests: write
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           token: ${{ steps.app-token.outputs.token }}
           fetch-depth: 0
           fetch-tags: true
+          # release.sh pushes the release branch / tag with these credentials.
+          persist-credentials: true
 
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
@@ -68,8 +73,9 @@ jobs:
       - name: Configure git identity
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
         run: |
-          slug="${{ steps.app-token.outputs.app-slug }}[bot]"
+          slug="${APP_SLUG}[bot]"
           id="$(gh api "/users/${slug}" --jq .id)"
           git config user.name "$slug"
           git config user.email "${id}+${slug}@users.noreply.github.com"
@@ -80,10 +86,13 @@ jobs:
       - name: Point origin/HEAD at the default branch
         run: git remote set-head origin --auto
 
+      # Pass the dispatch input through env, never `${{ }}` inside run:, so a
+      # crafted value can't inject shell. release.sh validates its format.
       - name: Prepare release
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: ./scripts/release.sh prepare "${{ inputs.bump }}"
+          BUMP: ${{ inputs.bump }}
+        run: ./scripts/release.sh prepare "$BUMP"
 
       # Branch protection on main gates the merge on CI plus the review gate,
       # so this only merges once everything is green.
@@ -111,6 +120,9 @@ jobs:
           client-id: Iv23liKBX2RYMoZIYuKa
           private-key: ${{ secrets.HOTDATA_AUTOMATION_PRIVATE_KEY }}
           owner: hotdata-dev
+          repositories: sdk-rust
+          permission-contents: write
+          permission-pull-requests: write
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -118,6 +130,8 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
           fetch-depth: 0
           fetch-tags: true
+          # release.sh pushes the release branch / tag with these credentials.
+          persist-credentials: true
 
       # release.sh reads the version with `cargo metadata`.
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
@@ -127,8 +141,9 @@ jobs:
       - name: Configure git identity
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
         run: |
-          slug="${{ steps.app-token.outputs.app-slug }}[bot]"
+          slug="${APP_SLUG}[bot]"
           id="$(gh api "/users/${slug}" --jq .id)"
           git config user.name "$slug"
           git config user.email "${id}+${slug}@users.noreply.github.com"

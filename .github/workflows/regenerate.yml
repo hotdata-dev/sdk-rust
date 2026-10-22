@@ -12,6 +12,8 @@ on:
         required: false
         type: string
 
+permissions: {}
+
 jobs:
   regenerate:
     runs-on: ubuntu-latest
@@ -23,10 +25,28 @@ jobs:
           client-id: Iv23liKBX2RYMoZIYuKa
           private-key: ${{ secrets.HOTDATA_AUTOMATION_PRIVATE_KEY }}
           owner: hotdata-dev
+          repositories: sdk-rust
+          permission-contents: write
+          permission-pull-requests: write
 
+      # Separate read-only token for the private www repo (spec + scenarios),
+      # so the write token above never reaches it.
+      - name: Generate www read token
+        id: www-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: Iv23liKBX2RYMoZIYuKa
+          private-key: ${{ secrets.HOTDATA_AUTOMATION_PRIVATE_KEY }}
+          owner: hotdata-dev
+          repositories: www
+          permission-contents: read
+
+      # create-pull-request configures its own auth from its `token` input, so
+      # don't leave the app token in .git/config for the generator/cargo steps.
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: false
 
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
@@ -35,12 +55,12 @@ jobs:
 
       - name: Fetch merged OpenAPI spec
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.www-token.outputs.token }}
         run: |
           curl -sS -f -L \
             -H "Accept: application/vnd.github.v3.raw" \
             -H "Authorization: Bearer $GH_TOKEN" \
-            https://api.github.com/repos/hotdata-dev/www.hotdata.dev/contents/api/openapi.yaml \
+            https://api.github.com/repos/hotdata-dev/www/contents/api/openapi.yaml \
             -o openapi.yaml
 
       # OpenAPI 3.1 lets a `$ref` carry sibling keywords (e.g. a per-branch
@@ -152,7 +172,7 @@ jobs:
             -g rust \
             -o . \
             -t .openapi-generator-templates \
-            --additional-properties=packageName=hotdata,packageVersion=$PACKAGE_VERSION,library=reqwest,supportAsync=true,useChrono=false \
+            --additional-properties="packageName=hotdata,packageVersion=${PACKAGE_VERSION},library=reqwest,supportAsync=true,useChrono=false" \
             --type-mappings=JsonCell=JsonCell \
             --import-mappings=JsonCell=crate::models::JsonCell \
             --skip-validate-spec
@@ -309,12 +329,12 @@ jobs:
       # land); the enforcing gate lives in integration-tests.yml.
       - name: Check integration test scenario parity
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.www-token.outputs.token }}
         run: |
           curl -sS -f -L \
             -H "Accept: application/vnd.github.v3.raw" \
             -H "Authorization: Bearer $GH_TOKEN" \
-            https://api.github.com/repos/hotdata-dev/www.hotdata.dev/contents/api/test-scenarios.yaml \
+            https://api.github.com/repos/hotdata-dev/www/contents/api/test-scenarios.yaml \
             -o test-scenarios.yaml
           python3 - <<'PY'
           import sys, pathlib, re
@@ -371,7 +391,8 @@ jobs:
         if: steps.cpr.outputs.pull-request-number
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_NUMBER: ${{ steps.cpr.outputs.pull-request-number }}
         run: |
-          gh pr merge "${{ steps.cpr.outputs.pull-request-number }}" \
-            --repo "${{ github.repository }}" \
+          gh pr merge "$PR_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
             --squash --auto
