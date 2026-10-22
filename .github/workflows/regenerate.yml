@@ -12,6 +12,8 @@ on:
         required: false
         type: string
 
+permissions: {}
+
 jobs:
   regenerate:
     runs-on: ubuntu-latest
@@ -23,10 +25,16 @@ jobs:
           client-id: Iv23liKBX2RYMoZIYuKa
           private-key: ${{ secrets.HOTDATA_AUTOMATION_PRIVATE_KEY }}
           owner: hotdata-dev
+          repositories: sdk-rust,www.hotdata.dev
+          permission-contents: write
+          permission-pull-requests: write
 
+      # create-pull-request configures its own auth from its `token` input, so
+      # don't leave the app token in .git/config for the generator/cargo steps.
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: false
 
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
@@ -152,7 +160,7 @@ jobs:
             -g rust \
             -o . \
             -t .openapi-generator-templates \
-            --additional-properties=packageName=hotdata,packageVersion=$PACKAGE_VERSION,library=reqwest,supportAsync=true,useChrono=false \
+            --additional-properties="packageName=hotdata,packageVersion=${PACKAGE_VERSION},library=reqwest,supportAsync=true,useChrono=false" \
             --type-mappings=JsonCell=JsonCell \
             --import-mappings=JsonCell=crate::models::JsonCell \
             --skip-validate-spec
@@ -371,7 +379,8 @@ jobs:
         if: steps.cpr.outputs.pull-request-number
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_NUMBER: ${{ steps.cpr.outputs.pull-request-number }}
         run: |
-          gh pr merge "${{ steps.cpr.outputs.pull-request-number }}" \
-            --repo "${{ github.repository }}" \
+          gh pr merge "$PR_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
             --squash --auto
