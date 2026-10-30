@@ -20,6 +20,8 @@ pub struct DatabaseDefaultTableDecl {
     /// Columns that uniquely identify a row, enabling the key-based load modes (`delete`, `update`, `upsert`) on this table: those loads match rows by these columns' values. Omit (the default) to declare no key; the table can still be loaded with `replace` and `append`, but key-based modes are then rejected.
     #[serde(rename = "key", skip_serializing_if = "Option::is_none")]
     pub key: Option<Vec<String>>,
+    #[serde(rename = "layout", skip_serializing_if = "Option::is_none")]
+    pub layout: Option<models::TableLayout>,
     #[serde(rename = "name")]
     pub name: String,
     /// Partition keys for this table, applied in order. Omit for no partitioning. Declared when the table is created and fixed thereafter.
@@ -36,6 +38,7 @@ impl DatabaseDefaultTableDecl {
         DatabaseDefaultTableDecl {
             constant_per_key: None,
             key: None,
+            layout: None,
             name,
             partition_by: None,
             sorted_by: None,

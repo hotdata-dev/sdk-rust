@@ -198,6 +198,8 @@ pub mod submit_job_response;
 pub use self::submit_job_response::SubmitJobResponse;
 pub mod table_info;
 pub use self::table_info::TableInfo;
+pub mod table_layout;
+pub use self::table_layout::TableLayout;
 pub mod table_partition_key;
 pub use self::table_partition_key::TablePartitionKey;
 pub mod table_profile_response;

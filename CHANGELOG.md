@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- feat(tables): add layout property to table schemas
 - Regenerate the client from the updated Hotdata OpenAPI spec
 - feat(jobs): add ivf_rebalance_sweep job type
 - chore(query): clarify write statement and dialect documentation
