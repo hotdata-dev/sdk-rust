@@ -109,6 +109,7 @@ docs/SavedQuerySummary.md
 docs/SavedQueryVersionInfo.md
 docs/SubmitJobResponse.md
 docs/TableInfo.md
+docs/TableLayout.md
 docs/TablePartitionKey.md
 docs/TableProfileResponse.md
 docs/TableSortKey.md
@@ -243,6 +244,7 @@ src/models/saved_query_summary.rs
 src/models/saved_query_version_info.rs
 src/models/submit_job_response.rs
 src/models/table_info.rs
+src/models/table_layout.rs
 src/models/table_partition_key.rs
 src/models/table_profile_response.rs
 src/models/table_sort_key.rs

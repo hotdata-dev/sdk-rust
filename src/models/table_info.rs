@@ -33,6 +33,8 @@ pub struct TableInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub last_sync: Option<Option<String>>,
+    #[serde(rename = "layout")]
+    pub layout: models::TableLayout,
     /// The table's partition keys, in the order they were declared when the table was created. Empty when the table is not partitioned.  A table's storage layout is fixed when the table is created and cannot be changed afterwards, so this is how to confirm a table really was created with the layout that was asked for. The field is always present: an empty array means \"no partitioning declared\", which is not the same as a response that omits the field entirely.  Reported for tables in a Hotdata instant database, which are the only ones whose layout is declared here. A table discovered from an external connection always reports an empty array — its layout belongs to the upstream system, so an empty array there means \"not known from here\", not \"confirmed unpartitioned\".
     #[serde(rename = "partition_by")]
     pub partition_by: Vec<models::TablePartitionKey>,
@@ -52,6 +54,7 @@ impl TableInfo {
     pub fn new(
         connection: String,
         constant_per_key: Vec<String>,
+        layout: models::TableLayout,
         partition_by: Vec<models::TablePartitionKey>,
         schema: String,
         sorted_by: Vec<models::TableSortKey>,
@@ -63,6 +66,7 @@ impl TableInfo {
             connection,
             constant_per_key,
             last_sync: None,
+            layout,
             partition_by,
             schema,
             sorted_by,
