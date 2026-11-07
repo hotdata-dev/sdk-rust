@@ -43,6 +43,10 @@ pub enum JobType {
     TableConstantsUpdate,
     #[serde(rename = "database_fork")]
     DatabaseFork,
+    #[serde(rename = "rollup_build")]
+    RollupBuild,
+    #[serde(rename = "rollup_refresh_sweep")]
+    RollupRefreshSweep,
 }
 
 impl std::fmt::Display for JobType {
@@ -62,6 +66,8 @@ impl std::fmt::Display for JobType {
             Self::IvfRebalanceSweep => write!(f, "ivf_rebalance_sweep"),
             Self::TableConstantsUpdate => write!(f, "table_constants_update"),
             Self::DatabaseFork => write!(f, "database_fork"),
+            Self::RollupBuild => write!(f, "rollup_build"),
+            Self::RollupRefreshSweep => write!(f, "rollup_refresh_sweep"),
         }
     }
 }

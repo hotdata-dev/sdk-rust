@@ -18,6 +18,8 @@
 | IvfRebalanceSweep | ivf_rebalance_sweep |
 | TableConstantsUpdate | table_constants_update |
 | DatabaseFork | database_fork |
+| RollupBuild | rollup_build |
+| RollupRefreshSweep | rollup_refresh_sweep |
 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
