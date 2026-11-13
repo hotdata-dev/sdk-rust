@@ -675,10 +675,18 @@ impl Client {
     ) -> Result<models::GetResultResponse, AwaitResultError> {
         let deadline = std::time::Instant::now() + poll.timeout;
         loop {
-            let result = self
-                .get_result(result_id, database_id)
-                .await
-                .map_err(AwaitResultError::Api)?;
+            let result = match self.get_result(result_id, database_id).await {
+                Ok(result) => result,
+                // GetResultError is untagged, so require both HTTP 409 and a failed body.
+                Err(Error::ResponseError(apis::ResponseContent {
+                    status,
+                    entity: Some(apis::results_api::GetResultError::Status409(result)),
+                    ..
+                })) if status == reqwest::StatusCode::CONFLICT && result.status == "failed" => {
+                    result
+                }
+                Err(error) => return Err(AwaitResultError::Api(error)),
+            };
             match crate::status::ResultStatus::parse(&result.status) {
                 crate::status::ResultStatus::Ready => return Ok(result),
                 crate::status::ResultStatus::Failed => {
