@@ -33,6 +33,7 @@ docs/CreateEmbeddingProviderRequest.md
 docs/CreateEmbeddingProviderResponse.md
 docs/CreateIndexRequest.md
 docs/CreateSavedQueryRequest.md
+docs/CreateStreamRequest.md
 docs/CreateUploadRequest.md
 docs/CreateWorkspaceRequest.md
 docs/CreateWorkspaceResponse.md
@@ -107,6 +108,8 @@ docs/SavedQueriesApi.md
 docs/SavedQueryDetail.md
 docs/SavedQuerySummary.md
 docs/SavedQueryVersionInfo.md
+docs/StreamColumnHint.md
+docs/StreamsApi.md
 docs/SubmitJobResponse.md
 docs/TableInfo.md
 docs/TableLayout.md
@@ -141,6 +144,7 @@ src/apis/query_api.rs
 src/apis/query_runs_api.rs
 src/apis/results_api.rs
 src/apis/saved_queries_api.rs
+src/apis/streams_api.rs
 src/apis/uploads_api.rs
 src/apis/usage_api.rs
 src/apis/workspaces_api.rs
@@ -177,6 +181,7 @@ src/models/create_embedding_provider_request.rs
 src/models/create_embedding_provider_response.rs
 src/models/create_index_request.rs
 src/models/create_saved_query_request.rs
+src/models/create_stream_request.rs
 src/models/create_upload_request.rs
 src/models/create_workspace_request.rs
 src/models/create_workspace_response.rs
@@ -242,6 +247,7 @@ src/models/results_format_query.rs
 src/models/saved_query_detail.rs
 src/models/saved_query_summary.rs
 src/models/saved_query_version_info.rs
+src/models/stream_column_hint.rs
 src/models/submit_job_response.rs
 src/models/table_info.rs
 src/models/table_layout.rs
