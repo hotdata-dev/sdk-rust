@@ -17,7 +17,7 @@ pub struct ColumnProfileInfo {
     /// Approximate number of distinct non-null values
     #[serde(rename = "cardinality")]
     pub cardinality: i64,
-    /// Arrow data type (e.g. \"Utf8\", \"Int32\", \"Timestamp(Microsecond, Some(\\\"UTC\\\"))\")
+    /// Column data type, such as `Utf8` or `Int32`.
     #[serde(rename = "data_type")]
     pub data_type: String,
     /// Column name

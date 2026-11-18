@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 /// DatabaseDetailResponse : Response body for GET /databases/{database_id}
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DatabaseDetailResponse {
+    /// Catalogs attached from other connections or databases.
     #[serde(rename = "attachments")]
     pub attachments: Vec<models::DatabaseAttachmentInfo>,
     /// When the database was created.
@@ -24,16 +25,16 @@ pub struct DatabaseDetailResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub created_at: Option<Option<String>>,
-    /// Name the database's default catalog answers to inside its query scope (`default` unless overridden at create time).
+    /// Name of the database's own catalog in SQL.
     #[serde(rename = "default_catalog")]
     pub default_catalog: String,
-    /// Id of the connection backing this database's `default` catalog. Pass it as `connection_id` to `POST /v1/databases/{other}/catalogs` to attach this database's catalog into another database. In SQL, address the catalog as `default` inside an `X-Database-Id` scope, not by id.
+    /// ID of the connection behind the database's own catalog. Use it to load tables through the connection endpoints, or to attach this catalog to another database.
     #[serde(rename = "default_connection_id")]
     pub default_connection_id: String,
-    /// Schema that unqualified table names resolve to inside this database's query scope. `main` unless the database declares a single schema or a `default_schema` was set at create time.
+    /// Schema that unqualified table names resolve to.
     #[serde(rename = "default_schema")]
     pub default_schema: String,
-    /// When this database expires.
+    /// When the database expires.
     #[serde(
         rename = "expires_at",
         default,

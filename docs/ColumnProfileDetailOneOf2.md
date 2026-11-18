@@ -4,9 +4,9 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**max** | **String** | Maximum value (string to preserve precision for large integers and decimals) | 
+**max** | **String** | Maximum value, as a string so large numbers keep full precision. | 
 **mean** | **f64** | Arithmetic mean | 
-**min** | **String** | Minimum value (string to preserve precision for large integers and decimals) | 
+**min** | **String** | Minimum value, as a string so large numbers keep full precision. | 
 **r#type** | **Type** |  (enum: numeric) | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)

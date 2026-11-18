@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 /// ExecuteSavedQueryRequest : Request body for POST /v1/queries/{id}/execute
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ExecuteSavedQueryRequest {
+    /// Version to run. Defaults to the latest.
     #[serde(
         rename = "version",
         default,

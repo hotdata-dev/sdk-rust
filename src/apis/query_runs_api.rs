@@ -31,7 +31,7 @@ pub enum ListQueryRunsError {
     UnknownValue(serde_json::Value),
 }
 
-/// Get the status and details of a specific query run by ID, scoped to the database named by the required X-Database-Id header.
+/// Get a query run's status and details. Send the `X-Database-Id` header of the database the query ran in.
 pub async fn get_query_run(
     configuration: &configuration::Configuration,
     id: &str,
@@ -100,7 +100,7 @@ pub async fn get_query_run(
     }
 }
 
-/// List query runs for the database named by the required X-Database-Id header.
+/// List the query runs in the database named by the `X-Database-Id` header, newest first, one page at a time. If `has_more` is true, pass `next_cursor` as `cursor` to get the next page.
 pub async fn list_query_runs(
     configuration: &configuration::Configuration,
     x_database_id: &str,

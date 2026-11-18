@@ -17,7 +17,7 @@ Method | HTTP request | Description
 > models::CreateEmbeddingProviderResponse create_embedding_provider(create_embedding_provider_request)
 Create embedding provider
 
-Register a new embedding provider that can be used to generate vector embeddings for text columns. Providers can be service-based (e.g., OpenAI) or local.
+Register a provider that turns text into vector embeddings, for use by vector indexes. `provider_type` is `service` (a remote API such as OpenAI) or `local`. Pass the API key inline as `api_key` or as a stored secret with `secret_name`, not both.
 
 ### Parameters
 
@@ -47,6 +47,8 @@ Name | Type | Description  | Required | Notes
 > delete_embedding_provider(id)
 Delete embedding provider
 
+Delete an embedding provider. System providers cannot be deleted, and a provider that a vector index uses cannot be deleted until you drop the index.
+
 ### Parameters
 
 
@@ -74,6 +76,8 @@ Name | Type | Description  | Required | Notes
 
 > models::EmbeddingProviderResponse get_embedding_provider(id)
 Get embedding provider
+
+Get an embedding provider by ID.
 
 ### Parameters
 
@@ -103,7 +107,7 @@ Name | Type | Description  | Required | Notes
 > models::ListEmbeddingProvidersResponse list_embedding_providers()
 List embedding providers
 
-List all registered embedding providers.
+List embedding providers. Built-in system providers come first, then the ones you created.
 
 ### Parameters
 
@@ -129,6 +133,8 @@ This endpoint does not need any parameter.
 
 > models::UpdateEmbeddingProviderResponse update_embedding_provider(id, update_embedding_provider_request)
 Update embedding provider
+
+Update an embedding provider. Only the fields you send change. System providers cannot be updated.
 
 ### Parameters
 

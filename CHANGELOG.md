@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- chore(connections): remove secret_id and secret_name from request
 - feat(jobs): add rollup job types
 
 ## [0.21.0] - 2026-11-06

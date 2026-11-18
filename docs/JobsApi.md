@@ -14,7 +14,7 @@ Method | HTTP request | Description
 > models::JobStatusResponse get_job(id)
 Get job status
 
-Get the current status of a background job. Poll this endpoint to track job progress.
+Get the status of a background job. Poll this until the job finishes.
 
 ### Parameters
 
@@ -44,17 +44,17 @@ Name | Type | Description  | Required | Notes
 > models::ListJobsResponse list_jobs(job_type, status, limit, offset)
 List jobs
 
-List background jobs with optional filters by type and status. Internal maintenance sweeps are never listed here, whatever the filters say; every job this returns is one a caller submitted.
+List background jobs you started, newest first. Filter by `job_type` and `status`.
 
 ### Parameters
 
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**job_type** | Option<[**JobType**](JobType.md)> | Filter by job type. One value only, and it must be one of the job types listed in the JobType schema; an unknown value is rejected. |  |
-**status** | Option<**String**> | Filter by status: one or more of `pending`, `running`, `succeeded`, `partially_succeeded`, and `failed`, comma-separated (for example `status=pending,running`). Omit to list every status. An unknown value is rejected. |  |
-**limit** | Option<**i32**> | Max results (default 50) |  |
-**offset** | Option<**i32**> | Offset for pagination |  |
+**job_type** | Option<[**JobType**](JobType.md)> | Filter by one job type. An unknown value returns 400. |  |
+**status** | Option<**String**> | Filter by status, comma-separated, for example `status=pending,running`. Values: `pending`, `running`, `succeeded`, `partially_succeeded`, `failed`. An unknown value returns 400. |  |
+**limit** | Option<**i32**> | Maximum jobs to return. Default 50, maximum 1000. |  |
+**offset** | Option<**i32**> | Number of jobs to skip |  |
 
 ### Return type
 

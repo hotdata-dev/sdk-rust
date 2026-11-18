@@ -4,11 +4,11 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**attempts** | **i32** | Number of execution attempts (including the current one). | 
-**completed_at** | Option<**String**> |  | [optional]
-**created_at** | **String** |  | 
-**error_message** | Option<**String**> | Error or warning message. Set when status is `failed` or `partially_succeeded`. | [optional]
-**id** | **String** |  | 
+**attempts** | **i32** | Number of attempts so far, including the current one. | 
+**completed_at** | Option<**String**> | When the job finished. Absent until then. | [optional]
+**created_at** | **String** | When the job was created. | 
+**error_message** | Option<**String**> | What went wrong. Set when status is `failed` or `partially_succeeded`. | [optional]
+**id** | **String** | Job ID. | 
 **job_type** | [**models::JobType**](JobType.md) |  | 
 **result** | Option<[**models::JobResult**](JobResult.md)> |  | [optional]
 **status** | [**models::JobStatus**](JobStatus.md) |  | 

@@ -11,12 +11,13 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// JobStatusResponse : Response body for GET /v1/jobs/{id}
+/// JobStatusResponse : A background job and its status.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct JobStatusResponse {
-    /// Number of execution attempts (including the current one).
+    /// Number of attempts so far, including the current one.
     #[serde(rename = "attempts")]
     pub attempts: i32,
+    /// When the job finished. Absent until then.
     #[serde(
         rename = "completed_at",
         default,
@@ -24,9 +25,10 @@ pub struct JobStatusResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub completed_at: Option<Option<String>>,
+    /// When the job was created.
     #[serde(rename = "created_at")]
     pub created_at: String,
-    /// Error or warning message. Set when status is `failed` or `partially_succeeded`.
+    /// What went wrong. Set when status is `failed` or `partially_succeeded`.
     #[serde(
         rename = "error_message",
         default,
@@ -34,6 +36,7 @@ pub struct JobStatusResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub error_message: Option<Option<String>>,
+    /// Job ID.
     #[serde(rename = "id")]
     pub id: String,
     #[serde(rename = "job_type")]
@@ -50,7 +53,7 @@ pub struct JobStatusResponse {
 }
 
 impl JobStatusResponse {
-    /// Response body for GET /v1/jobs/{id}
+    /// A background job and its status.
     pub fn new(
         attempts: i32,
         created_at: String,

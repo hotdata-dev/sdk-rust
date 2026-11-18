@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 /// UpdateEmbeddingProviderRequest : Request body for PUT /embedding-providers/{id}
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UpdateEmbeddingProviderRequest {
-    /// Inline API key. If provided, updates (or creates) the auto-managed secret.
+    /// New API key. Hotdata stores it as a secret for you.
     #[serde(
         rename = "api_key",
         default,
@@ -36,7 +36,7 @@ pub struct UpdateEmbeddingProviderRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub name: Option<Option<String>>,
-    /// Secret name containing the API key. Pass null to clear.
+    /// Name of a stored secret that holds the API key. Send `null` to remove the key from the provider.
     #[serde(
         rename = "secret_name",
         default,

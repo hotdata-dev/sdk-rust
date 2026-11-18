@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// ResultInfo : Summary of a persisted query result for listing
+/// ResultInfo : A saved query result in a listing.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ResultInfo {
     #[serde(rename = "created_at")]
@@ -30,7 +30,7 @@ pub struct ResultInfo {
 }
 
 impl ResultInfo {
-    /// Summary of a persisted query result for listing
+    /// A saved query result in a listing.
     pub fn new(created_at: String, id: String, status: String) -> ResultInfo {
         ResultInfo {
             created_at,

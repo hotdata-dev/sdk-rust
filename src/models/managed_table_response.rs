@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// ManagedTableResponse : Response body for a successful add-table request.
+/// ManagedTableResponse : A newly added table.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ManagedTableResponse {
     #[serde(rename = "connection_id")]
@@ -23,7 +23,7 @@ pub struct ManagedTableResponse {
 }
 
 impl ManagedTableResponse {
-    /// Response body for a successful add-table request.
+    /// A newly added table.
     pub fn new(connection_id: String, schema: String, table: String) -> ManagedTableResponse {
         ManagedTableResponse {
             connection_id,

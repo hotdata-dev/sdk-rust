@@ -13,13 +13,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ColumnProfileDetailOneOf2 {
-    /// Maximum value (string to preserve precision for large integers and decimals)
+    /// Maximum value, as a string so large numbers keep full precision.
     #[serde(rename = "max")]
     pub max: String,
     /// Arithmetic mean
     #[serde(rename = "mean")]
     pub mean: f64,
-    /// Minimum value (string to preserve precision for large integers and decimals)
+    /// Minimum value, as a string so large numbers keep full precision.
     #[serde(rename = "min")]
     pub min: String,
     #[serde(rename = "type")]

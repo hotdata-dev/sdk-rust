@@ -11,9 +11,10 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// TableInfo : Single table metadata
+/// TableInfo : A table and its metadata.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TableInfo {
+    /// Table columns. Present only when the request sets `include_columns=true`.
     #[serde(
         rename = "columns",
         default,
@@ -21,11 +22,13 @@ pub struct TableInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub columns: Option<Option<Vec<models::ColumnInfo>>>,
+    /// Name of the connection that holds the table.
     #[serde(rename = "connection")]
     pub connection: String,
-    /// Columns the table declares constant for a given key: for every row, any other row sharing its key holds the same value of these columns.  Declaring this lets a keyed mutation narrow its search for prior versions to the values the upload carries. Empty when none is declared, which is the unrestricted search.  Unlike `partition_by` and `sorted_by` this is NOT fixed at creation — it changes only which files a mutation opens, never how rows are written — so read it here rather than assuming a declaration took effect.
+    /// Columns that hold the same value for every row sharing a key, which lets keyed mutations search fewer files; empty when none are declared. Unlike `partition_by` and `sorted_by`, this can change after creation.
     #[serde(rename = "constant_per_key")]
     pub constant_per_key: Vec<String>,
+    /// When the table's data was last loaded or synced; null if never.
     #[serde(
         rename = "last_sync",
         default,
@@ -35,22 +38,25 @@ pub struct TableInfo {
     pub last_sync: Option<Option<String>>,
     #[serde(rename = "layout")]
     pub layout: models::TableLayout,
-    /// The table's partition keys, in the order they were declared when the table was created. Empty when the table is not partitioned.  A table's storage layout is fixed when the table is created and cannot be changed afterwards, so this is how to confirm a table really was created with the layout that was asked for. The field is always present: an empty array means \"no partitioning declared\", which is not the same as a response that omits the field entirely.  Reported for tables in a Hotdata instant database, which are the only ones whose layout is declared here. A table discovered from an external connection always reports an empty array — its layout belongs to the upstream system, so an empty array there means \"not known from here\", not \"confirmed unpartitioned\".
+    /// Partition keys, in the order declared when the table was created; empty when it is not partitioned. Reported only for tables in a Hotdata-instant database: other tables always return an empty array.
     #[serde(rename = "partition_by")]
     pub partition_by: Vec<models::TablePartitionKey>,
+    /// Schema name.
     #[serde(rename = "schema")]
     pub schema: String,
-    /// The table's sort keys, in the order they were declared when the table was created. Empty when no sort order was declared. Always present, and limited to tables in a Hotdata instant database, for the same reasons as `partition_by`.
+    /// Sort keys, in the order declared when the table was created; empty when none were declared. Reported only for tables in a Hotdata-managed database, like `partition_by`.
     #[serde(rename = "sorted_by")]
     pub sorted_by: Vec<models::TableSortKey>,
+    /// Whether the table has data loaded.
     #[serde(rename = "synced")]
     pub synced: bool,
+    /// Table name.
     #[serde(rename = "table")]
     pub table: String,
 }
 
 impl TableInfo {
-    /// Single table metadata
+    /// A table and its metadata.
     pub fn new(
         connection: String,
         constant_per_key: Vec<String>,

@@ -16,7 +16,7 @@ Method | HTTP request | Description
 > delete_database_context(database_id, name)
 Delete database context
 
-Removes a named context document from a database.
+Delete a context document from a database.
 
 ### Parameters
 
@@ -24,7 +24,7 @@ Removes a named context document from a database.
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **database_id** | **String** | Database ID | [required] |
-**name** | **String** | Context key: same character rules as a table name | [required] |
+**name** | **String** | Context name. Follows the same rules as a table name. | [required] |
 
 ### Return type
 
@@ -47,13 +47,15 @@ Name | Type | Description  | Required | Notes
 > models::GetDatabaseContextResponse get_database_context(database_id, name)
 Get one database context
 
+Get one context document by name.
+
 ### Parameters
 
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **database_id** | **String** | Database ID | [required] |
-**name** | **String** | Context key: same character rules as a table name | [required] |
+**name** | **String** | Context name. Follows the same rules as a table name. | [required] |
 
 ### Return type
 
@@ -75,6 +77,8 @@ Name | Type | Description  | Required | Notes
 
 > models::ListDatabaseContextsResponse list_database_contexts(database_id)
 List database contexts
+
+List the context documents saved on a database, sorted by name.
 
 ### Parameters
 
@@ -104,7 +108,7 @@ Name | Type | Description  | Required | Notes
 > models::UpsertDatabaseContextResponse upsert_database_context(database_id, upsert_database_context_request)
 Create or update database context
 
-Stores a named document (for example Markdown) scoped to a database. Reuses the same name to replace content.
+Save a named text or Markdown document on a database. Saving under an existing name replaces its content. Content can be up to 512,000 characters.
 
 ### Parameters
 

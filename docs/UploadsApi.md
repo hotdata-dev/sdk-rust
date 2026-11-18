@@ -16,7 +16,7 @@ Method | HTTP request | Description
 > models::UploadSessionResponse create_upload_session_handler(create_upload_request)
 Create upload session
 
-Create an upload session for a file you will upload directly to the URL the response carries, without sending it through this API. The response is one of three shapes. For a small file (`mode: single`) it contains a short-lived `url` to `PUT` the whole file to. For a large file with a known size (`mode: multipart`) it contains `part_urls` and `part_size`: split the file into `part_size`-byte chunks (the last is the remainder) and `PUT` chunk *i* (1-based) to `part_urls[i - 1]`, keeping each response's `ETag`. Slice by `part_size`, not by an even division across the number of part URLs (which can make a non-final part too small). For a file whose size you do not know up front, omit `declared_size_bytes`: the response is `mode: multipart` with a `part_size` but NO `part_urls`. As you stream, call `POST /v1/uploads/{upload_id}/parts` with a batch of `part_numbers` to mint per-part `PUT` URLs, `PUT` each part and keep its `ETag`, then finalize as for any multipart upload. In all cases the response also includes a one-time `finalize_token`. After uploading, call the finalize endpoint with the token (and, for multipart, the `{part_number, e_tag}` list) to make the upload usable as managed-table contents. The returned upload ID can then be passed to the managed-table load endpoint.  You may hint a preferred part size with `part_size`; the service clamps it to the allowed range and ignores it for single-`PUT` uploads.  One upload may be at most 16 GiB by default, whatever its format. Declare `declared_size_bytes` and an oversized file is refused here, before you transfer any of it; an upload created without a declared size is refused at finalize instead. To load more than that into one table, split the data across several uploads and load each one with `mode: append`.  A `501` with error code `PRESIGN_UNSUPPORTED` means this deployment cannot issue upload URLs; send the data inline on the load endpoint instead.
+Start an upload. You `PUT` the file straight to the URLs in the response, not through this API. The response has a one-time `finalize_token` and one of three shapes:  - `mode: single`: `PUT` the whole file to `url`. - `mode: multipart` with `part_urls`: split the file into `part_size`-byte parts (the last one is smaller) and `PUT` part *i* to `part_urls[i - 1]`. Keep each part's `ETag`. - `mode: multipart` with no `part_urls`, when you omit `declared_size_bytes`: get part URLs as you go from `POST /v1/uploads/{upload_id}/parts`.  Then call `POST /v1/uploads/{upload_id}/finalize`, and load the upload into a table by its ID.  An upload can be at most 16 GiB by default. With `declared_size_bytes`, a larger file is refused here; without it, at finalize. To load more into one table, split the data and load each upload with `mode: append`. A 501 `PRESIGN_UNSUPPORTED` means upload URLs are not available; send the data inline on the load endpoint.
 
 ### Parameters
 
@@ -46,7 +46,7 @@ Name | Type | Description  | Required | Notes
 > models::BatchCreateUploadResponse create_upload_sessions_batch_handler(batch_create_upload_request)
 Create upload sessions in bulk
 
-Create upload sessions for several files in one request. Each file is planned independently and the response returns one session per requested file, in the same order. Each session is finalized separately via the finalize endpoint, so you can upload and finalize files at your own pace.  The maximum upload size (16 GiB by default, the same for every file format) applies to each file, not to the request as a whole. The batch is all-or-nothing: if any one file is refused, no sessions are created and the ones already planned are discarded, so retry the whole request rather than the rejected file alone.  A `501` with error code `PRESIGN_UNSUPPORTED` means this deployment cannot issue upload URLs; send the data inline on the load endpoint instead.
+Create upload sessions for up to 100 files in one request. Sessions come back in the order of the request. Upload and finalize each one on its own.  The 16 GiB size limit applies to each file. If any file is refused, no sessions are created; retry the whole request. A 501 `PRESIGN_UNSUPPORTED` means upload URLs are not available.
 
 ### Parameters
 
@@ -76,16 +76,16 @@ Name | Type | Description  | Required | Notes
 > models::FinalizeUploadResponse finalize_upload_handler(upload_id, x_upload_finalize_token, finalize_upload_request)
 Finalize upload
 
-Confirm that a file has been uploaded and make it usable as managed-table contents. Supply the `finalize_token` returned when the session was created, in the `X-Upload-Finalize-Token` header. When you declared a size at create time, the uploaded file's size is validated against it and a mismatch is rejected. An upload created without a declared size is finalized from its uploaded parts; it must be non-empty and is rejected if it exceeds the maximum upload size (16 GiB by default, the same for every file format). Finalize is exactly-once: a second finalize of the same upload is rejected.  Load a finalized upload within 7 days (by default). An upload that has not been loaded by then is deleted, and loading it afterwards fails as not found.
+Confirm that a file is uploaded, so it can be loaded into a table. Send the `finalize_token` in the `X-Upload-Finalize-Token` header. For a multipart upload, send the `{part_number, e_tag}` list.  If you declared a size, the file must match it. An upload without a declared size must not be empty and must be at most 16 GiB by default. You can finalize an upload only once. Load it within 7 days (by default), or it is deleted.
 
 ### Parameters
 
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**upload_id** | **String** | Upload session ID returned at create time | [required] |
-**x_upload_finalize_token** | **String** | One-time finalize token returned when the session was created | [required] |
-**finalize_upload_request** | Option<[**FinalizeUploadRequest**](FinalizeUploadRequest.md)> | Optional; send `parts` only for a multi-part upload. Single-`PUT` uploads finalize with no body. |  |
+**upload_id** | **String** | Upload ID | [required] |
+**x_upload_finalize_token** | **String** | The `finalize_token` from the create response | [required] |
+**finalize_upload_request** | Option<[**FinalizeUploadRequest**](FinalizeUploadRequest.md)> | Send `parts` for a multipart upload. A single-`PUT` upload needs no body. |  |
 
 ### Return type
 
@@ -108,15 +108,15 @@ Name | Type | Description  | Required | Notes
 > models::MintUploadPartsResponse mint_upload_parts_handler(upload_id, x_upload_finalize_token, mint_upload_parts_request)
 Mint upload part URLs
 
-Get short-lived upload URLs for specific parts of a multi-part upload. This is required for a streaming (unknown-size) upload — created by omitting the declared size — which mints no part URLs up front. It also works for a known-size multi-part upload: use it to re-mint a part whose URL expired before you uploaded that part. Supply the `finalize_token` returned when the session was created, in the `X-Upload-Finalize-Token` header, and the 1-based `part_numbers` you want URLs for. `PUT` each part's bytes to its URL, keep each response's `ETag`, then pass the `{part_number, e_tag}` list to finalize. You may mint parts in batches as you upload, and re-mint a part number whose URL expired before you finished uploading it.
+Get upload URLs for parts of a multipart upload. You need this for an upload created without `declared_size_bytes`. You can also use it to get a new URL for a part whose URL expired.  Send the `finalize_token` in the `X-Upload-Finalize-Token` header and the part numbers (starting at 1), up to 100 per request. `PUT` each part to its URL, keep its `ETag`, and pass the list to finalize.
 
 ### Parameters
 
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**upload_id** | **String** | Upload session ID returned at create time | [required] |
-**x_upload_finalize_token** | **String** | One-time finalize token returned when the session was created | [required] |
+**upload_id** | **String** | Upload ID | [required] |
+**x_upload_finalize_token** | **String** | The `finalize_token` from the create response | [required] |
 **mint_upload_parts_request** | [**MintUploadPartsRequest**](MintUploadPartsRequest.md) |  | [required] |
 
 ### Return type

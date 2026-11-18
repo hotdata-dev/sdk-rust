@@ -11,8 +11,8 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// DiscoveryStatus : Discovery status for connection creation
-/// Discovery status for connection creation
+/// DiscoveryStatus : Result of looking up a new connection's tables. A `managed` connection declares its tables, so this is always `skipped`.
+/// Result of looking up a new connection's tables. A `managed` connection declares its tables, so this is always `skipped`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum DiscoveryStatus {
     #[serde(rename = "success")]

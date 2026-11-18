@@ -29,7 +29,7 @@ pub enum ListJobsError {
     UnknownValue(serde_json::Value),
 }
 
-/// Get the current status of a background job. Poll this endpoint to track job progress.
+/// Get the status of a background job. Poll this until the job finishes.
 pub async fn get_job(
     configuration: &configuration::Configuration,
     id: &str,
@@ -95,7 +95,7 @@ pub async fn get_job(
     }
 }
 
-/// List background jobs with optional filters by type and status. Internal maintenance sweeps are never listed here, whatever the filters say; every job this returns is one a caller submitted.
+/// List background jobs you started, newest first. Filter by `job_type` and `status`.
 pub async fn list_jobs(
     configuration: &configuration::Configuration,
     job_type: Option<models::JobType>,

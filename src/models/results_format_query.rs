@@ -11,8 +11,8 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// ResultsFormatQuery : The `?format=` query parameter on `GET /v1/results/{id}`. One of `arrow`, `json`, `csv`, `md`, or `parquet`.
-/// The `?format=` query parameter on `GET /v1/results/{id}`. One of `arrow`, `json`, `csv`, `md`, or `parquet`.
+/// ResultsFormatQuery : Format to return a result in: `arrow`, `json`, `csv`, `md` (Markdown) or `parquet`.
+/// Format to return a result in: `arrow`, `json`, `csv`, `md` (Markdown) or `parquet`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum ResultsFormatQuery {
     #[serde(rename = "arrow")]

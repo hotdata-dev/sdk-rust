@@ -5,8 +5,8 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **created_at** | Option<**String**> | When the database was created. | [optional]
-**default_catalog** | **String** | Name the database's default catalog answers to inside its query scope. | 
-**default_schema** | **String** | Schema that unqualified table names resolve to inside this database's query scope. `main` unless the database declares a single schema or a `default_schema` was set at create time. | 
+**default_catalog** | **String** | Name of the database's own catalog in SQL. | 
+**default_schema** | **String** | Schema that unqualified table names resolve to. | 
 **expires_at** | Option<**String**> |  | [optional]
 **forked_from** | Option<[**models::ForkedFromInfo**](ForkedFromInfo.md)> |  | [optional]
 **id** | **String** |  | 

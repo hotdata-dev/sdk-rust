@@ -70,7 +70,7 @@ pub enum UpdateSavedQueryError {
     UnknownValue(serde_json::Value),
 }
 
-/// Save a named SQL query. The SQL is stored as version 1 and automatically analyzed for classification metadata (category, table count, predicate/join/aggregation flags).
+/// Save a named SQL query as version 1. Hotdata classifies the SQL, for example its category, table count, and whether it filters, joins or aggregates.
 pub async fn create_saved_query(
     configuration: &configuration::Configuration,
     create_saved_query_request: models::CreateSavedQueryRequest,
@@ -135,6 +135,7 @@ pub async fn create_saved_query(
     }
 }
 
+/// Delete a saved query and all its versions.
 pub async fn delete_saved_query(
     configuration: &configuration::Configuration,
     id: &str,
@@ -190,7 +191,7 @@ pub async fn delete_saved_query(
     }
 }
 
-/// Execute a saved query, scoped to a database (required `X-Database-Id` header). By default runs the latest version. Optionally specify a version number to execute a previous version. The SQL runs inside the given database scope, the same way POST /v1/query does. Returns the same response format as POST /v1/query.
+/// Run a saved query in the database named by the `X-Database-Id` header. Runs the latest version unless you pass `version`. Returns the same response as `POST /v1/query`. Write statements are refused.
 pub async fn execute_saved_query(
     configuration: &configuration::Configuration,
     id: &str,
@@ -264,6 +265,7 @@ pub async fn execute_saved_query(
     }
 }
 
+/// Get a saved query and its latest version.
 pub async fn get_saved_query(
     configuration: &configuration::Configuration,
     id: &str,
@@ -329,6 +331,7 @@ pub async fn get_saved_query(
     }
 }
 
+/// List saved queries, sorted by name.
 pub async fn list_saved_queries(
     configuration: &configuration::Configuration,
     limit: Option<i32>,
@@ -398,6 +401,7 @@ pub async fn list_saved_queries(
     }
 }
 
+/// List the versions of a saved query, newest first.
 pub async fn list_saved_query_versions(
     configuration: &configuration::Configuration,
     id: &str,
@@ -473,7 +477,7 @@ pub async fn list_saved_query_versions(
     }
 }
 
-/// Update a saved query. If the SQL changes, a new version is created (previous versions are preserved). Name, tags, description, and classification overrides can also be updated.
+/// Update a saved query. Send at least one field; fields you omit do not change. Changing the SQL creates a new version and keeps the old ones.
 pub async fn update_saved_query(
     configuration: &configuration::Configuration,
     id: &str,

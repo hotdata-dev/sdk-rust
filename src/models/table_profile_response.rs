@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// TableProfileResponse : Column-level statistics for a synced table. Profiles are computed at sync time and include per-column cardinality, null counts, and type-specific details.
+/// TableProfileResponse : Column statistics for a table.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TableProfileResponse {
     /// Per-column profile statistics
@@ -40,7 +40,7 @@ pub struct TableProfileResponse {
 }
 
 impl TableProfileResponse {
-    /// Column-level statistics for a synced table. Profiles are computed at sync time and include per-column cardinality, null counts, and type-specific details.
+    /// Column statistics for a table.
     pub fn new(
         columns: Vec<models::ColumnProfileInfo>,
         connection: String,

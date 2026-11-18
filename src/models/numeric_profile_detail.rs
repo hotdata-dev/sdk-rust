@@ -11,22 +11,22 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// NumericProfileDetail : High-cardinality numeric column (>200 distinct values).
+/// NumericProfileDetail : Numeric column with more than 200 distinct values.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct NumericProfileDetail {
-    /// Maximum value (string to preserve precision for large integers and decimals)
+    /// Maximum value, as a string so large numbers keep full precision.
     #[serde(rename = "max")]
     pub max: String,
     /// Arithmetic mean
     #[serde(rename = "mean")]
     pub mean: f64,
-    /// Minimum value (string to preserve precision for large integers and decimals)
+    /// Minimum value, as a string so large numbers keep full precision.
     #[serde(rename = "min")]
     pub min: String,
 }
 
 impl NumericProfileDetail {
-    /// High-cardinality numeric column (>200 distinct values).
+    /// Numeric column with more than 200 distinct values.
     pub fn new(max: String, mean: f64, min: String) -> NumericProfileDetail {
         NumericProfileDetail { max, mean, min }
     }

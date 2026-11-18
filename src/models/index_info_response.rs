@@ -11,10 +11,10 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// IndexInfoResponse : Result payload for a `create_index` job, and response for index endpoints.
+/// IndexInfoResponse : An index on a table.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IndexInfoResponse {
-    /// How this vector index organises the vectors it searches: `hnsw` or `ivf`. Absent for BM25 and sorted indexes.
+    /// Vector index algorithm: `hnsw` or `ivf`. Absent for other index types.
     #[serde(
         rename = "algorithm",
         default,
@@ -22,15 +22,19 @@ pub struct IndexInfoResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub algorithm: Option<Option<String>>,
+    /// Indexed columns.
     #[serde(rename = "columns")]
     pub columns: Vec<String>,
+    /// When the index was created.
     #[serde(rename = "created_at")]
     pub created_at: String,
+    /// Index name.
     #[serde(rename = "index_name")]
     pub index_name: String,
+    /// Index type: `sorted`, `bm25` or `vector`.
     #[serde(rename = "index_type")]
     pub index_type: String,
-    /// Distance metric this index was built with. Only present for vector indexes.
+    /// Distance metric of a vector index. Absent for other index types.
     #[serde(
         rename = "metric",
         default,
@@ -38,7 +42,7 @@ pub struct IndexInfoResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub metric: Option<Option<String>>,
-    /// Number of clusters an `ivf` index was built with. This can be smaller than the `nlist` requested when the index was created, because the number is capped by how many vectors the clusters were fitted to. Absent for every other kind of index.
+    /// Number of clusters an `ivf` index was built with. Can be lower than the requested `nlist`, because it is capped by the number of vectors the clusters were fitted to.
     #[serde(
         rename = "nlist",
         default,
@@ -46,7 +50,7 @@ pub struct IndexInfoResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub nlist: Option<Option<i64>>,
-    /// How much of an `ivf` index a search reads, as a fraction greater than 0 and at most 1, when the index was created with one. When absent, the server chooses how much each search reads: a width measured on this index's own data when it was built, scaled to the number of results a search asks for, or a server default when no measurement could be made. Absent for every other kind of index.
+    /// Share of an `ivf` index each search reads, from 0 (exclusive) to 1, when set at creation. When absent, Hotdata picks the share for each search.
     #[serde(
         rename = "probe_fraction",
         default,
@@ -54,7 +58,7 @@ pub struct IndexInfoResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub probe_fraction: Option<Option<f64>>,
-    /// Source text column for an embedding-backed vector index. A query searches it via `vector_distance(<source_column>, …)`; the indexed `columns` hold the generated embedding column instead. Absent for BM25, sorted, and direct (existing-column) vector indexes.
+    /// Text column an embedding-based vector index was built from; search it with `vector_distance(<source_column>, …)`. `columns` then holds the generated embedding column. Absent for other indexes.
     #[serde(
         rename = "source_column",
         default,
@@ -64,9 +68,10 @@ pub struct IndexInfoResponse {
     pub source_column: Option<Option<String>>,
     #[serde(rename = "status")]
     pub status: models::IndexStatus,
+    /// When the index was last updated.
     #[serde(rename = "updated_at")]
     pub updated_at: String,
-    /// How precisely this vector index stores each number of a vector. Always present for an `ivf` index, which stores `int8` unless it was created with another precision. For an `hnsw` index it is present only when the index was created with an explicit precision; absent means it stores at the same precision as the column. Absent for BM25 and sorted indexes.
+    /// Precision a vector index stores each number at, such as `int8`. Always set for `ivf` (default `int8`); for `hnsw`, set only when chosen at creation, and otherwise it matches the column.
     #[serde(
         rename = "vector_precision",
         default,
@@ -77,7 +82,7 @@ pub struct IndexInfoResponse {
 }
 
 impl IndexInfoResponse {
-    /// Result payload for a `create_index` job, and response for index endpoints.
+    /// An index on a table.
     pub fn new(
         columns: Vec<String>,
         created_at: String,

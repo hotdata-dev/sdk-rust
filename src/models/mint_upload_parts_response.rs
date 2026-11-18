@@ -11,16 +11,16 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// MintUploadPartsResponse : Response body for `POST /v1/uploads/{upload_id}/parts`: the minted part URLs, in ascending part-number order.
+/// MintUploadPartsResponse : Upload URLs for the requested parts.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MintUploadPartsResponse {
-    /// The minted part URLs, in ascending part-number order. `PUT` each part's bytes to its URL and keep the response's `ETag` to pass to finalize.
+    /// One URL per requested part, by part number.
     #[serde(rename = "parts")]
     pub parts: Vec<models::MintedUploadPartResponse>,
 }
 
 impl MintUploadPartsResponse {
-    /// Response body for `POST /v1/uploads/{upload_id}/parts`: the minted part URLs, in ascending part-number order.
+    /// Upload URLs for the requested parts.
     pub fn new(parts: Vec<models::MintedUploadPartResponse>) -> MintUploadPartsResponse {
         MintUploadPartsResponse { parts }
     }

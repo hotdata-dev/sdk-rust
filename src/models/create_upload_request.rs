@@ -11,10 +11,10 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// CreateUploadRequest : Request body for `POST /v1/uploads` and for each entry of `POST /v1/uploads/batch`.  Describes a single file you intend to upload. The response carries a short-lived URL to `PUT` the bytes to, so the file never passes through the API itself. The declared size is validated against the bytes you actually upload when you finalize.  One upload may be at most 16 GiB by default, whatever its format. To load more data than that into a single table, split it across several uploads and load each one with `mode: append`.
+/// CreateUploadRequest : A file you plan to upload. The response gives you short-lived URLs to `PUT` the bytes to. One upload can be at most 16 GiB by default; for more data, load several uploads with `mode: append`.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CreateUploadRequest {
-    /// Integrity checksum algorithm you are volunteering for this file. Currently only `sha256` is accepted. Optional; pair with `checksum_value`.
+    /// Checksum algorithm for `checksum_value`. Only `sha256` is accepted.
     #[serde(
         rename = "checksum_algo",
         default,
@@ -22,7 +22,7 @@ pub struct CreateUploadRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub checksum_algo: Option<Option<String>>,
-    /// Integrity checksum value, paired with `checksum_algo`. Optional.
+    /// Checksum of the file. Stored with the upload but not verified.
     #[serde(
         rename = "checksum_value",
         default,
@@ -30,7 +30,7 @@ pub struct CreateUploadRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub checksum_value: Option<Option<String>>,
-    /// Content encoding to record for the uploaded file (for example `gzip`). Optional.
+    /// Content encoding, such as `gzip`, kept with the upload.
     #[serde(
         rename = "content_encoding",
         default,
@@ -38,7 +38,7 @@ pub struct CreateUploadRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub content_encoding: Option<Option<String>>,
-    /// Content type to record for the uploaded file (for example the Parquet, CSV, or JSON MIME type). Optional.
+    /// MIME type of the file. A load uses it to detect the file format when `format` is not set.
     #[serde(
         rename = "content_type",
         default,
@@ -46,7 +46,7 @@ pub struct CreateUploadRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub content_type: Option<Option<String>>,
-    /// The exact size, in bytes, of the file you will upload. Optional. When provided, it is checked at create time against the maximum upload size (16 GiB by default, the same for every file format), so an oversized file is refused before you transfer any of it; it is checked again at finalize against the bytes actually uploaded — a mismatch fails the finalize. Omit it to create a streaming (unknown-size) upload: the session is always multi-part and returns no part URLs up front; instead you mint part URLs on demand from `POST /v1/uploads/{upload_id}/parts` as you upload, and finalize checks only that the file is non-empty and within the maximum upload size.
+    /// Exact file size in bytes, checked again when you finalize. Omit it to stream a file of unknown size and get part URLs from `POST /v1/uploads/{upload_id}/parts` as you go.
     #[serde(
         rename = "declared_size_bytes",
         default,
@@ -54,7 +54,7 @@ pub struct CreateUploadRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub declared_size_bytes: Option<Option<i64>>,
-    /// Original file name, recorded with the upload for your own bookkeeping. Optional and advisory — it does not affect how the file is uploaded or loaded.
+    /// File name, kept for your reference. It does not affect the upload or load.
     #[serde(
         rename = "filename",
         default,
@@ -62,7 +62,7 @@ pub struct CreateUploadRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub filename: Option<Option<String>>,
-    /// Preferred size, in bytes, of each part for a large (multi-part) upload. Optional hint — the service clamps it to the allowed part-size range and to the maximum number of parts, and ignores it for small files uploaded with a single `PUT`. Omit to let the service choose.
+    /// Preferred part size in bytes for a multi-part upload. Hotdata adjusts it to the allowed range; the size it uses is returned as `part_size`.
     #[serde(
         rename = "part_size",
         default,
@@ -73,7 +73,7 @@ pub struct CreateUploadRequest {
 }
 
 impl CreateUploadRequest {
-    /// Request body for `POST /v1/uploads` and for each entry of `POST /v1/uploads/batch`.  Describes a single file you intend to upload. The response carries a short-lived URL to `PUT` the bytes to, so the file never passes through the API itself. The declared size is validated against the bytes you actually upload when you finalize.  One upload may be at most 16 GiB by default, whatever its format. To load more data than that into a single table, split it across several uploads and load each one with `mode: append`.
+    /// A file you plan to upload. The response gives you short-lived URLs to `PUT` the bytes to. One upload can be at most 16 GiB by default; for more data, load several uploads with `mode: append`.
     pub fn new() -> CreateUploadRequest {
         CreateUploadRequest {
             checksum_algo: None,

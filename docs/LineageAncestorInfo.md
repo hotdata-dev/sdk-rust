@@ -5,11 +5,11 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **database_id** | **String** |  | 
-**description** | Option<**String**> | Why the next database down the chain was forked from it, as given at the time. Absent when none was given. | [optional]
-**exists** | **bool** | False once the ancestor has been deleted. Its place in the chain is kept either way, and the ancestry continues past it. | 
-**forked_at** | Option<**String**> | When the next database down the chain was forked from it. | [optional]
-**name** | Option<**String**> | The ancestor's current label, or the one captured at fork time when it no longer exists. | [optional]
-**snapshot_id** | Option<**i64**> | Version of this ancestor's data that the next database down the chain copied. See `forked_from.snapshot_id`. | [optional]
+**description** | Option<**String**> | Why that fork was taken, if given. | [optional]
+**exists** | **bool** | False if the database has been deleted. | 
+**forked_at** | Option<**String**> | When the next database down the chain was forked from this one. | [optional]
+**name** | Option<**String**> | The database's current name, or its name at fork time if deleted. | [optional]
+**snapshot_id** | Option<**i64**> | Point in time of this database's data that the next database down the chain copied. | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

@@ -11,17 +11,19 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// ApiErrorDetail : Error detail within an API error response
+/// ApiErrorDetail : Details of an API error.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ApiErrorDetail {
+    /// Machine-readable error code, such as `BAD_REQUEST` or `NOT_FOUND`.
     #[serde(rename = "code")]
     pub code: String,
+    /// Human-readable description of the error.
     #[serde(rename = "message")]
     pub message: String,
 }
 
 impl ApiErrorDetail {
-    /// Error detail within an API error response
+    /// Details of an API error.
     pub fn new(code: String, message: String) -> ApiErrorDetail {
         ApiErrorDetail { code, message }
     }

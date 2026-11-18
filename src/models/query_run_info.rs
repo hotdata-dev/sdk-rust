@@ -11,10 +11,10 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// QueryRunInfo : Single query run for listing
+/// QueryRunInfo : One execution of a query.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct QueryRunInfo {
-    /// Bytes this query actually fetched from storage. Not a measure of how much data the query covered — it counts the reads that reached storage, so the same SQL over the same rows reports a different number depending on what was already cached.  `null` means the query touched no table at all (for example a constant expression like `SELECT 1`).  `0` means the query read a table but fetched nothing from storage. It is a normal, common answer, not an error or a missing measurement, and it does not mean the query did no work — `rows_scanned` shows the rows it went through. The usual cause is a warm cache: re-running a query whose data or file metadata is already held in memory reports far fewer bytes than the first run, frequently `0`, with `rows_scanned` unchanged. A query answered from table statistics alone (a row count, say) also reports `0`.  Because of this, `bytes_scanned` is not a proxy for query cost or query volume. `GET /v1/usage` sums this field over a period, so that total is the storage read a workspace caused, not the work its queries did: repeating one query cheaply adds little or nothing to it.
+    /// Bytes the query read from storage. Cached data is not counted, so a repeated query often reports `0`; null when the query read no table.
     #[serde(
         rename = "bytes_scanned",
         default,
@@ -31,6 +31,7 @@ pub struct QueryRunInfo {
     pub completed_at: Option<Option<String>>,
     #[serde(rename = "created_at")]
     pub created_at: String,
+    /// Why the run failed.
     #[serde(
         rename = "error_message",
         default,
@@ -47,6 +48,7 @@ pub struct QueryRunInfo {
     pub execution_time_ms: Option<Option<i64>>,
     #[serde(rename = "id")]
     pub id: String,
+    /// ID of the saved result, ready to fetch once `status` is `succeeded`. Absent when no result was saved; `warning_message` then says why.
     #[serde(
         rename = "result_id",
         default,
@@ -54,6 +56,7 @@ pub struct QueryRunInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub result_id: Option<Option<String>>,
+    /// Number of rows in the full result.
     #[serde(
         rename = "row_count",
         default,
@@ -61,7 +64,7 @@ pub struct QueryRunInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub row_count: Option<Option<i64>>,
-    /// Total rows read from storage to run this query, before any filtering or aggregation. Distinct from `row_count`, which is how many rows the query returned. `null` when the query reads no table data from storage.
+    /// Rows the query read, before filtering or aggregation. Null when the query read no table.
     #[serde(
         rename = "rows_scanned",
         default,
@@ -69,6 +72,7 @@ pub struct QueryRunInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub rows_scanned: Option<Option<i64>>,
+    /// ID of the saved query this run executed, if any.
     #[serde(
         rename = "saved_query_id",
         default,
@@ -76,6 +80,7 @@ pub struct QueryRunInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub saved_query_id: Option<Option<String>>,
+    /// Version of the saved query this run executed, if any.
     #[serde(
         rename = "saved_query_version",
         default,
@@ -83,7 +88,7 @@ pub struct QueryRunInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub saved_query_version: Option<Option<i32>>,
-    /// Total server-side processing time for this query (milliseconds). Measured from query start to result ready. Includes SQL execution, task spawning, and result preparation. Does not include network transit. Populated for all completed query runs (sync and async).
+    /// Time from query start until the result was ready, in milliseconds. Excludes network time.
     #[serde(
         rename = "server_processing_ms",
         default,
@@ -97,6 +102,7 @@ pub struct QueryRunInfo {
     pub sql_hash: String,
     #[serde(rename = "sql_text")]
     pub sql_text: String,
+    /// `running`, `succeeded`, `failed` or `interrupted`. An interrupted run stopped before finishing and is safe to retry.
     #[serde(rename = "status")]
     pub status: String,
     #[serde(
@@ -106,7 +112,7 @@ pub struct QueryRunInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub trace_id: Option<Option<String>>,
-    /// Who ran this query: the account id from the access token the request was made with. Use it to group a caller's query history.  Requests made with a credential that identifies no account instead record an opaque `user_`-prefixed identifier, which is stable for that credential but cannot be resolved to an account.
+    /// Account that ran the query, taken from the access token. A credential with no account gets a stable `user_`-prefixed ID instead.
     #[serde(
         rename = "user_public_id",
         default,
@@ -114,6 +120,7 @@ pub struct QueryRunInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub user_public_id: Option<Option<String>>,
+    /// A problem that did not fail the run, such as a result that could not be saved.
     #[serde(
         rename = "warning_message",
         default,
@@ -124,7 +131,7 @@ pub struct QueryRunInfo {
 }
 
 impl QueryRunInfo {
-    /// Single query run for listing
+    /// One execution of a query.
     pub fn new(
         created_at: String,
         id: String,
