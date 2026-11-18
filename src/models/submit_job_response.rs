@@ -11,21 +11,21 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// SubmitJobResponse : Response returned by APIs that submit a background job (e.g., async refresh).
+/// SubmitJobResponse : A background job that was started. Poll `status_url` to follow it.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SubmitJobResponse {
-    /// Job ID for status polling.
+    /// Job ID.
     #[serde(rename = "id")]
     pub id: String,
     #[serde(rename = "status")]
     pub status: models::JobStatus,
-    /// URL to poll for job status.
+    /// Path to poll for the job's status.
     #[serde(rename = "status_url")]
     pub status_url: String,
 }
 
 impl SubmitJobResponse {
-    /// Response returned by APIs that submit a background job (e.g., async refresh).
+    /// A background job that was started. Poll `status_url` to follow it.
     pub fn new(id: String, status: models::JobStatus, status_url: String) -> SubmitJobResponse {
         SubmitJobResponse {
             id,

@@ -14,12 +14,12 @@ use serde::{Deserialize, Serialize};
 /// CreateConnectionRequest : Request body for POST /connections
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CreateConnectionRequest {
-    /// Connection configuration object. Fields vary by source type (host, port, database, etc.).
+    /// Connection settings. For `managed`, an optional `schemas` list declaring schemas and their tables.
     #[serde(rename = "config")]
     pub config: std::collections::HashMap<String, serde_json::Value>,
     #[serde(rename = "name")]
     pub name: String,
-    /// Optional reference to a secret by ID (e.g., \"secr_abc123\"). If provided, this secret will be used for authentication. Mutually exclusive with `secret_name`.
+    /// ID of a stored secret to authenticate with. A `managed` connection takes no credentials, so setting this fails with 400.
     #[serde(
         rename = "secret_id",
         default,
@@ -27,7 +27,7 @@ pub struct CreateConnectionRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub secret_id: Option<Option<String>>,
-    /// Optional reference to a secret by name. If provided, this secret will be used for authentication. Mutually exclusive with `secret_id`.
+    /// Name of a stored secret to authenticate with. A `managed` connection takes no credentials, so setting this fails with 400.
     #[serde(
         rename = "secret_name",
         default,
@@ -35,6 +35,7 @@ pub struct CreateConnectionRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub secret_name: Option<Option<String>>,
+    /// Connection type. Only `managed` can be created: a catalog of tables you load data into.
     #[serde(rename = "source_type")]
     pub source_type: String,
 }

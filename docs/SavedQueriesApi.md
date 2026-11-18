@@ -19,7 +19,7 @@ Method | HTTP request | Description
 > models::SavedQueryDetail create_saved_query(create_saved_query_request)
 Create saved query
 
-Save a named SQL query. The SQL is stored as version 1 and automatically analyzed for classification metadata (category, table count, predicate/join/aggregation flags).
+Save a named SQL query as version 1. Hotdata classifies the SQL, for example its category, table count, and whether it filters, joins or aggregates.
 
 ### Parameters
 
@@ -49,6 +49,8 @@ Name | Type | Description  | Required | Notes
 > delete_saved_query(id)
 Delete saved query
 
+Delete a saved query and all its versions.
+
 ### Parameters
 
 
@@ -77,7 +79,7 @@ Name | Type | Description  | Required | Notes
 > models::QueryResponse execute_saved_query(id, x_database_id, execute_saved_query_request)
 Execute saved query
 
-Execute a saved query, scoped to a database (required `X-Database-Id` header). By default runs the latest version. Optionally specify a version number to execute a previous version. The SQL runs inside the given database scope, the same way POST /v1/query does. Returns the same response format as POST /v1/query.
+Run a saved query in the database named by the `X-Database-Id` header. Runs the latest version unless you pass `version`. Returns the same response as `POST /v1/query`. Write statements are refused.
 
 ### Parameters
 
@@ -85,8 +87,8 @@ Execute a saved query, scoped to a database (required `X-Database-Id` header). B
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **id** | **String** | Saved query ID | [required] |
-**x_database_id** | **String** | Required. Scope execution to this database (its id). A missing or malformed value is a 400; an unknown database id is a 404. | [required] |
-**execute_saved_query_request** | Option<[**ExecuteSavedQueryRequest**](ExecuteSavedQueryRequest.md)> | Optional version to execute |  |
+**x_database_id** | **String** | ID of the database to run the query in. Required. | [required] |
+**execute_saved_query_request** | Option<[**ExecuteSavedQueryRequest**](ExecuteSavedQueryRequest.md)> | Optional version to run |  |
 
 ### Return type
 
@@ -108,6 +110,8 @@ Name | Type | Description  | Required | Notes
 
 > models::SavedQueryDetail get_saved_query(id)
 Get saved query
+
+Get a saved query and its latest version.
 
 ### Parameters
 
@@ -137,13 +141,15 @@ Name | Type | Description  | Required | Notes
 > models::ListSavedQueriesResponse list_saved_queries(limit, offset)
 List saved queries
 
+List saved queries, sorted by name.
+
 ### Parameters
 
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**limit** | Option<**i32**> | Maximum number of results |  |
-**offset** | Option<**i32**> | Pagination offset |  |
+**limit** | Option<**i32**> | Saved queries to return. Default 100, maximum 1000. |  |
+**offset** | Option<**i32**> | Number of saved queries to skip. Default 0. |  |
 
 ### Return type
 
@@ -166,14 +172,16 @@ Name | Type | Description  | Required | Notes
 > models::ListSavedQueryVersionsResponse list_saved_query_versions(id, limit, offset)
 List saved query versions
 
+List the versions of a saved query, newest first.
+
 ### Parameters
 
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **id** | **String** | Saved query ID | [required] |
-**limit** | Option<**i32**> | Maximum number of versions |  |
-**offset** | Option<**i32**> | Pagination offset |  |
+**limit** | Option<**i32**> | Versions to return. Default 100, maximum 1000. |  |
+**offset** | Option<**i32**> | Number of versions to skip. Default 0. |  |
 
 ### Return type
 
@@ -196,7 +204,7 @@ Name | Type | Description  | Required | Notes
 > models::SavedQueryDetail update_saved_query(id, update_saved_query_request)
 Update saved query
 
-Update a saved query. If the SQL changes, a new version is created (previous versions are preserved). Name, tags, description, and classification overrides can also be updated.
+Update a saved query. Send at least one field; fields you omit do not change. Changing the SQL creates a new version and keeps the old ones.
 
 ### Parameters
 

@@ -11,10 +11,10 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// ColumnTypeSpec : A column type plus the parameters that cannot be expressed by a bare name.
+/// ColumnTypeSpec : A column type with its parameters as separate fields.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ColumnTypeSpec {
-    /// Total number of digits for `DECIMAL` / `NUMERIC` (1–38).
+    /// Total digits for `DECIMAL` or `NUMERIC`, from 1 to 38.
     #[serde(
         rename = "precision",
         default,
@@ -22,7 +22,7 @@ pub struct ColumnTypeSpec {
         skip_serializing_if = "Option::is_none"
     )]
     pub precision: Option<Option<i32>>,
-    /// Number of digits after the decimal point for `DECIMAL` / `NUMERIC`. Requires `precision`, and cannot exceed it.
+    /// Digits after the decimal point for `DECIMAL` or `NUMERIC`. Requires `precision` and cannot exceed it; defaults to 0.
     #[serde(
         rename = "scale",
         default,
@@ -30,13 +30,13 @@ pub struct ColumnTypeSpec {
         skip_serializing_if = "Option::is_none"
     )]
     pub scale: Option<Option<i32>>,
-    /// The type name, e.g. `\"DECIMAL\"`, `\"TIMESTAMP\"`, `\"VARCHAR\"`.
+    /// Type name, such as `\"DECIMAL\"`, `\"TIMESTAMP\"` or `\"VARCHAR\"`.
     #[serde(rename = "type")]
     pub r#type: String,
 }
 
 impl ColumnTypeSpec {
-    /// A column type plus the parameters that cannot be expressed by a bare name.
+    /// A column type with its parameters as separate fields.
     pub fn new(r#type: String) -> ColumnTypeSpec {
         ColumnTypeSpec {
             precision: None,

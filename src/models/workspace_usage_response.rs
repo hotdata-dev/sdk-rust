@@ -11,22 +11,22 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// WorkspaceUsageResponse : Response for GET /v1/usage
+/// WorkspaceUsageResponse : Query and storage usage for a workspace.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct WorkspaceUsageResponse {
-    /// Sum of `bytes_scanned` across all completed/failed query runs since `since`. Null bytes (queries that touched no row data) contribute 0.  This is the storage read the workspace's queries caused, not how much data they covered: a query whose data was already cached contributes little or nothing (see `bytes_scanned` on a query run). Two periods with identical query histories can therefore report different totals, and this figure will not reconcile against a per-query estimate of rows or bytes touched.
+    /// Total `bytes_scanned` of succeeded and failed query runs since `since`. Reads served from cache are not counted.
     #[serde(rename = "bytes_scanned")]
     pub bytes_scanned: i64,
-    /// Number of query runs (succeeded + failed) since `since`.
+    /// Number of succeeded and failed query runs since `since`.
     #[serde(rename = "query_count")]
     pub query_count: i64,
-    /// The period start used for this response (echoed back for the caller to verify).
+    /// Start of the period these totals cover.
     #[serde(rename = "since")]
     pub since: String,
-    /// The workspace's current stored-data footprint in bytes, measured at request time: instant-database data, plus un-consumed uploads, connection caches, and search-index artifacts.
+    /// Bytes the workspace stores now: table data, uploads not yet loaded, and caches and indexes.
     #[serde(rename = "storage_bytes")]
     pub storage_bytes: i64,
-    /// When `storage_bytes` was measured (the time this response was produced).
+    /// When `storage_bytes` was measured.
     #[serde(
         rename = "storage_captured_at",
         default,
@@ -37,7 +37,7 @@ pub struct WorkspaceUsageResponse {
 }
 
 impl WorkspaceUsageResponse {
-    /// Response for GET /v1/usage
+    /// Query and storage usage for a workspace.
     pub fn new(
         bytes_scanned: i64,
         query_count: i64,

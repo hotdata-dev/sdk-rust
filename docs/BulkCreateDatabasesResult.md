@@ -4,10 +4,10 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**batch_id** | **String** | Batch these databases belong to. | 
-**cancelled** | **bool** | True when the batch was stopped before finishing. | 
-**created** | **i64** | How many were created. | 
-**requested** | **i64** | How many databases were asked for. | 
+**batch_id** | **String** | ID of the batch. | 
+**cancelled** | **bool** | Whether the batch was stopped before it finished. | 
+**created** | **i64** | Number of databases created. | 
+**requested** | **i64** | Number of databases requested. | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

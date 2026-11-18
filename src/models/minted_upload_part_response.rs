@@ -11,19 +11,19 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// MintedUploadPartResponse : One minted part URL.
+/// MintedUploadPartResponse : An upload URL for one part.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MintedUploadPartResponse {
-    /// The 1-based part number this URL is for.
+    /// Part number, starting at 1.
     #[serde(rename = "part_number")]
     pub part_number: i32,
-    /// Short-lived URL to `PUT` this part's bytes to. Keep the response's `ETag` and pass the `{part_number, e_tag}` pair to finalize.
+    /// URL to `PUT` the part to. Expires soon. Keep the response's `ETag` for finalize.
     #[serde(rename = "url")]
     pub url: String,
 }
 
 impl MintedUploadPartResponse {
-    /// One minted part URL.
+    /// An upload URL for one part.
     pub fn new(part_number: i32, url: String) -> MintedUploadPartResponse {
         MintedUploadPartResponse { part_number, url }
     }

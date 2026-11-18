@@ -14,10 +14,10 @@ use serde::{Deserialize, Serialize};
 /// QueryRequest : Request body for POST /query
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct QueryRequest {
-    /// When true, execute the query asynchronously and return a query run ID for polling via GET /query-runs/{id}. The query results can be retrieved via GET /results/{id} once the query run status is \"succeeded\".
+    /// Run the query in the background and return a query run ID right away. Poll `GET /v1/query-runs/{id}` for its status.
     #[serde(rename = "async", skip_serializing_if = "Option::is_none")]
     pub r#async: Option<bool>,
-    /// If set (requires `async` = true), first attempt the query synchronously and wait up to this many milliseconds: if it finishes in time the full result is returned, otherwise an async response (a run id to poll) is returned. Must be at least 1000 and at most the server's configured maximum; a value out of that range, or set without `async` = true, is rejected with 400.
+    /// With `async: true`, wait up to this many milliseconds for the result before falling back to a query run ID. Must be between 1000 and 30000.
     #[serde(
         rename = "async_after_ms",
         default,
@@ -25,7 +25,7 @@ pub struct QueryRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub async_after_ms: Option<Option<i32>>,
-    /// Database to scope the query to (its id). Alternative to the `X-Database-Id` header — exactly one source must be provided. If both this field and the header are set and they disagree, the request is rejected with a 400.
+    /// ID of the database to query. Use this or the `X-Database-Id` header; if both are set they must match, or the request fails with 400.
     #[serde(
         rename = "database_id",
         default,
@@ -33,7 +33,7 @@ pub struct QueryRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub database_id: Option<Option<String>>,
-    /// Catalog that unqualified table references resolve against within the query's database scope. Must name a catalog visible in the database (`default`, an attached catalog alias, or a system catalog). Defaults to `default` when omitted.
+    /// Catalog that unqualified table names resolve to. Defaults to the database's default catalog; an unknown catalog fails with 400.
     #[serde(
         rename = "default_catalog",
         default,
@@ -41,7 +41,7 @@ pub struct QueryRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub default_catalog: Option<Option<String>>,
-    /// Schema that unqualified table references resolve against within the query's database scope.  Omit it to use the database's own default schema — the `default_schema` chosen when the database was created, or the single schema it declares, and only `main` when it has neither. The database's `default_schema` field (see `GET /v1/databases/{id}`) reports the value in force.  Setting this field overrides that per query, so sending `main` on a database whose data lives in another schema turns a query that works without the field into a \"table not found\" error. Existence is not validated up front — an unknown schema surfaces as a \"table not found\" error at planning time. Fully-qualified references (`<catalog>.<schema>.<table>`) are unaffected.
+    /// Schema that unqualified table names resolve to. Defaults to the database's `default_schema`; a schema that does not exist makes unqualified tables fail with \"table not found\".
     #[serde(
         rename = "default_schema",
         default,
@@ -49,7 +49,7 @@ pub struct QueryRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub default_schema: Option<Option<String>>,
-    /// SQL dialect the `sql` field is written in. One of `hotsql` (the default), `duckdb`, `postgres`, or `snowflake`. When set to anything other than `hotsql`, the query is translated to HotSQL before it runs, so you can use idioms from that dialect (for example Snowflake `IFF(...)` or Postgres `MOD(a, b)`). Write statements are accepted on the same terms as in HotSQL. An unrecognized value is rejected with a 400.
+    /// SQL dialect of `sql`: `hotsql` (default), `duckdb`, `postgres`, `snowflake` or `clickhouse`. Other dialects are translated to HotSQL before the query runs.
     #[serde(
         rename = "dialect",
         default,

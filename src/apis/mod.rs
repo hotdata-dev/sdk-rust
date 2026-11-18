@@ -124,6 +124,7 @@ pub mod query_api;
 pub mod query_runs_api;
 pub mod results_api;
 pub mod saved_queries_api;
+pub mod streams_api;
 pub mod uploads_api;
 pub mod usage_api;
 pub mod workspaces_api;

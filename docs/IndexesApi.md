@@ -16,14 +16,14 @@ Method | HTTP request | Description
 > models::IndexInfoResponse create_index(connection_id, schema, table, create_index_request)
 Create an index on a table
 
-Create a sorted, BM25 full-text, or vector index on a table. The table must have data loaded, and must not declare a sort order (`sorted_by`): a table with a sort order cannot be indexed. A table can hold several indexes, with two limits: it holds at most one vector index, whichever algorithm it uses; and a vector index that generates its own embeddings (created with `embedding_provider_id`) must be the only index on its table, so it cannot be added alongside an existing index and no further index can be added alongside it. A request refused for any of these reasons gets 400, including when `async` is set. The request body describes the rules in full.
+Create a sorted, BM25 full-text or vector index on a table. The table must hold loaded data and must not declare `sorted_by`.  A table can have only one vector index. A vector index that generates its own embeddings (with `embedding_provider_id`) must be the only index on its table. Requests that break these rules return 400, even with `async` set.
 
 ### Parameters
 
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**connection_id** | **String** | The database's `default_connection_id`, as returned when the database is created or fetched | [required] |
+**connection_id** | **String** | The database's `default_connection_id` | [required] |
 **schema** | **String** | Schema name | [required] |
 **table** | **String** | Table name | [required] |
 **create_index_request** | [**CreateIndexRequest**](CreateIndexRequest.md) |  | [required] |
@@ -49,14 +49,14 @@ Name | Type | Description  | Required | Notes
 > delete_index(connection_id, schema, table, index_name)
 Delete an index
 
-Delete a specific index from a table. An index cannot be deleted while a load into its table is running; that request gets 409 and can be retried once the load finishes. Deleting a vector index that generated its own embeddings keeps the generated column as an ordinary column of the table.
+Delete an index from a table. Returns 409 while a load into the table is running; retry when it finishes. Deleting a vector index that generated its own embeddings keeps the embedding column in the table.
 
 ### Parameters
 
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**connection_id** | **String** | The database's `default_connection_id`, as returned when the database is created or fetched | [required] |
+**connection_id** | **String** | The database's `default_connection_id` | [required] |
 **schema** | **String** | Schema name | [required] |
 **table** | **String** | Table name | [required] |
 **index_name** | **String** | Index name | [required] |
@@ -82,14 +82,14 @@ Name | Type | Description  | Required | Notes
 > models::ListIndexesResponse list_indexes(connection_id, schema, table)
 List indexes on a table
 
-List all indexes created on a table.
+List the indexes on a table.
 
 ### Parameters
 
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**connection_id** | **String** | The database's `default_connection_id`, as returned when the database is created or fetched | [required] |
+**connection_id** | **String** | The database's `default_connection_id` | [required] |
 **schema** | **String** | Schema name | [required] |
 **table** | **String** | Table name | [required] |
 
@@ -114,20 +114,20 @@ Name | Type | Description  | Required | Notes
 > models::ListIndexesPageResponse list_indexes_collection(x_database_id, connection_id, schema, table, index_type, limit, cursor)
 List indexes across tables in a database
 
-List all indexes in the database identified by the required X-Database-Id header, paginated. Optional filters narrow by connection, schema, table, or index type.
+List the indexes in the database named by the `X-Database-Id` header, one page at a time. Filter by connection, schema, table or index type.
 
 ### Parameters
 
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**x_database_id** | **String** | Database to scope to (required) | [required] |
-**connection_id** | Option<**String**> | Filter to one connection |  |
+**x_database_id** | **String** | Database ID. Required. | [required] |
+**connection_id** | Option<**String**> | Filter by connection ID |  |
 **schema** | Option<**String**> | Filter by schema name |  |
 **table** | Option<**String**> | Filter by table name |  |
-**index_type** | Option<**String**> | Filter by index type |  |
-**limit** | Option<**i32**> | Max indexes per page |  |
-**cursor** | Option<**String**> | Pagination cursor |  |
+**index_type** | Option<**String**> | Filter by index type: `sorted`, `bm25` or `vector` |  |
+**limit** | Option<**i32**> | Indexes per page. Default 100, maximum 1000. |  |
+**cursor** | Option<**String**> | The `next_cursor` from the previous page |  |
 
 ### Return type
 

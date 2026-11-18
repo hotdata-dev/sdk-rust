@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// BatchCreateUploadRequest : Request body for `POST /v1/uploads/batch`: create several upload sessions in one call. Each entry is planned independently; the response returns one session per request, in the same order.
+/// BatchCreateUploadRequest : Several files to upload in one call.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BatchCreateUploadRequest {
     #[serde(rename = "uploads")]
@@ -19,7 +19,7 @@ pub struct BatchCreateUploadRequest {
 }
 
 impl BatchCreateUploadRequest {
-    /// Request body for `POST /v1/uploads/batch`: create several upload sessions in one call. Each entry is planned independently; the response returns one session per request, in the same order.
+    /// Several files to upload in one call.
     pub fn new(uploads: Vec<models::CreateUploadRequest>) -> BatchCreateUploadRequest {
         BatchCreateUploadRequest { uploads }
     }

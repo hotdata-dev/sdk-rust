@@ -9,7 +9,7 @@ Name | Type | Description | Notes
 **id** | **String** |  | 
 **name** | **String** |  | 
 **source_type** | **String** |  | 
-**tables_discovered** | **i32** |  | 
+**tables_discovered** | **i32** | Number of tables the connection declares. | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

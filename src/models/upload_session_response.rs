@@ -11,19 +11,19 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// UploadSessionResponse : A created upload session: everything needed to upload the file and later finalize it.
+/// UploadSessionResponse : A new upload, with everything needed to upload and finalize the file.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UploadSessionResponse {
-    /// One-time token that authorizes finalizing this upload. Returned exactly once at create time — store it; it cannot be retrieved again.
+    /// Token to send in the `X-Upload-Finalize-Token` header when you request part URLs or finalize. Returned only once.
     #[serde(rename = "finalize_token")]
     pub finalize_token: String,
-    /// Headers you must send verbatim with each `PUT`. Currently always empty; present so a future mode can require signed headers without changing the response shape.
+    /// Headers to send with each `PUT`. Currently always empty.
     #[serde(rename = "headers")]
     pub headers: std::collections::HashMap<String, String>,
-    /// Upload mode: `single` (upload the whole file with one `PUT` to `url`) or `multipart` (upload each part with one `PUT` to the matching entry in `part_urls`). Modeled as a string so additional modes can be added later without breaking clients.
+    /// `single`: `PUT` the whole file to `url`. `multipart`: `PUT` each part to its own URL.
     #[serde(rename = "mode")]
     pub mode: String,
-    /// For a `multipart` upload (both known-size and streaming), the size in bytes to split the file into: send bytes `[(i-1) * part_size, i * part_size)` as part *i*, with the last part carrying the remainder. Slice by this value — do **not** divide the file evenly by the number of parts, which can make a non-final part smaller than the 5 MiB minimum for a non-final part (the upload then fails at finalize). Absent for `single` uploads.
+    /// For a `multipart` upload, the size of every part except the last, in bytes. Split the file by this size, not evenly by part count, or a part may fall under the 5 MiB minimum and finalize fails.
     #[serde(
         rename = "part_size",
         default,
@@ -31,7 +31,7 @@ pub struct UploadSessionResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub part_size: Option<Option<i64>>,
-    /// For a known-size `multipart` upload, the per-part URLs in ascending part order: `PUT` your file's part *i* (1-based) to `part_urls[i - 1]` and keep each response's `ETag`, then pass the `{part_number, e_tag}` list to finalize. Absent for `single` uploads, and also absent for a streaming (unknown-size) `multipart` upload — there, mint part URLs on demand via `POST /v1/uploads/{upload_id}/parts`.
+    /// For a `multipart` upload of known size, one URL per part, in order: `PUT` part *i* to `part_urls[i - 1]` and keep each response's `ETag` for finalize. Absent for a streaming upload.
     #[serde(
         rename = "part_urls",
         default,
@@ -39,10 +39,10 @@ pub struct UploadSessionResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub part_urls: Option<Option<Vec<String>>>,
-    /// Identifier for this upload. Pass it to the finalize endpoint and to the managed-table load endpoint once finalized.
+    /// ID of the upload. Use it to finalize the upload and then to load it.
     #[serde(rename = "upload_id")]
     pub upload_id: String,
-    /// The URL to `PUT` the raw file bytes to, for a `single` upload. Short-lived — upload promptly and finalize. Absent for `multipart` uploads (use `part_urls`).
+    /// URL to `PUT` the file to, for a `single` upload. Expires soon.
     #[serde(
         rename = "url",
         default,
@@ -53,7 +53,7 @@ pub struct UploadSessionResponse {
 }
 
 impl UploadSessionResponse {
-    /// A created upload session: everything needed to upload the file and later finalize it.
+    /// A new upload, with everything needed to upload and finalize the file.
     pub fn new(
         finalize_token: String,
         headers: std::collections::HashMap<String, String>,

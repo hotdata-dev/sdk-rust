@@ -11,16 +11,16 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// UpdateManagedTableRequest : Request body for setting the columns a table declares constant per key: `PUT /v1/connections/{id}/schemas/{schema}/tables/{table}/constant-per-key` and `PUT /v1/databases/{id}/schemas/{schema}/tables/{table}/constant-per-key`.  The body carries the complete new value: send an empty array to remove the declaration. Sending any other field is rejected — `key`, `partition_by` and `sorted_by` are fixed when the table is created.
+/// UpdateManagedTableRequest : New value for a table's `constant_per_key` setting. Other fields are rejected, because a table's `key`, `partition_by` and `sorted_by` cannot be changed.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UpdateManagedTableRequest {
-    /// Columns whose value is the same for every row sharing this table's key.  Send `[]` to revoke the declaration, which restores the unrestricted search on the next load — this is the kill switch if a declaration turns out to be false.  **Correctness-affecting, not a hint.** If the assertion is false, a keyed mutation supersedes one version of a key and appends beside another, silently duplicating it.
+    /// Columns that always hold the same value for rows with the same `key`. Replaces the current list; send `[]` to clear it. If it is not true, keyed loads silently duplicate rows.
     #[serde(rename = "constant_per_key", skip_serializing_if = "Option::is_none")]
     pub constant_per_key: Option<Vec<String>>,
 }
 
 impl UpdateManagedTableRequest {
-    /// Request body for setting the columns a table declares constant per key: `PUT /v1/connections/{id}/schemas/{schema}/tables/{table}/constant-per-key` and `PUT /v1/databases/{id}/schemas/{schema}/tables/{table}/constant-per-key`.  The body carries the complete new value: send an empty array to remove the declaration. Sending any other field is rejected — `key`, `partition_by` and `sorted_by` are fixed when the table is created.
+    /// New value for a table's `constant_per_key` setting. Other fields are rejected, because a table's `key`, `partition_by` and `sorted_by` cannot be changed.
     pub fn new() -> UpdateManagedTableRequest {
         UpdateManagedTableRequest {
             constant_per_key: None,

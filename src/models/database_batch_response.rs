@@ -11,18 +11,18 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// DatabaseBatchResponse : A bulk-creation batch: the handle for progress, listing, and cancellation.  The databases themselves are listed with `GET /databases?batch=<batch_id>`; this carries the batch's own state rather than its members.
+/// DatabaseBatchResponse : A bulk-create batch. List its databases with `GET /v1/databases?batch=<batch_id>`.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DatabaseBatchResponse {
     #[serde(rename = "batch_id")]
     pub batch_id: String,
-    /// True once stopping has been requested. Databases already created are kept; only further creation stops.
+    /// True once cancellation is requested. Databases already created are kept.
     #[serde(rename = "cancel_requested")]
     pub cancel_requested: bool,
-    /// How many databases the batch was asked to create.
+    /// Number of databases requested.
     #[serde(rename = "count")]
     pub count: i64,
-    /// How many exist so far. Advances as the batch fills.
+    /// Number of databases created so far.
     #[serde(rename = "created_count")]
     pub created_count: i64,
     #[serde(
@@ -32,7 +32,7 @@ pub struct DatabaseBatchResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub expires_at: Option<Option<String>>,
-    /// Job filling this batch. Poll it for status.
+    /// ID of the job creating the databases. Poll it for status.
     #[serde(
         rename = "job_id",
         default,
@@ -50,7 +50,7 @@ pub struct DatabaseBatchResponse {
 }
 
 impl DatabaseBatchResponse {
-    /// A bulk-creation batch: the handle for progress, listing, and cancellation.  The databases themselves are listed with `GET /databases?batch=<batch_id>`; this carries the batch's own state rather than its members.
+    /// A bulk-create batch. List its databases with `GET /v1/databases?batch=<batch_id>`.
     pub fn new(
         batch_id: String,
         cancel_requested: bool,

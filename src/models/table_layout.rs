@@ -11,8 +11,8 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// TableLayout : Storage layout of a table.
-/// Storage layout of a table.
+/// TableLayout : How a table's data files are written. Set when the table is created and fixed after that.  - `analytical` (default): data pages sized for scans. - `point_lookup`: small data pages, so fetching rows by ID is cheap, as   vector search results do. Scans of the table read more pages.
+/// How a table's data files are written. Set when the table is created and fixed after that.  - `analytical` (default): data pages sized for scans. - `point_lookup`: small data pages, so fetching rows by ID is cheap, as   vector search results do. Scans of the table read more pages.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum TableLayout {
     #[serde(rename = "analytical")]

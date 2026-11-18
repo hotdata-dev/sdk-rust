@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// ApiErrorResponse : Standard error response body
+/// ApiErrorResponse : Error response body.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ApiErrorResponse {
     #[serde(rename = "error")]
@@ -19,7 +19,7 @@ pub struct ApiErrorResponse {
 }
 
 impl ApiErrorResponse {
-    /// Standard error response body
+    /// Error response body.
     pub fn new(error: models::ApiErrorDetail) -> ApiErrorResponse {
         ApiErrorResponse {
             error: Box::new(error),

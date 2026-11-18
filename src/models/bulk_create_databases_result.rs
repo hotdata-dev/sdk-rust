@@ -11,25 +11,25 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// BulkCreateDatabasesResult : What a bulk-create job reports when it finishes.
+/// BulkCreateDatabasesResult : Result of a bulk database creation.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BulkCreateDatabasesResult {
-    /// Batch these databases belong to.
+    /// ID of the batch.
     #[serde(rename = "batch_id")]
     pub batch_id: String,
-    /// True when the batch was stopped before finishing.
+    /// Whether the batch was stopped before it finished.
     #[serde(rename = "cancelled")]
     pub cancelled: bool,
-    /// How many were created.
+    /// Number of databases created.
     #[serde(rename = "created")]
     pub created: i64,
-    /// How many databases were asked for.
+    /// Number of databases requested.
     #[serde(rename = "requested")]
     pub requested: i64,
 }
 
 impl BulkCreateDatabasesResult {
-    /// What a bulk-create job reports when it finishes.
+    /// Result of a bulk database creation.
     pub fn new(
         batch_id: String,
         cancelled: bool,

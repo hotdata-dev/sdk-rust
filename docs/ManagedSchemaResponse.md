@@ -4,7 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**connection_id** | **String** | Connection backing the catalog the schema was added to. For a database default catalog this is the database's `default_connection_id`. | 
+**connection_id** | **String** | ID of the connection that holds the schema. For a database, this is its `default_connection_id`. | 
 **schema** | **String** |  | 
 **tables** | **Vec<String>** |  | 
 

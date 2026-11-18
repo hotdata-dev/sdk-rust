@@ -14,7 +14,7 @@ Method | HTTP request | Description
 > models::QueryRunInfo get_query_run(id, x_database_id)
 Get query run
 
-Get the status and details of a specific query run by ID, scoped to the database named by the required X-Database-Id header.
+Get a query run's status and details. Send the `X-Database-Id` header of the database the query ran in.
 
 ### Parameters
 
@@ -22,7 +22,7 @@ Get the status and details of a specific query run by ID, scoped to the database
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **id** | **String** | Query run ID | [required] |
-**x_database_id** | **String** | Database the query run belongs to (required) | [required] |
+**x_database_id** | **String** | ID of the database the query ran in. Required. | [required] |
 
 ### Return type
 
@@ -45,17 +45,17 @@ Name | Type | Description  | Required | Notes
 > models::ListQueryRunsResponse list_query_runs(x_database_id, limit, cursor, status, saved_query_id)
 List query runs
 
-List query runs for the database named by the required X-Database-Id header.
+List the query runs in the database named by the `X-Database-Id` header, newest first, one page at a time. If `has_more` is true, pass `next_cursor` as `cursor` to get the next page.
 
 ### Parameters
 
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**x_database_id** | **String** | Database to scope the query runs to (required) | [required] |
-**limit** | Option<**i32**> | Maximum number of results |  |
-**cursor** | Option<**String**> | Pagination cursor |  |
-**status** | Option<**String**> | Filter by status (comma-separated, e.g. status=running,failed) |  |
+**x_database_id** | **String** | Database ID. Required. | [required] |
+**limit** | Option<**i32**> | Runs per page. Default 100, maximum 1000. |  |
+**cursor** | Option<**String**> | The `next_cursor` from the previous page |  |
+**status** | Option<**String**> | Filter by status, comma-separated, for example `status=running,failed`. Values: `running`, `succeeded`, `failed`, `interrupted`. |  |
 **saved_query_id** | Option<**String**> | Filter by saved query ID |  |
 
 ### Return type

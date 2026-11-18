@@ -11,12 +11,12 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// LineageAncestorInfo : One database up a fork chain.
+/// LineageAncestorInfo : A database up the fork chain.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LineageAncestorInfo {
     #[serde(rename = "database_id")]
     pub database_id: String,
-    /// Why the next database down the chain was forked from it, as given at the time. Absent when none was given.
+    /// Why that fork was taken, if given.
     #[serde(
         rename = "description",
         default,
@@ -24,10 +24,10 @@ pub struct LineageAncestorInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub description: Option<Option<String>>,
-    /// False once the ancestor has been deleted. Its place in the chain is kept either way, and the ancestry continues past it.
+    /// False if the database has been deleted.
     #[serde(rename = "exists")]
     pub exists: bool,
-    /// When the next database down the chain was forked from it.
+    /// When the next database down the chain was forked from this one.
     #[serde(
         rename = "forked_at",
         default,
@@ -35,7 +35,7 @@ pub struct LineageAncestorInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub forked_at: Option<Option<String>>,
-    /// The ancestor's current label, or the one captured at fork time when it no longer exists.
+    /// The database's current name, or its name at fork time if deleted.
     #[serde(
         rename = "name",
         default,
@@ -43,7 +43,7 @@ pub struct LineageAncestorInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub name: Option<Option<String>>,
-    /// Version of this ancestor's data that the next database down the chain copied. See `forked_from.snapshot_id`.
+    /// Point in time of this database's data that the next database down the chain copied.
     #[serde(
         rename = "snapshot_id",
         default,
@@ -54,7 +54,7 @@ pub struct LineageAncestorInfo {
 }
 
 impl LineageAncestorInfo {
-    /// One database up a fork chain.
+    /// A database up the fork chain.
     pub fn new(database_id: String, exists: bool) -> LineageAncestorInfo {
         LineageAncestorInfo {
             database_id,

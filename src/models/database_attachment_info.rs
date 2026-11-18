@@ -11,10 +11,10 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// DatabaseAttachmentInfo : One attached catalog inside a database.
+/// DatabaseAttachmentInfo : A catalog attached to a database.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DatabaseAttachmentInfo {
-    /// Alias under which this catalog is reachable inside the database. When `None`, the catalog is reachable by its original connection name.
+    /// Name of the catalog in SQL. When absent, use the connection's name.
     #[serde(
         rename = "alias",
         default,
@@ -27,7 +27,7 @@ pub struct DatabaseAttachmentInfo {
 }
 
 impl DatabaseAttachmentInfo {
-    /// One attached catalog inside a database.
+    /// A catalog attached to a database.
     pub fn new(connection_id: String) -> DatabaseAttachmentInfo {
         DatabaseAttachmentInfo {
             alias: None,

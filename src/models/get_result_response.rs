@@ -11,9 +11,10 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// GetResultResponse : Response body for GET /results/{id} Returns status and optionally the result data
+/// GetResultResponse : A saved query result: its status and, once `ready`, its data.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct GetResultResponse {
+    /// Column names, in order. Present when `status` is `ready`.
     #[serde(
         rename = "columns",
         default,
@@ -21,6 +22,7 @@ pub struct GetResultResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub columns: Option<Option<Vec<String>>>,
+    /// Why the result failed. Present only when `status` is `failed`.
     #[serde(
         rename = "error_message",
         default,
@@ -28,6 +30,7 @@ pub struct GetResultResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub error_message: Option<Option<String>>,
+    /// Whether each column, in the same order as `columns`, can hold nulls.
     #[serde(
         rename = "nullable",
         default,
@@ -37,6 +40,7 @@ pub struct GetResultResponse {
     pub nullable: Option<Option<Vec<bool>>>,
     #[serde(rename = "result_id")]
     pub result_id: String,
+    /// Number of rows in this response.
     #[serde(
         rename = "row_count",
         default,
@@ -44,7 +48,7 @@ pub struct GetResultResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub row_count: Option<Option<i64>>,
-    /// Array of rows, where each row is an array of column values.
+    /// Result rows. Each row is an array of values in column order.
     #[serde(
         rename = "rows",
         default,
@@ -52,9 +56,10 @@ pub struct GetResultResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub rows: Option<Option<Vec<Vec<models::JsonCell>>>>,
+    /// `pending`, `processing`, `ready` or `failed`.
     #[serde(rename = "status")]
     pub status: String,
-    /// Grand total rows in the full result, ignoring `offset` and `limit`. Present whenever the result is `ready`, and carrying the same value as the `X-Total-Row-Count` response header.  Compare it against `row_count` to tell whether this body is the whole result: `row_count < total_row_count` means the rest is still there, one page further on. Without it a windowed fetch cannot tell a full result from a truncated one from the body alone.
+    /// Number of rows in the full result, ignoring `offset` and `limit`. If `row_count` is smaller, more rows are available on later pages.
     #[serde(
         rename = "total_row_count",
         default,
@@ -65,7 +70,7 @@ pub struct GetResultResponse {
 }
 
 impl GetResultResponse {
-    /// Response body for GET /results/{id} Returns status and optionally the result data
+    /// A saved query result: its status and, once `ready`, its data.
     pub fn new(result_id: String, status: String) -> GetResultResponse {
         GetResultResponse {
             columns: None,

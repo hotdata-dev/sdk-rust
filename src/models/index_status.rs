@@ -11,8 +11,8 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// IndexStatus : Index build status exposed to API consumers.
-/// Index build status exposed to API consumers.
+/// IndexStatus : Index build status: `ready` once built, `pending` until then.
+/// Index build status: `ready` once built, `pending` until then.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum IndexStatus {
     #[serde(rename = "ready")]
