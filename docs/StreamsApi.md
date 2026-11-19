@@ -13,7 +13,7 @@ Method | HTTP request | Description
 
 ## create_stream_handler
 
-> create_stream_handler(database_id, create_stream_request)
+> models::StreamResponse create_stream_handler(database_id, create_stream_request)
 Create a stream
 
 Create a stream: a table you post span or log rows to without declaring its columns. The first request sets the columns from its rows. Each key becomes a column typed from its values, and each key inside an object field also gets its own `field.key` column. Use `columns` to set a column's type or role in advance.  The table is partitioned by day of its time column. With no `time_column`, Hotdata adds `_ingested_at` and sets it to the time each request arrives. The stream's status is `waiting_for_data` until the first request. Streams are available only where they are enabled.
@@ -28,7 +28,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
- (empty response body)
+[**models::StreamResponse**](StreamResponse.md)
 
 ### Authorization
 
@@ -74,7 +74,7 @@ Name | Type | Description  | Required | Notes
 
 ## get_stream_handler
 
-> get_stream_handler(stream_id)
+> models::StreamResponse get_stream_handler(stream_id)
 Get a stream
 
 Get a stream: its table, status, time column and column hints. After the first request, it also lists each column with its type and role: `time`, `large_text`, `normal`, `map_key` or `extra`.  A `map_key` column holds one key of an object field; `from` names the field and key. The `_extra` column keeps, as JSON text, any field that has no column and any value of the wrong type for its column. `pending_bytes` and `oldest_pending_age_ms` describe accepted rows that the answering server has not stored yet; both are null when it holds none.
@@ -88,7 +88,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
- (empty response body)
+[**models::StreamResponse**](StreamResponse.md)
 
 ### Authorization
 
@@ -104,7 +104,7 @@ Name | Type | Description  | Required | Notes
 
 ## ingest_stream_handler
 
-> ingest_stream_handler(stream_id, body)
+> models::IngestStreamResponse ingest_stream_handler(stream_id, ingest_stream_request)
 Append rows to a stream
 
 Append rows to a stream. The body is a JSON object with a `spans` array of rows, up to 64 MiB. The first request sets the stream's columns and returns them.  After that, fields match columns by name. A missing field is null. A field with no column, or a value of the wrong type, goes to the `_extra` column. Every row must carry the time column, unless Hotdata sets `_ingested_at`. The call returns once the rows are accepted; they can be queried within seconds.
@@ -115,11 +115,11 @@ Append rows to a stream. The body is a JSON object with a `spans` array of rows,
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **stream_id** | **String** | Stream ID | [required] |
-**body** | **String** |  | [required] |
+**ingest_stream_request** | [**IngestStreamRequest**](IngestStreamRequest.md) |  | [required] |
 
 ### Return type
 
- (empty response body)
+[**models::IngestStreamResponse**](IngestStreamResponse.md)
 
 ### Authorization
 
