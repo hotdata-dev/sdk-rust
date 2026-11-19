@@ -25,6 +25,8 @@ pub(crate) mod http;
 pub mod http_log;
 pub mod models;
 pub mod query;
+#[cfg(feature = "arrow")]
+pub mod query_arrow;
 pub mod resources;
 pub mod status;
 pub mod uploads;
@@ -43,6 +45,8 @@ pub use auth::{BearerTokenError, BearerTokenProvider};
 #[cfg(feature = "arrow")]
 pub use client::QueryToArrowError;
 pub use client::{AwaitResultError, Client, ClientBuilder, ClientError, PollConfig, QueryOutcome};
+#[cfg(feature = "arrow")]
+pub use query_arrow::ArrowQueryResult;
 // The hand-written cell type behind every `rows` field. Re-exported here
 // because src/models/mod.rs is generated and lists only the type itself.
 pub use models::json_cell::{JsonCell, JsonCellKind};
@@ -79,6 +83,8 @@ pub mod prelude {
     pub use crate::query::{
         PollPolicy, QueryConfig, QueryError, ResultError, RetryPolicy, TooLargeKind,
     };
+    #[cfg(feature = "arrow")]
+    pub use crate::query_arrow::ArrowQueryResult;
     pub use crate::resources::*;
     pub use crate::status::{QueryRunStatus, QueryRunStatusExt, ResultStatus, ResultStatusExt};
     pub use crate::uploads::{UploadError, UploadOptions, UploadProgress};
