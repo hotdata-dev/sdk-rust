@@ -7,10 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [0.23.0] - 2026-11-19
+
 ### Added
 
 - feat(query): add `Client::query_arrow`, which returns a query's rows as Arrow in one request, with the rollup outcome and other response-header values
-
 
 ## [0.22.0] - 2026-11-19
 
