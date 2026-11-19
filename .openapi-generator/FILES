@@ -69,6 +69,8 @@ docs/IndexStatus.md
 docs/IndexesApi.md
 docs/InformationSchemaApi.md
 docs/InformationSchemaResponse.md
+docs/IngestStreamRequest.md
+docs/IngestStreamResponse.md
 docs/JobResult.md
 docs/JobStatus.md
 docs/JobStatusResponse.md
@@ -117,7 +119,10 @@ docs/SavedQueryDetail.md
 docs/SavedQuerySummary.md
 docs/SavedQueryVersionInfo.md
 docs/SetRollupWindowRequest.md
+docs/StreamColumn.md
 docs/StreamColumnHint.md
+docs/StreamColumnSource.md
+docs/StreamResponse.md
 docs/StreamsApi.md
 docs/SubmitJobResponse.md
 docs/TableInfo.md
@@ -222,6 +227,8 @@ src/models/index_entry_response.rs
 src/models/index_info_response.rs
 src/models/index_status.rs
 src/models/information_schema_response.rs
+src/models/ingest_stream_request.rs
+src/models/ingest_stream_response.rs
 src/models/job_result.rs
 src/models/job_status.rs
 src/models/job_status_response.rs
@@ -265,7 +272,10 @@ src/models/saved_query_detail.rs
 src/models/saved_query_summary.rs
 src/models/saved_query_version_info.rs
 src/models/set_rollup_window_request.rs
+src/models/stream_column.rs
 src/models/stream_column_hint.rs
+src/models/stream_column_source.rs
+src/models/stream_response.rs
 src/models/submit_job_response.rs
 src/models/table_info.rs
 src/models/table_layout.rs

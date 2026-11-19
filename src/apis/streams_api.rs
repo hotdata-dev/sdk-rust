@@ -59,7 +59,7 @@ pub async fn create_stream_handler(
     configuration: &configuration::Configuration,
     database_id: &str,
     create_stream_request: models::CreateStreamRequest,
-) -> Result<(), Error<CreateStreamHandlerError>> {
+) -> Result<models::StreamResponse, Error<CreateStreamHandlerError>> {
     // add a prefix to parameters to efficiently prevent name collisions
     let p_path_database_id = database_id;
     let p_body_create_stream_request = create_stream_request;
@@ -98,9 +98,21 @@ pub async fn create_stream_handler(
 
     let status = resp.status();
     crate::http_log::log_response_status(status);
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
 
     if !status.is_client_error() && !status.is_server_error() {
-        Ok(())
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::StreamResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::StreamResponse`")))),
+        }
     } else {
         let content = resp.text().await?;
         crate::http_log::log_response_body(&content);
@@ -173,7 +185,7 @@ pub async fn delete_stream_handler(
 pub async fn get_stream_handler(
     configuration: &configuration::Configuration,
     stream_id: &str,
-) -> Result<(), Error<GetStreamHandlerError>> {
+) -> Result<models::StreamResponse, Error<GetStreamHandlerError>> {
     // add a prefix to parameters to efficiently prevent name collisions
     let p_path_stream_id = stream_id;
 
@@ -208,9 +220,21 @@ pub async fn get_stream_handler(
 
     let status = resp.status();
     crate::http_log::log_response_status(status);
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
 
     if !status.is_client_error() && !status.is_server_error() {
-        Ok(())
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::StreamResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::StreamResponse`")))),
+        }
     } else {
         let content = resp.text().await?;
         crate::http_log::log_response_body(&content);
@@ -227,11 +251,11 @@ pub async fn get_stream_handler(
 pub async fn ingest_stream_handler(
     configuration: &configuration::Configuration,
     stream_id: &str,
-    body: &str,
-) -> Result<(), Error<IngestStreamHandlerError>> {
+    ingest_stream_request: models::IngestStreamRequest,
+) -> Result<models::IngestStreamResponse, Error<IngestStreamHandlerError>> {
     // add a prefix to parameters to efficiently prevent name collisions
     let p_path_stream_id = stream_id;
-    let p_body_body = body;
+    let p_body_ingest_stream_request = ingest_stream_request;
 
     let uri_str = format!(
         "{}/v1/streams/{stream_id}/spans/ingest/sync",
@@ -256,7 +280,7 @@ pub async fn ingest_stream_handler(
     if let Some(token) = configuration.resolve_bearer_token().await {
         req_builder = req_builder.bearer_auth(token);
     };
-    req_builder = req_builder.json(&p_body_body);
+    req_builder = req_builder.json(&p_body_ingest_stream_request);
 
     let req = req_builder.build()?;
     crate::http_log::log_request(&req);
@@ -267,9 +291,21 @@ pub async fn ingest_stream_handler(
 
     let status = resp.status();
     crate::http_log::log_response_status(status);
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
 
     if !status.is_client_error() && !status.is_server_error() {
-        Ok(())
+        let content = resp.text().await?;
+        crate::http_log::log_response_body(&content);
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::IngestStreamResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::IngestStreamResponse`")))),
+        }
     } else {
         let content = resp.text().await?;
         crate::http_log::log_response_body(&content);
