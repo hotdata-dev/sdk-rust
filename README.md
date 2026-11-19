@@ -274,7 +274,7 @@ println!("{} rows, rollup: {:?}", out.num_rows(), out.rollup); // RollupUsage, o
 // out.total_row_count, out.execution_time_ms, out.warning
 ```
 
-HTTP 429 is retried as in `query`. A result too large to send inline is read from the Results API instead (`out.followed` is `true`), up to `QueryConfig::max_auto_rows`; with `auto_follow` off (`query_arrow_with`) it returns `ResultError::NotInline`, carrying the `result_id` to stream yourself.
+HTTP 429 is retried as in `query`. A result too large to send inline is read from the Results API instead (`out.followed` is `true`), up to `QueryConfig::max_auto_rows` and `max_auto_bytes` (the default byte guard is 64 MiB; past a guard it returns `ResultError::TooLarge`); with `auto_follow` off (`query_arrow_with`) it returns `ResultError::NotInline`, carrying the `result_id` to stream yourself.
 
 To run a query and get its result as Arrow in a single call — submit, await
 `ready`, and decode — use `query_to_arrow`:

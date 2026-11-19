@@ -15,7 +15,8 @@
 //! * **Large results.** A result too large to send inline is never sent as
 //!   partial Arrow; the server answers 202 with an `X-Result-Id` header. With
 //!   [`QueryConfig::auto_follow`] on, the saved result is awaited and read from
-//!   the Results API, under the [`QueryConfig::max_auto_rows`] guard. With it
+//!   the Results API, under the [`QueryConfig::max_auto_rows`] and
+//!   [`QueryConfig::max_auto_bytes`] guards (bytes are the size of the decoded batches' data). With it
 //!   off, the call returns [`ResultError::NotInline`] carrying the ids.
 //!
 //! This module is hand-written and listed in `.openapi-generator-ignore`, so it
@@ -46,7 +47,10 @@ use crate::query::{
 };
 
 /// A query result as Arrow, with the values the JSON body would carry.
+///
+/// Marked `#[non_exhaustive]`: fields may be added without a breaking change.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct ArrowQueryResult {
     /// All record batches of the full result, in stream order.
     pub batches: Vec<RecordBatch>,
@@ -157,6 +161,14 @@ async fn submit_with_retry(
 
         let status = resp.status();
         if status == StatusCode::OK {
+            // A 200 that is not Arrow (a server that ignored `Accept`) still
+            // ran the query. Hand its body back rather than a decode error, so
+            // the run id is not lost and the caller is not led to re-run a write.
+            if !is_arrow(resp.headers()) {
+                let body = resp.text().await.map_err(ArrowError::from)?;
+                crate::http_log::log_response_body(&body);
+                return Err(ArrowError::Http { status, body }.into());
+            }
             return read_inline(resp).await.map(Submission::Inline);
         }
 
@@ -282,15 +294,15 @@ async fn follow(
         query_run_id,
     );
 
-    let too_large = |observed: u64, limit: u64| ResultError::TooLarge {
+    let too_large = |kind: TooLargeKind, observed: u64, limit: u64| ResultError::TooLarge {
         result_id: result_id.clone(),
-        kind: TooLargeKind::Rows,
+        kind,
         observed,
         limit,
     };
     if let (Some(max), Some(total)) = (qc.max_auto_rows, total) {
         if total > 0 && total as u64 > max {
-            return Err(too_large(total as u64, max).into());
+            return Err(too_large(TooLargeKind::Rows, total as u64, max).into());
         }
     }
 
@@ -304,11 +316,19 @@ async fn follow(
     let schema = stream.schema();
     let mut batches = Vec::new();
     let mut fetched: u64 = 0;
+    let mut bytes: u64 = 0;
     while let Some(batch) = stream.next_batch().await? {
         fetched += batch.num_rows() as u64;
         if let Some(max) = qc.max_auto_rows {
             if fetched > max {
-                return Err(too_large(fetched, max).into());
+                return Err(too_large(TooLargeKind::Rows, fetched, max).into());
+            }
+        }
+        // The row guard alone does not bound memory: rows can be wide.
+        bytes += batch_bytes(&batch);
+        if let Some(max) = qc.max_auto_bytes {
+            if bytes > max {
+                return Err(too_large(TooLargeKind::Bytes, bytes, max).into());
             }
         }
         batches.push(batch);
@@ -327,6 +347,32 @@ async fn follow(
         result_id: Some(result_id),
         followed: true,
     })
+}
+
+/// Bytes of a batch's own data, for the byte guard.
+///
+/// Not `RecordBatch::get_array_memory_size`: a batch decoded off the wire
+/// borrows from the buffer its whole IPC message arrived in, and that method
+/// charges the full buffer to every column, several times the real size.
+fn batch_bytes(batch: &RecordBatch) -> u64 {
+    batch
+        .columns()
+        .iter()
+        .map(|column| {
+            let data = column.to_data();
+            data.get_slice_memory_size()
+                .unwrap_or_else(|_| data.get_array_memory_size()) as u64
+        })
+        .sum()
+}
+
+/// Does the response declare an Arrow IPC stream body?
+fn is_arrow(headers: &HeaderMap) -> bool {
+    headers
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.split(';').next())
+        .is_some_and(|mime| mime.trim().eq_ignore_ascii_case(ARROW_STREAM_MEDIA_TYPE))
 }
 
 fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
@@ -692,6 +738,64 @@ mod tests {
         assert_eq!(out.num_rows(), 3);
         assert_eq!(out.total_row_count, Some(3));
         assert_eq!(out.rollup, None);
+    }
+
+    #[tokio::test]
+    async fn follow_byte_guard() {
+        let server = MockServer::start().await;
+        mount_too_large(&server, Some("rslt1")).await;
+        mount_ready(&server).await;
+        mount_query_run(&server, 3).await;
+        mount_result_arrow(&server, "1000001").await;
+
+        // Three Int64 rows are 24 bytes: within the row guard, past this one.
+        let qc = fast_config().with_max_auto_bytes(Some(8));
+        let client = test_client(&server.uri(), qc);
+        match client.query_arrow(req(), Some("db1")).await {
+            Err(QueryError::Result(ResultError::TooLarge { kind, limit, .. })) => {
+                assert_eq!((kind, limit), (TooLargeKind::Bytes, 8));
+            }
+            other => panic!("expected TooLarge(Bytes), got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn non_arrow_200_keeps_the_body() {
+        let server = MockServer::start().await;
+        // A server that ignored `Accept` and answered in JSON: the query ran.
+        Mock::given(method("POST"))
+            .and(path("/v1/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "query_run_id": "qrun1", "rows": [[1]]
+            })))
+            .expect(1) // not retried: a write must not run twice
+            .mount(&server)
+            .await;
+        let client = test_client(&server.uri(), fast_config());
+        match client.query_arrow(req(), None).await {
+            Err(QueryError::Arrow(ArrowError::Http { status, body })) => {
+                assert_eq!(status, StatusCode::OK);
+                assert!(body.contains("qrun1"));
+            }
+            other => panic!("expected Arrow(Http), got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn cut_off_arrow_body_is_an_error() {
+        let server = MockServer::start().await;
+        let mut bytes = ipc_bytes();
+        bytes.truncate(bytes.len() / 2);
+        Mock::given(method("POST"))
+            .and(path("/v1/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_raw(bytes, ARROW_STREAM_MEDIA_TYPE))
+            .mount(&server)
+            .await;
+        let client = test_client(&server.uri(), fast_config());
+        assert!(matches!(
+            client.query_arrow(req(), None).await,
+            Err(QueryError::Arrow(ArrowError::Ipc(_)))
+        ));
     }
 
     #[tokio::test]

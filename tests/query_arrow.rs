@@ -28,9 +28,10 @@ fn int_column(batches: &[RecordBatch], name: &str) -> Vec<i64> {
     out
 }
 
-/// A result well past what an inline response holds.
+/// A result well past what an inline response holds, and under the default
+/// 64 MiB follow guard.
 const LARGE_SQL: &str =
-    "SELECT value AS n, repeat('x', 200) AS pad FROM generate_series(1, 300000)";
+    "SELECT value AS n, repeat('x', 100) AS pad FROM generate_series(1, 300000)";
 
 #[tokio::test]
 async fn query_arrow() {

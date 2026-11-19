@@ -347,7 +347,10 @@ impl Client {
     ///
     /// HTTP 429 is retried as in [`Client::query`]. A result too large to send
     /// inline is awaited and read from the Results API instead (`followed` is
-    /// then `true`), up to [`QueryConfig::max_auto_rows`]; with
+    /// then `true`), up to [`QueryConfig::max_auto_rows`] and
+    /// [`QueryConfig::max_auto_bytes`] (the size of the decoded batches' data); past
+    /// a guard it returns [`ResultError::TooLarge`](crate::ResultError::TooLarge).
+    /// With
     /// [`auto_follow`](QueryConfig::auto_follow) off it returns
     /// [`ResultError::NotInline`](crate::ResultError::NotInline), carrying the
     /// ids to read it yourself. Uses the instance [`QueryConfig`]; see
@@ -383,8 +386,7 @@ impl Client {
     }
 
     /// Like [`Client::query_arrow`] but driven by an explicit [`QueryConfig`]
-    /// (retry, poll, `auto_follow`, `max_auto_rows`). `max_auto_bytes` does not
-    /// apply to Arrow.
+    /// (retry, poll, `auto_follow`, `max_auto_rows`, `max_auto_bytes`).
     #[cfg(feature = "arrow")]
     pub async fn query_arrow_with(
         &self,
