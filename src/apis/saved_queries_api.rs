@@ -35,6 +35,7 @@ pub enum DeleteSavedQueryError {
 pub enum ExecuteSavedQueryError {
     Status400(models::ApiErrorResponse),
     Status404(models::ApiErrorResponse),
+    Status408(models::ApiErrorResponse),
     UnknownValue(serde_json::Value),
 }
 
