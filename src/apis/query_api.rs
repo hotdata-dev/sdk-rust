@@ -20,6 +20,7 @@ pub enum QueryError {
     Status400(models::ApiErrorResponse),
     Status403(models::ApiErrorResponse),
     Status404(models::ApiErrorResponse),
+    Status408(models::ApiErrorResponse),
     Status429(models::ApiErrorResponse),
     Status500(models::ApiErrorResponse),
     Status503(models::ApiErrorResponse),
