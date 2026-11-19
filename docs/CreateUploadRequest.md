@@ -4,13 +4,13 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**checksum_algo** | Option<**String**> | Integrity checksum algorithm you are volunteering for this file. Currently only `sha256` is accepted. Optional; pair with `checksum_value`. | [optional]
-**checksum_value** | Option<**String**> | Integrity checksum value, paired with `checksum_algo`. Optional. | [optional]
-**content_encoding** | Option<**String**> | Content encoding to record for the uploaded file (for example `gzip`). Optional. | [optional]
-**content_type** | Option<**String**> | Content type to record for the uploaded file (for example the Parquet, CSV, or JSON MIME type). Optional. | [optional]
-**declared_size_bytes** | Option<**i64**> | The exact size, in bytes, of the file you will upload. Optional. When provided, it is checked at create time against the maximum upload size (16 GiB by default, the same for every file format), so an oversized file is refused before you transfer any of it; it is checked again at finalize against the bytes actually uploaded — a mismatch fails the finalize. Omit it to create a streaming (unknown-size) upload: the session is always multi-part and returns no part URLs up front; instead you mint part URLs on demand from `POST /v1/uploads/{upload_id}/parts` as you upload, and finalize checks only that the file is non-empty and within the maximum upload size. | [optional]
-**filename** | Option<**String**> | Original file name, recorded with the upload for your own bookkeeping. Optional and advisory — it does not affect how the file is uploaded or loaded. | [optional]
-**part_size** | Option<**i64**> | Preferred size, in bytes, of each part for a large (multi-part) upload. Optional hint — the service clamps it to the allowed part-size range and to the maximum number of parts, and ignores it for small files uploaded with a single `PUT`. Omit to let the service choose. | [optional]
+**checksum_algo** | Option<**String**> | Checksum algorithm for `checksum_value`. Only `sha256` is accepted. | [optional]
+**checksum_value** | Option<**String**> | Checksum of the file. Stored with the upload but not verified. | [optional]
+**content_encoding** | Option<**String**> | Content encoding, such as `gzip`, kept with the upload. | [optional]
+**content_type** | Option<**String**> | MIME type of the file. A load uses it to detect the file format when `format` is not set. | [optional]
+**declared_size_bytes** | Option<**i64**> | Exact file size in bytes, checked again when you finalize. Omit it to stream a file of unknown size and get part URLs from `POST /v1/uploads/{upload_id}/parts` as you go. | [optional]
+**filename** | Option<**String**> | File name, kept for your reference. It does not affect the upload or load. | [optional]
+**part_size** | Option<**i64**> | Preferred part size in bytes for a multi-part upload. Hotdata adjusts it to the allowed range; the size it uses is returned as `part_size`. | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

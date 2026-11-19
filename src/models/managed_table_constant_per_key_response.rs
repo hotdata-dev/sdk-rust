@@ -11,25 +11,25 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// ManagedTableConstantPerKeyResponse : The declaration as it now stands after a `constant-per-key` write.  Echoed back rather than returning `204` so a caller can confirm what actually took effect instead of assuming its request applied — the same reason `/v1/information_schema` reports the field.
+/// ManagedTableConstantPerKeyResponse : A table's `constant_per_key` setting after an update.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ManagedTableConstantPerKeyResponse {
-    /// Connection backing the catalog the table belongs to. For a database default catalog this is the database's `default_connection_id`, so it is the value that addresses the table through the connection-scoped endpoints — not the database id the request may have used.
+    /// ID of the connection that holds the table. For a database, this is its `default_connection_id`.
     #[serde(rename = "connection_id")]
     pub connection_id: String,
-    /// The columns now declared constant per key. Empty means no declaration, i.e. the unrestricted search.
+    /// Columns now set as constant per key. Empty means none.
     #[serde(rename = "constant_per_key")]
     pub constant_per_key: Vec<String>,
-    /// Schema the table belongs to, as stored: lowercased, which may differ from the spelling in the request path.
+    /// Schema name, in lowercase.
     #[serde(rename = "schema")]
     pub schema: String,
-    /// Table the declaration was written to, as stored: lowercased, which may differ from the spelling in the request path.
+    /// Table name, in lowercase.
     #[serde(rename = "table")]
     pub table: String,
 }
 
 impl ManagedTableConstantPerKeyResponse {
-    /// The declaration as it now stands after a `constant-per-key` write.  Echoed back rather than returning `204` so a caller can confirm what actually took effect instead of assuming its request applied — the same reason `/v1/information_schema` reports the field.
+    /// A table's `constant_per_key` setting after an update.
     pub fn new(
         connection_id: String,
         constant_per_key: Vec<String>,

@@ -14,9 +14,10 @@ use serde::{Deserialize, Serialize};
 /// UpsertDatabaseContextRequest : Request body for POST `/v1/databases/{database_id}/context`.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UpsertDatabaseContextRequest {
+    /// Text or Markdown, up to 512,000 characters.
     #[serde(rename = "content")]
     pub content: String,
-    /// Upsert key in the catalog. Validated with table-name rules (preserves case): ASCII letter or `_` first; then alphanumeric or `_` only; 1–128 chars; not a SQL reserved word.
+    /// Name of the entry; an existing entry with this name is replaced. 1 to 128 ASCII letters, digits or `_`, not starting with a digit, and not a SQL reserved word.
     #[serde(rename = "name")]
     pub name: String,
 }

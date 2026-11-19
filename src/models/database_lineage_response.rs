@@ -11,31 +11,31 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// DatabaseLineageResponse : Response body for GET /databases/{database_id}/lineage.  Answers where a database came from and what came from it. Everything here is a historical record: forks are independent databases, and lineage does not make one depend on another.
+/// DatabaseLineageResponse : Where a database was forked from, and which databases were forked from it.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DatabaseLineageResponse {
-    /// Fork ancestry, nearest parent first, ending at the database named by `root_id` unless `ancestors_truncated` says otherwise. A deleted generation does not cut the chain short — it is listed with `exists` false and the ancestry continues past it. Empty when this database is not a fork.
+    /// Databases this one descends from, nearest parent first. Deleted ones stay in the list with `exists: false`. Empty when this is not a fork.
     #[serde(rename = "ancestors")]
     pub ancestors: Vec<models::LineageAncestorInfo>,
-    /// True when the ancestry is longer than one response carries, so `ancestors` stops before reaching `root_id`.
+    /// True when `ancestors` stops before reaching `root_id`.
     #[serde(rename = "ancestors_truncated")]
     pub ancestors_truncated: bool,
     /// The database this lineage describes.
     #[serde(rename = "database_id")]
     pub database_id: String,
-    /// How many databases were forked directly from this one in total — so you can tell whether `forks` is the whole set or only the newest of it.
+    /// Total number of databases forked directly from this one.
     #[serde(rename = "fork_count")]
     pub fork_count: i64,
-    /// The databases forked directly from this one, most recently forked first, including any that have since been deleted. A fork of a fork appears in its own parent's lineage, not here.
+    /// Databases forked directly from this one, newest first, including deleted ones. Limited by `forks_limit`.
     #[serde(rename = "forks")]
     pub forks: Vec<models::LineageForkInfo>,
-    /// Top of the family tree: the database the whole chain of forks descends from. Equal to `database_id` when this database is not a fork.
+    /// The original database at the top of the fork chain. Equal to `database_id` when this database is not a fork.
     #[serde(rename = "root_id")]
     pub root_id: String,
 }
 
 impl DatabaseLineageResponse {
-    /// Response body for GET /databases/{database_id}/lineage.  Answers where a database came from and what came from it. Everything here is a historical record: forks are independent databases, and lineage does not make one depend on another.
+    /// Where a database was forked from, and which databases were forked from it.
     pub fn new(
         ancestors: Vec<models::LineageAncestorInfo>,
         ancestors_truncated: bool,

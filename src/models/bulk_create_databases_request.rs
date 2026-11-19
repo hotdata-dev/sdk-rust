@@ -11,13 +11,13 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// BulkCreateDatabasesRequest : Request body for POST /databases/bulk.  One template plus a count, so the body stays small whatever `count` is. Any schemas and tables declared here are applied to every database in the batch; load data into them afterwards exactly as you would for a database created one at a time.
+/// BulkCreateDatabasesRequest : Creates many databases from one template. Each database gets the same schemas and tables.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BulkCreateDatabasesRequest {
     /// How many databases to create.
     #[serde(rename = "count")]
     pub count: i64,
-    /// Name the default catalog answers to inside each database, as on a single create. Defaults to `default`.
+    /// Name of each database's own catalog in SQL. Defaults to `default`.
     #[serde(
         rename = "default_catalog",
         default,
@@ -25,7 +25,7 @@ pub struct BulkCreateDatabasesRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub default_catalog: Option<Option<String>>,
-    /// Schema that unqualified table names resolve to inside each database.
+    /// Schema that unqualified table names resolve to in each database.
     #[serde(
         rename = "default_schema",
         default,
@@ -33,7 +33,7 @@ pub struct BulkCreateDatabasesRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub default_schema: Option<Option<String>>,
-    /// When the created databases expire. Accepts an RFC 3339 timestamp or a relative duration such as `24h`, `90m`, or `7d`.
+    /// When the databases expire: a future RFC 3339 timestamp, or a duration such as `24h`, `90m` or `7d`.
     #[serde(
         rename = "expires_at",
         default,
@@ -41,7 +41,7 @@ pub struct BulkCreateDatabasesRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub expires_at: Option<Option<String>>,
-    /// Repeat this value to retry a request safely. A retry carrying a key that was already used returns the original batch — the same `batch_id` and the same databases — instead of creating a second set.  The key identifies the request, not its contents: reusing a key with a different `count` or template returns the original batch unchanged rather than reporting a mismatch. Use a fresh key per distinct request.
+    /// Key that makes the request safe to retry. A repeated key returns the original batch, even if the rest of the request differs.
     #[serde(
         rename = "idempotency_key",
         default,
@@ -49,7 +49,7 @@ pub struct BulkCreateDatabasesRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub idempotency_key: Option<Option<String>>,
-    /// Optional display-label pattern for each database. Must contain `{index}`, which is replaced with the database's zero-based position, padded with leading zeros to the width of the batch's largest index — with a `count` of 100, `tenant-{index}` produces `tenant-00` through `tenant-99`. A pattern without `{index}` is rejected, since every database in the batch would be given the same label.  Each label also carries a suffix identifying the batch, so repeating the same pattern on a later call does not reuse labels from this one. When omitted, each database is labelled from its own ID.
+    /// Name pattern for the databases. Must contain `{index}`, which becomes each database's zero-padded position (`tenant-00` to `tenant-99` for a count of 100); a batch suffix is added to each name.
     #[serde(
         rename = "name_template",
         default,
@@ -57,13 +57,13 @@ pub struct BulkCreateDatabasesRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub name_template: Option<Option<String>>,
-    /// Schemas and tables to declare on every database in the batch, in the same shape a single create accepts. The declaration applies identically to each database, so a batch of 10,000 declaring one table yields 10,000 databases that each hold that table and are ready to load — with no follow-up call per database. Omitted or empty means each database starts with no tables.
+    /// Schemas and tables to create in every database.
     #[serde(rename = "schemas", skip_serializing_if = "Option::is_none")]
     pub schemas: Option<Vec<models::DatabaseDefaultSchemaDecl>>,
 }
 
 impl BulkCreateDatabasesRequest {
-    /// Request body for POST /databases/bulk.  One template plus a count, so the body stays small whatever `count` is. Any schemas and tables declared here are applied to every database in the batch; load data into them afterwards exactly as you would for a database created one at a time.
+    /// Creates many databases from one template. Each database gets the same schemas and tables.
     pub fn new(count: i64) -> BulkCreateDatabasesRequest {
         BulkCreateDatabasesRequest {
             count,

@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 /// CreateDatabaseRequest : Request body for POST /databases
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CreateDatabaseRequest {
-    /// Optional name the database's auto-created default catalog answers to inside its query scope. Must be a valid SQL identifier (`[a-z0-9_]`, not starting with a digit) and may not collide with the reserved catalog names `hotdata` or `information_schema`. Defaults to `default` when omitted, so `default.main.<table>` keeps working.
+    /// Name of the database's own catalog in SQL. Defaults to `default`. Lowercase letters, digits and `_`, not starting with a digit. Some names are reserved, such as `hotdata` and `information_schema`.
     #[serde(
         rename = "default_catalog",
         default,
@@ -22,7 +22,7 @@ pub struct CreateDatabaseRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub default_catalog: Option<Option<String>>,
-    /// Optional schema that unqualified table names resolve to inside this database's query scope. Must be a valid SQL identifier (`[a-z0-9_]`, not starting with a digit). When omitted, a database that declares exactly one schema adopts that schema as its default; otherwise unqualified names resolve to `main`. Fully-qualified names (`<catalog>.<schema>.<table>`) are unaffected, and a per-query `default_schema` still takes precedence.
+    /// Schema that unqualified table names resolve to. Defaults to the only schema in `schemas` if there is exactly one, otherwise `main`.
     #[serde(
         rename = "default_schema",
         default,
@@ -30,7 +30,7 @@ pub struct CreateDatabaseRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub default_schema: Option<Option<String>>,
-    /// When this database expires. Accepts either an RFC 3339 timestamp (e.g. `\"2026-06-01T00:00:00Z\"`) or a relative duration suffixed with `h` (hours), `m` (minutes), or `d` (days) — for example `\"24h\"`, `\"48h\"`, or `\"7d\"`. Omitted (or empty) means the database never expires. Expiry is best-effort: the database will not be deleted before `expires_at`, but cleanup may run later than the exact timestamp.
+    /// When the database expires: a future RFC 3339 timestamp, or a duration such as `90m`, `24h` or `7d`. Omit for no expiry.
     #[serde(
         rename = "expires_at",
         default,
@@ -38,10 +38,10 @@ pub struct CreateDatabaseRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub expires_at: Option<Option<String>>,
-    /// Return the database that already carries this `name` instead of creating a second one with it. Requires `name`; the comparison is case-insensitive for unaccented Latin letters and digits, and ignores surrounding whitespace, matching `GET /v1/databases/by-name`.  A match responds `200` with the existing database rather than `201`, and is returned exactly as it stands: the rest of this request — `schemas`, `expires_at`, `default_catalog`, `default_schema` — is neither compared against it nor applied to it. Nothing is created, so this is safe to call on every start-up.
+    /// If a database with this `name` exists, return it with 200 instead of creating another. Requires `name`; the rest of the request is ignored on a match.
     #[serde(rename = "if_not_exists", skip_serializing_if = "Option::is_none")]
     pub if_not_exists: Option<bool>,
-    /// Optional free-form display label (for UIs/CLIs). When omitted, a label derived from the database's ID is assigned. Not unique. Not an identifier — databases are always addressed by `id`.  Accepts the legacy `description` key as an alias so clients that predate the rename keep populating this field.
+    /// Display name. Need not be unique. Defaults to a name based on the database ID.
     #[serde(
         rename = "name",
         default,
@@ -49,7 +49,7 @@ pub struct CreateDatabaseRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub name: Option<Option<String>>,
-    /// Optional schemas/tables to declare on the database's auto-created default catalog. Tables declared here can be loaded via the standard managed-table load endpoint targeting `default_connection_id`. Omitted or empty means the default catalog starts empty.
+    /// Schemas and tables to create with the database.
     #[serde(rename = "schemas", skip_serializing_if = "Option::is_none")]
     pub schemas: Option<Vec<models::DatabaseDefaultSchemaDecl>>,
 }

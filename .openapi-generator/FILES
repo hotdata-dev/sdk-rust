@@ -33,6 +33,7 @@ docs/CreateEmbeddingProviderRequest.md
 docs/CreateEmbeddingProviderResponse.md
 docs/CreateIndexRequest.md
 docs/CreateSavedQueryRequest.md
+docs/CreateStreamRequest.md
 docs/CreateUploadRequest.md
 docs/CreateWorkspaceRequest.md
 docs/CreateWorkspaceResponse.md
@@ -47,6 +48,7 @@ docs/DatabaseDetailResponse.md
 docs/DatabaseLineageResponse.md
 docs/DatabaseSummary.md
 docs/DatabasesApi.md
+docs/DeclareRollupRequest.md
 docs/DeleteDatabaseBatchResponse.md
 docs/DiscoveryStatus.md
 docs/EmbeddingProviderResponse.md
@@ -83,6 +85,7 @@ docs/ListIndexesResponse.md
 docs/ListJobsResponse.md
 docs/ListQueryRunsResponse.md
 docs/ListResultsResponse.md
+docs/ListRollupsResponse.md
 docs/ListSavedQueriesResponse.md
 docs/ListSavedQueryVersionsResponse.md
 docs/ListWorkspacesResponse.md
@@ -103,10 +106,19 @@ docs/QueryRunsApi.md
 docs/ResultInfo.md
 docs/ResultsApi.md
 docs/ResultsFormatQuery.md
+docs/Rollup.md
+docs/RollupBuildResponse.md
+docs/RollupMeasure.md
+docs/RollupStatus.md
+docs/RollupUsage.md
+docs/RollupsApi.md
 docs/SavedQueriesApi.md
 docs/SavedQueryDetail.md
 docs/SavedQuerySummary.md
 docs/SavedQueryVersionInfo.md
+docs/SetRollupWindowRequest.md
+docs/StreamColumnHint.md
+docs/StreamsApi.md
 docs/SubmitJobResponse.md
 docs/TableInfo.md
 docs/TableLayout.md
@@ -140,7 +152,9 @@ src/apis/mod.rs
 src/apis/query_api.rs
 src/apis/query_runs_api.rs
 src/apis/results_api.rs
+src/apis/rollups_api.rs
 src/apis/saved_queries_api.rs
+src/apis/streams_api.rs
 src/apis/uploads_api.rs
 src/apis/usage_api.rs
 src/apis/workspaces_api.rs
@@ -177,6 +191,7 @@ src/models/create_embedding_provider_request.rs
 src/models/create_embedding_provider_response.rs
 src/models/create_index_request.rs
 src/models/create_saved_query_request.rs
+src/models/create_stream_request.rs
 src/models/create_upload_request.rs
 src/models/create_workspace_request.rs
 src/models/create_workspace_response.rs
@@ -189,6 +204,7 @@ src/models/database_default_table_decl.rs
 src/models/database_detail_response.rs
 src/models/database_lineage_response.rs
 src/models/database_summary.rs
+src/models/declare_rollup_request.rs
 src/models/delete_database_batch_response.rs
 src/models/discovery_status.rs
 src/models/embedding_provider_response.rs
@@ -221,6 +237,7 @@ src/models/list_indexes_response.rs
 src/models/list_jobs_response.rs
 src/models/list_query_runs_response.rs
 src/models/list_results_response.rs
+src/models/list_rollups_response.rs
 src/models/list_saved_queries_response.rs
 src/models/list_saved_query_versions_response.rs
 src/models/list_workspaces_response.rs
@@ -239,9 +256,16 @@ src/models/query_response.rs
 src/models/query_run_info.rs
 src/models/result_info.rs
 src/models/results_format_query.rs
+src/models/rollup.rs
+src/models/rollup_build_response.rs
+src/models/rollup_measure.rs
+src/models/rollup_status.rs
+src/models/rollup_usage.rs
 src/models/saved_query_detail.rs
 src/models/saved_query_summary.rs
 src/models/saved_query_version_info.rs
+src/models/set_rollup_window_request.rs
+src/models/stream_column_hint.rs
 src/models/submit_job_response.rs
 src/models/table_info.rs
 src/models/table_layout.rs

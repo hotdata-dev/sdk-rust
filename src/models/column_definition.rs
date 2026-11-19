@@ -11,12 +11,12 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// ColumnDefinition : The declared type of one column, as written in a load request's `columns` map.  Accepts either a bare type name or an object carrying the extra parameters some types need:  - simple: `\"VARCHAR\"`, `\"BIGINT\"`, `\"DECIMAL(10,2)\"` - detailed: `{ \"type\": \"DECIMAL\", \"precision\": 10, \"scale\": 2 }`
-/// The declared type of one column, as written in a load request's `columns` map.  Accepts either a bare type name or an object carrying the extra parameters some types need:  - simple: `\"VARCHAR\"`, `\"BIGINT\"`, `\"DECIMAL(10,2)\"` - detailed: `{ \"type\": \"DECIMAL\", \"precision\": 10, \"scale\": 2 }`
+/// ColumnDefinition : A column's type in a load request's `columns` map. Either a type name, such as `\"BIGINT\"` or `\"DECIMAL(10,2)\"`, or an object such as `{ \"type\": \"DECIMAL\", \"precision\": 10, \"scale\": 2 }`.
+/// A column's type in a load request's `columns` map. Either a type name, such as `\"BIGINT\"` or `\"DECIMAL(10,2)\"`, or an object such as `{ \"type\": \"DECIMAL\", \"precision\": 10, \"scale\": 2 }`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ColumnDefinition {
-    /// A bare type name, optionally parameterized: `\"VARCHAR\"`, `\"DECIMAL(10,2)\"`.
+    /// A type name, such as `\"VARCHAR\"` or `\"DECIMAL(10,2)\"`.
     String(String),
     ColumnTypeSpec(Box<models::ColumnTypeSpec>),
 }

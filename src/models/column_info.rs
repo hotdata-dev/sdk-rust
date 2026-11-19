@@ -11,19 +11,22 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// ColumnInfo : Column metadata for API responses
+/// ColumnInfo : A table column.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ColumnInfo {
+    /// Column type, such as `Int64`, `Utf8` or `Timestamp(µs)`.
     #[serde(rename = "data_type")]
     pub data_type: String,
+    /// Column name.
     #[serde(rename = "name")]
     pub name: String,
+    /// Whether the column can hold nulls.
     #[serde(rename = "nullable")]
     pub nullable: bool,
 }
 
 impl ColumnInfo {
-    /// Column metadata for API responses
+    /// A table column.
     pub fn new(data_type: String, name: String, nullable: bool) -> ColumnInfo {
         ColumnInfo {
             data_type,

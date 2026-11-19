@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// CreateConnectionResponse : Response body for POST /connections
+/// CreateConnectionResponse : A newly created connection.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CreateConnectionResponse {
     #[serde(
@@ -29,12 +29,13 @@ pub struct CreateConnectionResponse {
     pub name: String,
     #[serde(rename = "source_type")]
     pub source_type: String,
+    /// Number of tables the connection declares.
     #[serde(rename = "tables_discovered")]
     pub tables_discovered: i32,
 }
 
 impl CreateConnectionResponse {
-    /// Response body for POST /connections
+    /// A newly created connection.
     pub fn new(
         discovery_status: models::DiscoveryStatus,
         id: String,

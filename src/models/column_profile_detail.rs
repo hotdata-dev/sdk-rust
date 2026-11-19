@@ -11,6 +11,8 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
+/// ColumnProfileDetail : Statistics for one column. `type` says which kind:  - `categorical`: text or numeric with 200 or fewer distinct values; lists each value and its count. - `text`: text with more than 200 distinct values; string lengths. - `numeric`: numeric with more than 200 distinct values; min, max and mean. - `temporal`: date or timestamp; min and max. - `boolean`: true and false counts.
+/// Statistics for one column. `type` says which kind:  - `categorical`: text or numeric with 200 or fewer distinct values; lists each value and its count. - `text`: text with more than 200 distinct values; string lengths. - `numeric`: numeric with more than 200 distinct values; min, max and mean. - `temporal`: date or timestamp; min and max. - `boolean`: true and false counts.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ColumnProfileDetail {

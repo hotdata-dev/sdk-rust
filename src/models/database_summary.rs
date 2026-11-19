@@ -22,10 +22,10 @@ pub struct DatabaseSummary {
         skip_serializing_if = "Option::is_none"
     )]
     pub created_at: Option<Option<String>>,
-    /// Name the database's default catalog answers to inside its query scope.
+    /// Name of the database's own catalog in SQL.
     #[serde(rename = "default_catalog")]
     pub default_catalog: String,
-    /// Schema that unqualified table names resolve to inside this database's query scope. `main` unless the database declares a single schema or a `default_schema` was set at create time.
+    /// Schema that unqualified table names resolve to.
     #[serde(rename = "default_schema")]
     pub default_schema: String,
     #[serde(

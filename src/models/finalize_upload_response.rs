@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// FinalizeUploadResponse : Response body for `POST /v1/uploads/{upload_id}/finalize`: the finalized upload, ready to be loaded into a managed table.
+/// FinalizeUploadResponse : A finalized upload, ready to load into a table.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct FinalizeUploadResponse {
     #[serde(
@@ -23,7 +23,7 @@ pub struct FinalizeUploadResponse {
     pub content_type: Option<Option<String>>,
     #[serde(rename = "created_at")]
     pub created_at: String,
-    /// The validated size of the uploaded file in bytes.
+    /// Size of the uploaded file in bytes.
     #[serde(rename = "size_bytes")]
     pub size_bytes: i64,
     #[serde(rename = "status")]
@@ -33,7 +33,7 @@ pub struct FinalizeUploadResponse {
 }
 
 impl FinalizeUploadResponse {
-    /// Response body for `POST /v1/uploads/{upload_id}/finalize`: the finalized upload, ready to be loaded into a managed table.
+    /// A finalized upload, ready to load into a table.
     pub fn new(
         created_at: String,
         size_bytes: i64,
