@@ -260,6 +260,22 @@ while let Some(batch) = stream.next_batch().await? {
 
 All three accept `offset` and `limit` for pagination, and all carry the same authentication and workspace headers as the generated operations. They return `ArrowError::NotReady` if the result is still pending or processing — poll `client.get_result(result_id, database_id)` until its status is `ready` first. `ArrowResult` also surfaces the `X-Total-Row-Count` header (`total_row_count`) and the `rel="next"` pagination `Link` (`next_link`).
 
+### Arrow from the query call
+
+`query_arrow` runs a query and returns the rows as Arrow in one request, without fetching the stored result afterwards. The values the JSON response would carry come back on the result:
+
+```rust
+let mut request = QueryRequest::new("SELECT toStartOfHour(ts) AS h, count() FROM events GROUP BY h".into());
+request.dialect = Some(Some("clickhouse".into()));
+
+let out = client.query_arrow(request, Some(database_id)).await?;
+println!("{} rows, rollup: {:?}", out.num_rows(), out.rollup); // RollupUsage, or None
+// out.batches, out.schema, out.query_run_id, out.result_id,
+// out.total_row_count, out.execution_time_ms, out.warning
+```
+
+HTTP 429 is retried as in `query`. A result too large to send inline is read from the Results API instead (`out.followed` is `true`), up to `QueryConfig::max_auto_rows`; with `auto_follow` off (`query_arrow_with`) it returns `ResultError::NotInline`, carrying the `result_id` to stream yourself.
+
 To run a query and get its result as Arrow in a single call — submit, await
 `ready`, and decode — use `query_to_arrow`:
 

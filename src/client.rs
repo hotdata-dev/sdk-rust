@@ -338,6 +338,64 @@ impl Client {
         .await
     }
 
+    /// Execute a query and get the rows as Arrow in one request.
+    ///
+    /// `POST /v1/query` answers with an Arrow IPC stream, so the batches arrive
+    /// with their column types and no second request; the run id, result id,
+    /// row count, timing, warning and rollup outcome come back as response
+    /// headers, on [`ArrowQueryResult`](crate::ArrowQueryResult).
+    ///
+    /// HTTP 429 is retried as in [`Client::query`]. A result too large to send
+    /// inline is awaited and read from the Results API instead (`followed` is
+    /// then `true`), up to [`QueryConfig::max_auto_rows`]; with
+    /// [`auto_follow`](QueryConfig::auto_follow) off it returns
+    /// [`ResultError::NotInline`](crate::ResultError::NotInline), carrying the
+    /// ids to read it yourself. Uses the instance [`QueryConfig`]; see
+    /// [`query_arrow_with`](Client::query_arrow_with) for a per-call one.
+    ///
+    /// A request with `async = true` is rejected with
+    /// [`QueryError::AsyncRequested`](crate::QueryError::AsyncRequested).
+    /// Requires the `arrow` cargo feature.
+    ///
+    /// ```no_run
+    /// # use hotdata::{Client, models::QueryRequest};
+    /// # async fn run(client: &Client) -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut request = QueryRequest::new("SELECT count() FROM events".into());
+    /// request.dialect = Some(Some("clickhouse".into()));
+    /// let out = client.query_arrow(request, Some("db_123")).await?;
+    /// println!("{} rows, rollup: {:?}", out.num_rows(), out.rollup);
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[cfg(feature = "arrow")]
+    pub async fn query_arrow(
+        &self,
+        request: models::QueryRequest,
+        database_id: Option<&str>,
+    ) -> Result<crate::query_arrow::ArrowQueryResult, query::QueryError> {
+        crate::query_arrow::execute_query_arrow(
+            &self.configuration,
+            request,
+            database_id,
+            &self.query_config,
+        )
+        .await
+    }
+
+    /// Like [`Client::query_arrow`] but driven by an explicit [`QueryConfig`]
+    /// (retry, poll, `auto_follow`, `max_auto_rows`). `max_auto_bytes` does not
+    /// apply to Arrow.
+    #[cfg(feature = "arrow")]
+    pub async fn query_arrow_with(
+        &self,
+        request: models::QueryRequest,
+        database_id: Option<&str>,
+        config: &QueryConfig,
+    ) -> Result<crate::query_arrow::ArrowQueryResult, query::QueryError> {
+        crate::query_arrow::execute_query_arrow(&self.configuration, request, database_id, config)
+            .await
+    }
+
     /// Execute a query and return the bounded inline preview *without*
     /// auto-following a truncated result.
     ///

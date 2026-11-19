@@ -34,7 +34,8 @@
 //! | [`query_preview`](crate::Client::query_preview) | You want only the bounded inline preview — skip auto-follow for this call. |
 //! | [`query_with`](crate::Client::query_with) | Per-call control: a custom [`QueryConfig`] (and optional database scope). |
 //! | [`submit_query`](crate::Client::submit_query) | Asynchronous submission (`async = true`): returns an acknowledgement to poll. |
-//! | [`query_to_arrow`](crate::Client::query_to_arrow) | Run a query and fetch its persisted result as Arrow in one call. |
+//! | [`query_arrow`](crate::Client::query_arrow) | Run a query and get the rows as Arrow in one request, with the rollup outcome and other response-header values. |
+//! | [`query_to_arrow`](crate::Client::query_to_arrow) | Run a query, then fetch a page (`offset` / `limit`) of its persisted result as Arrow. |
 //! | `client.queries().execute()` / [`apis::query_api::query`](crate::apis::query_api::query) | The raw generated op: 429 retry applies (per `Configuration::retry`), but without auto-follow. |
 //!
 //! Instance defaults come from [`ClientBuilder::query_config`](crate::ClientBuilder::query_config);
@@ -302,6 +303,16 @@ pub enum ResultError {
         /// Rows expected (the known total).
         expected: i64,
     },
+    /// [`Client::query_arrow`](crate::Client::query_arrow) only: the result is
+    /// too large to send inline and auto-follow is off. The query still ran;
+    /// wait for the saved result, then read it with
+    /// [`Client::open_result_arrow`](crate::Client::open_result_arrow).
+    NotInline {
+        /// The saved result to read.
+        result_id: String,
+        /// The query run that is producing it.
+        query_run_id: String,
+    },
     /// The response was truncated but carried no `result_id` to follow
     /// (persistence failed — see the response `warning`).
     Unavailable {
@@ -355,6 +366,11 @@ impl std::fmt::Display for ResultError {
                 f,
                 "result {result_id} pagination stalled: fetched {fetched} of {expected} \
                  rows before the server returned an empty page"
+            ),
+            ResultError::NotInline { result_id, .. } => write!(
+                f,
+                "result {result_id} is too large to send inline. Wait for it, then \
+                 read it with Client::open_result_arrow, or turn auto_follow on."
             ),
             ResultError::Unavailable { warning } => {
                 write!(
@@ -412,6 +428,17 @@ pub enum QueryError {
     /// A result-lifecycle error during auto-follow. Match this to handle the
     /// whole [`ResultError`] family at once.
     Result(ResultError),
+    /// [`Client::query_arrow`](crate::Client::query_arrow) only: reading or
+    /// decoding the Arrow rows failed.
+    #[cfg(feature = "arrow")]
+    Arrow(crate::arrow::ArrowError),
+}
+
+#[cfg(feature = "arrow")]
+impl From<crate::arrow::ArrowError> for QueryError {
+    fn from(e: crate::arrow::ArrowError) -> Self {
+        QueryError::Arrow(e)
+    }
 }
 
 impl From<ResultError> for QueryError {
@@ -441,6 +468,8 @@ impl std::fmt::Display for QueryError {
             ),
             QueryError::Poll(e) => write!(f, "failed to follow truncated result: {e}"),
             QueryError::Result(e) => write!(f, "{e}"),
+            #[cfg(feature = "arrow")]
+            QueryError::Arrow(e) => write!(f, "failed to read the result as Arrow: {e}"),
         }
     }
 }
@@ -452,6 +481,8 @@ impl std::error::Error for QueryError {
             QueryError::Submit(e) => Some(e),
             QueryError::Poll(e) => Some(e),
             QueryError::Result(e) => Some(e),
+            #[cfg(feature = "arrow")]
+            QueryError::Arrow(e) => Some(e),
             QueryError::Async(_) | QueryError::AsyncRequested => None,
         }
     }
@@ -600,7 +631,7 @@ fn overloaded(attempts: u32, raw: RawResponse) -> QueryError {
 /// errors so classified are retried; a body/decode failure on this path is read
 /// from `resp.text()` after a status arrived and is excluded by
 /// [`is_pre_response_transport_error`].
-fn is_retryable_submit_error(err: &Error<GeneratedQueryError>) -> bool {
+pub(crate) fn is_retryable_submit_error(err: &Error<GeneratedQueryError>) -> bool {
     matches!(err, Error::Reqwest(e) if is_pre_response_transport_error(e))
 }
 
@@ -643,7 +674,7 @@ async fn send_query(
 
 /// Apply the `X-Workspace-Id` API-key header, mirroring the generated op's
 /// `isKeyInHeader` block.
-fn apply_apikey_headers(
+pub(crate) fn apply_apikey_headers(
     mut req_builder: reqwest::RequestBuilder,
     config: &Configuration,
 ) -> reqwest::RequestBuilder {
