@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 /// CreateEmbeddingProviderRequest : Request body for POST /embedding-providers
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CreateEmbeddingProviderRequest {
-    /// Inline API key. If provided, a secret is auto-created and referenced. Cannot be used together with `secret_name`.
+    /// API key. Hotdata stores it as a secret for you. Cannot be combined with `secret_name`.
     #[serde(
         rename = "api_key",
         default,
@@ -22,15 +22,15 @@ pub struct CreateEmbeddingProviderRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub api_key: Option<Option<String>>,
-    /// Provider-specific configuration (model name, base URL, dimensions, etc.)
+    /// Provider settings, such as `model`, `base_url` and `dimensions`.
     #[serde(rename = "config", skip_serializing_if = "Option::is_none")]
     pub config: Option<std::collections::HashMap<String, serde_json::Value>>,
     #[serde(rename = "name")]
     pub name: String,
-    /// Provider type: \"local\" or \"service\"
+    /// Provider type. Only `service` (a hosted embedding API) is supported.
     #[serde(rename = "provider_type")]
     pub provider_type: String,
-    /// Reference an existing stored secret by name (for service providers).  A stored secret is only sent to an approved provider origin — by default OpenAI's public API. To use a different endpoint, supply the key inline with `api_key` instead, or ask your operator to approve the origin.
+    /// Name of a stored secret that holds the API key. It is only sent to approved endpoints (by default, OpenAI's API); for other endpoints use `api_key`.
     #[serde(
         rename = "secret_name",
         default,

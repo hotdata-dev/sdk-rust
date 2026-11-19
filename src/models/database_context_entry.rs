@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// DatabaseContextEntry : One context entry returned by the API.
+/// DatabaseContextEntry : A named piece of text stored with a database.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DatabaseContextEntry {
     #[serde(rename = "content")]
@@ -23,7 +23,7 @@ pub struct DatabaseContextEntry {
 }
 
 impl DatabaseContextEntry {
-    /// One context entry returned by the API.
+    /// A named piece of text stored with a database.
     pub fn new(content: String, name: String, updated_at: String) -> DatabaseContextEntry {
         DatabaseContextEntry {
             content,

@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// TextProfileDetail : High-cardinality text column (>200 distinct values).
+/// TextProfileDetail : Text column with more than 200 distinct values.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TextProfileDetail {
     /// Average string length
@@ -26,7 +26,7 @@ pub struct TextProfileDetail {
 }
 
 impl TextProfileDetail {
-    /// High-cardinality text column (>200 distinct values).
+    /// Text column with more than 200 distinct values.
     pub fn new(avg_length: f64, max_length: i64, min_length: i64) -> TextProfileDetail {
         TextProfileDetail {
             avg_length,

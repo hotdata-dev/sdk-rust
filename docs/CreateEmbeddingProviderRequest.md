@@ -4,11 +4,11 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**api_key** | Option<**String**> | Inline API key. If provided, a secret is auto-created and referenced. Cannot be used together with `secret_name`. | [optional]
-**config** | Option<**std::collections::HashMap<String, serde_json::Value>**> | Provider-specific configuration (model name, base URL, dimensions, etc.) | [optional]
+**api_key** | Option<**String**> | API key. Hotdata stores it as a secret for you. Cannot be combined with `secret_name`. | [optional]
+**config** | Option<**std::collections::HashMap<String, serde_json::Value>**> | Provider settings, such as `model`, `base_url` and `dimensions`. | [optional]
 **name** | **String** |  | 
-**provider_type** | **String** | Provider type: \"local\" or \"service\" | 
-**secret_name** | Option<**String**> | Reference an existing stored secret by name (for service providers).  A stored secret is only sent to an approved provider origin — by default OpenAI's public API. To use a different endpoint, supply the key inline with `api_key` instead, or ask your operator to approve the origin. | [optional]
+**provider_type** | **String** | Provider type. Only `service` (a hosted embedding API) is supported. | 
+**secret_name** | Option<**String**> | Name of a stored secret that holds the API key. It is only sent to approved endpoints (by default, OpenAI's API); for other endpoints use `api_key`. | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

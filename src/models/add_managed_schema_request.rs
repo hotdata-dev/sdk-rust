@@ -11,17 +11,18 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// AddManagedSchemaRequest : Request body for adding a schema to an existing managed catalog: `POST /v1/connections/{id}/schemas` and `POST /v1/databases/{id}/schemas`. `tables` is optional — omit it to declare an empty schema and add tables later.
+/// AddManagedSchemaRequest : A schema to add to a database or connection.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AddManagedSchemaRequest {
     #[serde(rename = "name")]
     pub name: String,
+    /// Tables to create in the schema. You can also add tables later.
     #[serde(rename = "tables", skip_serializing_if = "Option::is_none")]
     pub tables: Option<Vec<models::AddManagedTableDecl>>,
 }
 
 impl AddManagedSchemaRequest {
-    /// Request body for adding a schema to an existing managed catalog: `POST /v1/connections/{id}/schemas` and `POST /v1/databases/{id}/schemas`. `tables` is optional — omit it to declare an empty schema and add tables later.
+    /// A schema to add to a database or connection.
     pub fn new(name: String) -> AddManagedSchemaRequest {
         AddManagedSchemaRequest { name, tables: None }
     }

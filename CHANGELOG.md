@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- feat(rollups): add rollup management endpoints and query integration
 - feat(jobs): add rollup job types
 
 ## [0.21.0] - 2026-11-06

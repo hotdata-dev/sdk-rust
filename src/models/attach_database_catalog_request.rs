@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 /// AttachDatabaseCatalogRequest : Request body for POST /databases/{database_id}/catalogs
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AttachDatabaseCatalogRequest {
-    /// Optional alias under which this catalog is reachable inside the database. When omitted, it is reachable by the connection's name.
+    /// Name to use for the catalog in SQL. Defaults to the connection's name.
     #[serde(
         rename = "alias",
         default,

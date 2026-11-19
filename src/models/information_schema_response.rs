@@ -11,19 +11,19 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// InformationSchemaResponse : Response body for GET /information_schema
+/// InformationSchemaResponse : A page of tables.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct InformationSchemaResponse {
-    /// Number of tables in this response, the same meaning `count` carries on the results and databases listings.  This is a page size, not a total for the whole filter. Page with `has_more` and `next_cursor`: an empty `tables` array on its own does not mean the listing is finished.
+    /// Number of tables on this page, not the total. An empty `tables` array does not mean the listing is finished: check `has_more`.
     #[serde(rename = "count")]
     pub count: i32,
-    /// True when more tables follow this page. Pass `next_cursor` to fetch them.
+    /// Whether more tables follow. Fetch them with `next_cursor`.
     #[serde(rename = "has_more")]
     pub has_more: bool,
-    /// The page size in effect for this response — the `limit` you asked for, clamped to the server's maximum, or the server default when you sent none.
+    /// Page size used: the `limit` you sent, capped at the maximum, or the default when omitted.
     #[serde(rename = "limit")]
     pub limit: i32,
-    /// Cursor for the next page, present only when `has_more` is `true`. Send it back as the `cursor` query parameter.
+    /// Cursor for the next page, present only when `has_more` is true. Pass it as the `cursor` query parameter.
     #[serde(
         rename = "next_cursor",
         default,
@@ -31,13 +31,13 @@ pub struct InformationSchemaResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub next_cursor: Option<Option<String>>,
-    /// The tables on this page.
+    /// Tables on this page.
     #[serde(rename = "tables")]
     pub tables: Vec<models::TableInfo>,
 }
 
 impl InformationSchemaResponse {
-    /// Response body for GET /information_schema
+    /// A page of tables.
     pub fn new(
         count: i32,
         has_more: bool,

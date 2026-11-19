@@ -26,7 +26,9 @@ pub enum CreateEmbeddingProviderError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DeleteEmbeddingProviderError {
+    Status400(models::ApiErrorResponse),
     Status404(models::ApiErrorResponse),
+    Status409(models::ApiErrorResponse),
     UnknownValue(serde_json::Value),
 }
 
@@ -49,11 +51,13 @@ pub enum ListEmbeddingProvidersError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum UpdateEmbeddingProviderError {
+    Status400(models::ApiErrorResponse),
     Status404(models::ApiErrorResponse),
+    Status409(models::ApiErrorResponse),
     UnknownValue(serde_json::Value),
 }
 
-/// Register a new embedding provider that can be used to generate vector embeddings for text columns. Providers can be service-based (e.g., OpenAI) or local.
+/// Register a provider that turns text into vector embeddings, for use by vector indexes. `provider_type` is `service` (a remote API such as OpenAI) or `local`. Pass the API key inline as `api_key` or as a stored secret with `secret_name`, not both.
 pub async fn create_embedding_provider(
     configuration: &configuration::Configuration,
     create_embedding_provider_request: models::CreateEmbeddingProviderRequest,
@@ -118,6 +122,7 @@ pub async fn create_embedding_provider(
     }
 }
 
+/// Delete an embedding provider. System providers cannot be deleted, and a provider that a vector index uses cannot be deleted until you drop the index.
 pub async fn delete_embedding_provider(
     configuration: &configuration::Configuration,
     id: &str,
@@ -173,6 +178,7 @@ pub async fn delete_embedding_provider(
     }
 }
 
+/// Get an embedding provider by ID.
 pub async fn get_embedding_provider(
     configuration: &configuration::Configuration,
     id: &str,
@@ -238,7 +244,7 @@ pub async fn get_embedding_provider(
     }
 }
 
-/// List all registered embedding providers.
+/// List embedding providers. Built-in system providers come first, then the ones you created.
 pub async fn list_embedding_providers(
     configuration: &configuration::Configuration,
 ) -> Result<models::ListEmbeddingProvidersResponse, Error<ListEmbeddingProvidersError>> {
@@ -296,6 +302,7 @@ pub async fn list_embedding_providers(
     }
 }
 
+/// Update an embedding provider. Only the fields you send change. System providers cannot be updated.
 pub async fn update_embedding_provider(
     configuration: &configuration::Configuration,
     id: &str,

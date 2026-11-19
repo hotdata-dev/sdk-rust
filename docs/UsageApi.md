@@ -13,14 +13,14 @@ Method | HTTP request | Description
 > models::WorkspaceUsageResponse get_usage(since)
 Get workspace usage snapshot
 
-Return aggregated bytes scanned and current storage size for a billing period. Pass `since` as the start of your billing period so the totals line up with your invoice rather than the calendar month.
+Get bytes scanned and query count since `since`, plus current storage size. Set `since` to the start of your billing period so the totals match your invoice.
 
 ### Parameters
 
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**since** | Option<**String**> | Billing period start (ISO-8601). Defaults to the start of the current UTC calendar month when omitted. |  |
+**since** | Option<**String**> | Start of the period, as an ISO 8601 timestamp. Default: the start of the current calendar month, in UTC. |  |
 
 ### Return type
 

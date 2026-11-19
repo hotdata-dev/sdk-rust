@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// ListDatabasesResponse : Response body for GET /databases. Results are returned one page at a time, newest first. When `has_more` is true, pass `next_cursor` back as the `cursor` query parameter to fetch the following page.
+/// ListDatabasesResponse : A page of databases, newest first. When `has_more` is true, pass `next_cursor` as `cursor` to get the next page.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ListDatabasesResponse {
     /// Number of databases returned in this page.
@@ -24,7 +24,7 @@ pub struct ListDatabasesResponse {
     pub count: Option<Option<i32>>,
     #[serde(rename = "databases")]
     pub databases: Vec<models::DatabaseSummary>,
-    /// Whether more databases exist beyond this page.
+    /// Whether more databases exist after this page.
     #[serde(
         rename = "has_more",
         default,
@@ -32,7 +32,7 @@ pub struct ListDatabasesResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub has_more: Option<Option<bool>>,
-    /// Page size applied to this response (after clamping to the maximum).
+    /// Page size used for this response.
     #[serde(
         rename = "limit",
         default,
@@ -40,7 +40,7 @@ pub struct ListDatabasesResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub limit: Option<Option<i32>>,
-    /// Opaque cursor for the next page; present only when `has_more` is true.
+    /// Cursor for the next page. Present only when `has_more` is true.
     #[serde(
         rename = "next_cursor",
         default,
@@ -51,7 +51,7 @@ pub struct ListDatabasesResponse {
 }
 
 impl ListDatabasesResponse {
-    /// Response body for GET /databases. Results are returned one page at a time, newest first. When `has_more` is true, pass `next_cursor` back as the `cursor` query parameter to fetch the following page.
+    /// A page of databases, newest first. When `has_more` is true, pass `next_cursor` as `cursor` to get the next page.
     pub fn new(databases: Vec<models::DatabaseSummary>) -> ListDatabasesResponse {
         ListDatabasesResponse {
             count: None,

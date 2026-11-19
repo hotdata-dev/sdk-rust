@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 /// UpdateSavedQueryRequest : Request body for PUT /v1/queries/{id}
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UpdateSavedQueryRequest {
-    /// Override the auto-detected category. Send `null` to clear (revert to auto).
+    /// Category to use instead of the detected one, such as `point_lookup` or `join`. Send `null` to go back to the detected category.
     #[serde(
         rename = "category_override",
         default,
@@ -22,6 +22,7 @@ pub struct UpdateSavedQueryRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub category_override: Option<Option<String>>,
+    /// New description. Omit to keep the current one.
     #[serde(
         rename = "description",
         default,
@@ -29,7 +30,7 @@ pub struct UpdateSavedQueryRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub description: Option<Option<String>>,
-    /// Optional new name. When omitted the existing name is preserved.
+    /// New name. Omit to keep the current one.
     #[serde(
         rename = "name",
         default,
@@ -37,7 +38,7 @@ pub struct UpdateSavedQueryRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub name: Option<Option<String>>,
-    /// Optional new SQL. When omitted the existing SQL is preserved.
+    /// New SQL. Omit to keep the current SQL.
     #[serde(
         rename = "sql",
         default,
@@ -45,7 +46,7 @@ pub struct UpdateSavedQueryRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub sql: Option<Option<String>>,
-    /// User annotation for table size. Send `null` to clear.
+    /// Your own label for the table size. Send `null` to clear it.
     #[serde(
         rename = "table_size_override",
         default,
@@ -53,6 +54,7 @@ pub struct UpdateSavedQueryRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub table_size_override: Option<Option<String>>,
+    /// New tags, replacing the current ones. Omit to keep them.
     #[serde(
         rename = "tags",
         default,

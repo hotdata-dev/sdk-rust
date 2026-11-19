@@ -11,17 +11,22 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// ListIndexesPageResponse : Response body for `GET /v1/indexes` (paginated, cross-table).
+/// ListIndexesPageResponse : A page of indexes, across tables.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ListIndexesPageResponse {
+    /// Number of indexes on this page.
     #[serde(rename = "count")]
     pub count: i32,
+    /// Whether more indexes follow. Fetch them with `next_cursor`.
     #[serde(rename = "has_more")]
     pub has_more: bool,
+    /// Indexes on this page.
     #[serde(rename = "indexes")]
     pub indexes: Vec<models::IndexEntryResponse>,
+    /// Page size used.
     #[serde(rename = "limit")]
     pub limit: i32,
+    /// Cursor for the next page, present only when `has_more` is true. Pass it as the `cursor` query parameter.
     #[serde(
         rename = "next_cursor",
         default,
@@ -32,7 +37,7 @@ pub struct ListIndexesPageResponse {
 }
 
 impl ListIndexesPageResponse {
-    /// Response body for `GET /v1/indexes` (paginated, cross-table).
+    /// A page of indexes, across tables.
     pub fn new(
         count: i32,
         has_more: bool,

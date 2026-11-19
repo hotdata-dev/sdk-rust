@@ -11,17 +11,18 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// DatabaseDefaultSchemaDecl : One schema declaration inside the database's default catalog, supplied at create time. `tables` defaults to empty, so you can declare just a schema name and add tables later.
+/// DatabaseDefaultSchemaDecl : A schema to create with the database.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DatabaseDefaultSchemaDecl {
     #[serde(rename = "name")]
     pub name: String,
+    /// Tables to create in the schema. You can also add tables later.
     #[serde(rename = "tables", skip_serializing_if = "Option::is_none")]
     pub tables: Option<Vec<models::DatabaseDefaultTableDecl>>,
 }
 
 impl DatabaseDefaultSchemaDecl {
-    /// One schema declaration inside the database's default catalog, supplied at create time. `tables` defaults to empty, so you can declare just a schema name and add tables later.
+    /// A schema to create with the database.
     pub fn new(name: String) -> DatabaseDefaultSchemaDecl {
         DatabaseDefaultSchemaDecl { name, tables: None }
     }

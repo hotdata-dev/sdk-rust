@@ -20,7 +20,7 @@ pub enum GetUsageError {
     UnknownValue(serde_json::Value),
 }
 
-/// Return aggregated bytes scanned and current storage size for a billing period. Pass `since` as the start of your billing period so the totals line up with your invoice rather than the calendar month.
+/// Get bytes scanned and query count since `since`, plus current storage size. Set `since` to the start of your billing period so the totals match your invoice.
 pub async fn get_usage(
     configuration: &configuration::Configuration,
     since: Option<&str>,

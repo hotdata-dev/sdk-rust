@@ -11,8 +11,8 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// JobType : Background job types returned by the API.
-/// Background job types returned by the API.
+/// JobType : Type of background job.
+/// Type of background job.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum JobType {
     #[serde(rename = "noop")]

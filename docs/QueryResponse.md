@@ -4,17 +4,18 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**columns** | **Vec<String>** |  | 
-**execution_time_ms** | **i64** |  | 
-**nullable** | **Vec<bool>** | Nullable flags for each column (parallel to columns vec). True if the column allows NULL values, false if NOT NULL. | 
-**preview_row_count** | **i64** | Number of rows in *this* response body. Always present. For a large result this is a bounded preview, not the grand total — see `total_row_count` and `truncated`. | 
-**query_run_id** | **String** | Unique identifier for the query run record (qrun...). | 
-**result_id** | Option<**String**> | Unique identifier for retrieving this result via GET /results/{id}. When non-null, the result is being persisted asynchronously. Null only when the result fit entirely in this response (`truncated: false`) but could not be persisted for later retrieval — see the `warning` field. A `truncated: true` response ALWAYS carries a non-null, resolvable `result_id`: a truncated result that cannot be persisted fails the request with a retryable HTTP 503 (`PERSISTENCE_UNAVAILABLE`, with a `Retry-After` header) rather than returning a partial body with a dead ticket. | [optional]
-**row_count** | **i32** | **Deprecated** — use `preview_row_count` (rows in this body) and `total_row_count` (grand total) instead. Retained as a back-compat alias and always equal to `preview_row_count`; for a truncated result it is the preview count, *not* the grand total — read `total_row_count` for that. Will be removed in a future release once clients migrate. | 
-**rows** | [**Vec<Vec<models::JsonCell>>**](Vec.md) | Array of rows, where each row is an array of column values. Values can be strings, numbers, booleans, or null. | 
-**total_row_count** | Option<**i64**> | Grand total rows in the full result. Present (and equal to `preview_row_count`) when the whole result fit in this response; `null` while a truncated result is still being persisted. When `null`, read the authoritative total from `GET /v1/query-runs/{id}` (`row_count`) or the `X-Total-Row-Count` header on `GET /v1/results/{id}`. | [optional]
-**truncated** | **bool** | True when `rows` is a bounded preview of a larger result. Fetch the full result via `result_id`. | 
-**warning** | Option<**String**> | Warning message if result persistence could not be initiated. Present only when the full result is returned inline (`truncated: false`) but could not be persisted: `result_id` is then null and the result cannot be re-fetched later, though every row is in this response. A truncated result never carries a warning — if it cannot be persisted the request fails with a retryable HTTP 503 (`PERSISTENCE_UNAVAILABLE`, with a `Retry-After` header) instead. | [optional]
+**columns** | **Vec<String>** | Column names, in order. | 
+**execution_time_ms** | **i64** | Time the query took to run, in milliseconds. | 
+**nullable** | **Vec<bool>** | Whether each column, in the same order as `columns`, can hold nulls. | 
+**preview_row_count** | **i64** | Number of rows in this response. | 
+**query_run_id** | **String** | ID of the query run. | 
+**result_id** | Option<**String**> | ID to fetch this result again with `GET /v1/results/{id}`. Null only when every row is in this response but the result could not be saved; see `warning`. | [optional]
+**rollup** | Option<[**models::RollupUsage**](RollupUsage.md)> |  | [optional]
+**row_count** | **i32** | Deprecated: use `preview_row_count` or `total_row_count`. Always equal to `preview_row_count`. | 
+**rows** | [**Vec<Vec<models::JsonCell>>**](Vec.md) | Result rows. Each row is an array of values in column order. | 
+**total_row_count** | Option<**i64**> | Number of rows in the full result. Null while a truncated result is still being saved; read `row_count` from the query run once it succeeds. | [optional]
+**truncated** | **bool** | True when `rows` is only a preview of a larger result. Fetch the full result with `result_id`. | 
+**warning** | Option<**String**> | Why the result could not be saved. Present only when `result_id` is null; every row is still in this response. | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

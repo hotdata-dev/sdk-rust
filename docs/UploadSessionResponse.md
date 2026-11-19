@@ -4,13 +4,13 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**finalize_token** | **String** | One-time token that authorizes finalizing this upload. Returned exactly once at create time — store it; it cannot be retrieved again. | 
-**headers** | **std::collections::HashMap<String, String>** | Headers you must send verbatim with each `PUT`. Currently always empty; present so a future mode can require signed headers without changing the response shape. | 
-**mode** | **String** | Upload mode: `single` (upload the whole file with one `PUT` to `url`) or `multipart` (upload each part with one `PUT` to the matching entry in `part_urls`). Modeled as a string so additional modes can be added later without breaking clients. | 
-**part_size** | Option<**i64**> | For a `multipart` upload (both known-size and streaming), the size in bytes to split the file into: send bytes `[(i-1) * part_size, i * part_size)` as part *i*, with the last part carrying the remainder. Slice by this value — do **not** divide the file evenly by the number of parts, which can make a non-final part smaller than the 5 MiB minimum for a non-final part (the upload then fails at finalize). Absent for `single` uploads. | [optional]
-**part_urls** | Option<**Vec<String>**> | For a known-size `multipart` upload, the per-part URLs in ascending part order: `PUT` your file's part *i* (1-based) to `part_urls[i - 1]` and keep each response's `ETag`, then pass the `{part_number, e_tag}` list to finalize. Absent for `single` uploads, and also absent for a streaming (unknown-size) `multipart` upload — there, mint part URLs on demand via `POST /v1/uploads/{upload_id}/parts`. | [optional]
-**upload_id** | **String** | Identifier for this upload. Pass it to the finalize endpoint and to the managed-table load endpoint once finalized. | 
-**url** | Option<**String**> | The URL to `PUT` the raw file bytes to, for a `single` upload. Short-lived — upload promptly and finalize. Absent for `multipart` uploads (use `part_urls`). | [optional]
+**finalize_token** | **String** | Token to send in the `X-Upload-Finalize-Token` header when you request part URLs or finalize. Returned only once. | 
+**headers** | **std::collections::HashMap<String, String>** | Headers to send with each `PUT`. Currently always empty. | 
+**mode** | **String** | `single`: `PUT` the whole file to `url`. `multipart`: `PUT` each part to its own URL. | 
+**part_size** | Option<**i64**> | For a `multipart` upload, the size of every part except the last, in bytes. Split the file by this size, not evenly by part count, or a part may fall under the 5 MiB minimum and finalize fails. | [optional]
+**part_urls** | Option<**Vec<String>**> | For a `multipart` upload of known size, one URL per part, in order: `PUT` part *i* to `part_urls[i - 1]` and keep each response's `ETag` for finalize. Absent for a streaming upload. | [optional]
+**upload_id** | **String** | ID of the upload. Use it to finalize the upload and then to load it. | 
+**url** | Option<**String**> | URL to `PUT` the file to, for a `single` upload. Expires soon. | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

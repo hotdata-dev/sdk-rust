@@ -11,12 +11,12 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// LineageForkInfo : One database forked directly from the one being asked about.
+/// LineageForkInfo : A database forked directly from this one.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LineageForkInfo {
     #[serde(rename = "database_id")]
     pub database_id: String,
-    /// Why the fork was taken, as given when it was created. Absent when none was given.
+    /// Why the fork was taken, if given.
     #[serde(
         rename = "description",
         default,
@@ -24,7 +24,7 @@ pub struct LineageForkInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub description: Option<Option<String>>,
-    /// False once the fork has been deleted. The record of it is kept either way, so a source can still account for everything taken from it.
+    /// False if the fork has been deleted.
     #[serde(rename = "exists")]
     pub exists: bool,
     /// When the fork was taken.
@@ -35,7 +35,7 @@ pub struct LineageForkInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub forked_at: Option<Option<String>>,
-    /// Absent once the fork has been deleted — only the record of it remains.
+    /// The fork's name. Absent once the fork is deleted.
     #[serde(
         rename = "name",
         default,
@@ -43,7 +43,7 @@ pub struct LineageForkInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub name: Option<Option<String>>,
-    /// Version of this database's data that the fork copied. See `forked_from.snapshot_id`.
+    /// Point in time of this database's data that the fork copied.
     #[serde(
         rename = "snapshot_id",
         default,
@@ -54,7 +54,7 @@ pub struct LineageForkInfo {
 }
 
 impl LineageForkInfo {
-    /// One database forked directly from the one being asked about.
+    /// A database forked directly from this one.
     pub fn new(database_id: String, exists: bool) -> LineageForkInfo {
         LineageForkInfo {
             database_id,

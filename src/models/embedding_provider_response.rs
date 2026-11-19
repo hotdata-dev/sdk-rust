@@ -26,7 +26,7 @@ pub struct EmbeddingProviderResponse {
     pub name: String,
     #[serde(rename = "provider_type")]
     pub provider_type: String,
-    /// Provider source: \"system\" (from config) or \"user\" (created via API).
+    /// `system` for a built-in provider, which cannot be changed, or `user` for one created through the API.
     #[serde(rename = "source")]
     pub source: String,
     #[serde(rename = "updated_at")]

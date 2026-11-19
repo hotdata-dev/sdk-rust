@@ -11,13 +11,13 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// AsyncQueryResponse : Response returned when a query is submitted asynchronously (202 Accepted).  Poll GET /query-runs/{id} to track progress, sending the same `X-Database-Id` header used to submit the query — the endpoint is scoped to that database and returns 400 without it. Once status is \"succeeded\", retrieve results via GET /results/{result_id}.
+/// AsyncQueryResponse : Returned with 202 when a query runs in the background.  Poll `status_url` with the same `X-Database-Id` header until the run's `status` is `succeeded`, then fetch the result with its `result_id`.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AsyncQueryResponse {
-    /// Unique identifier for the query run.
+    /// ID of the query run.
     #[serde(rename = "query_run_id")]
     pub query_run_id: String,
-    /// Human-readable reason why the query went async (e.g., caching tables for the first time).
+    /// Why the query went to the background, when known.
     #[serde(
         rename = "reason",
         default,
@@ -25,16 +25,16 @@ pub struct AsyncQueryResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub reason: Option<Option<String>>,
-    /// Current status of the query run.
+    /// Status of the query run. Always `running` here.
     #[serde(rename = "status")]
     pub status: String,
-    /// URL to poll for query run status. Requires the same `X-Database-Id` header used to submit the query.
+    /// URL to poll for the run's status. Send the same `X-Database-Id` header.
     #[serde(rename = "status_url")]
     pub status_url: String,
 }
 
 impl AsyncQueryResponse {
-    /// Response returned when a query is submitted asynchronously (202 Accepted).  Poll GET /query-runs/{id} to track progress, sending the same `X-Database-Id` header used to submit the query — the endpoint is scoped to that database and returns 400 without it. Once status is \"succeeded\", retrieve results via GET /results/{result_id}.
+    /// Returned with 202 when a query runs in the background.  Poll `status_url` with the same `X-Database-Id` header until the run's `status` is `succeeded`, then fetch the result with its `result_id`.
     pub fn new(query_run_id: String, status: String, status_url: String) -> AsyncQueryResponse {
         AsyncQueryResponse {
             query_run_id,

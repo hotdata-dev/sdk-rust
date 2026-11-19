@@ -11,12 +11,13 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// TableSortKey : One key of a table's sort order.  Rows are written in this order, which keeps the values in each file within a narrow range and lets queries filtering on those columns skip files entirely. Most useful on columns you filter by ranges, such as a timestamp.
+/// TableSortKey : A sort key. Rows are written in this order, so queries that filter on these columns can skip files. Most useful on columns filtered by range, such as a timestamp.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TableSortKey {
+    /// Column to sort by.
     #[serde(rename = "column")]
     pub column: String,
-    /// `asc` (the default) or `desc`. Null when the table was declared without an explicit direction for this key.
+    /// `asc` (default) or `desc`. Null in a response when it was not set.
     #[serde(
         rename = "direction",
         default,
@@ -24,7 +25,7 @@ pub struct TableSortKey {
         skip_serializing_if = "Option::is_none"
     )]
     pub direction: Option<Option<String>>,
-    /// Where nulls are placed: `first` or `last`. Defaults to the SQL default for the chosen direction. Null when the table was declared without an explicit placement for this key.
+    /// Where nulls go: `first` or `last`. Defaults to `last` for `asc` and `first` for `desc`; null in a response when it was not set.
     #[serde(
         rename = "nulls",
         default,
@@ -35,7 +36,7 @@ pub struct TableSortKey {
 }
 
 impl TableSortKey {
-    /// One key of a table's sort order.  Rows are written in this order, which keeps the values in each file within a narrow range and lets queries filtering on those columns skip files entirely. Most useful on columns you filter by ranges, such as a timestamp.
+    /// A sort key. Rows are written in this order, so queries that filter on these columns can skip files. Most useful on columns filtered by range, such as a timestamp.
     pub fn new(column: String) -> TableSortKey {
         TableSortKey {
             column,

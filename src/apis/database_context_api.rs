@@ -48,7 +48,7 @@ pub enum UpsertDatabaseContextError {
     UnknownValue(serde_json::Value),
 }
 
-/// Removes a named context document from a database.
+/// Delete a context document from a database.
 pub async fn delete_database_context(
     configuration: &configuration::Configuration,
     database_id: &str,
@@ -107,6 +107,7 @@ pub async fn delete_database_context(
     }
 }
 
+/// Get one context document by name.
 pub async fn get_database_context(
     configuration: &configuration::Configuration,
     database_id: &str,
@@ -175,6 +176,7 @@ pub async fn get_database_context(
     }
 }
 
+/// List the context documents saved on a database, sorted by name.
 pub async fn list_database_contexts(
     configuration: &configuration::Configuration,
     database_id: &str,
@@ -240,7 +242,7 @@ pub async fn list_database_contexts(
     }
 }
 
-/// Stores a named document (for example Markdown) scoped to a database. Reuses the same name to replace content.
+/// Save a named text or Markdown document on a database. Saving under an existing name replaces its content. Content can be up to 512,000 characters.
 pub async fn upsert_database_context(
     configuration: &configuration::Configuration,
     database_id: &str,
