@@ -660,19 +660,21 @@ fn apply_apikey_headers(
 
 // --- Shared result-error helper ---------------------------------------------
 
-/// HTTP 409 is authoritative even when its body is absent or cannot be decoded.
-/// Keep other errors intact so each polling API retains its own error surface.
-pub(crate) fn failed_result_message(
-    error: Error<GetResultError>,
-) -> Result<Option<String>, Error<GetResultError>> {
-    match error {
-        Error::ResponseError(response) if response.status == StatusCode::CONFLICT => {
-            Ok(match response.entity {
-                Some(GetResultError::Status409(result)) => result.error_message.flatten(),
-                _ => None,
-            })
-        }
-        other => Err(other),
+/// A failed result arrives as HTTP 409: the generated client raises on any
+/// non-2xx, so "failed" surfaces as an error rather than a status field.
+pub(crate) fn is_failed_result(err: &Error<GetResultError>) -> bool {
+    matches!(err, Error::ResponseError(rc) if rc.status == StatusCode::CONFLICT)
+}
+
+/// The server's message from a failed-result error; best-effort, since the
+/// 409 status alone is authoritative.
+pub(crate) fn failed_result_message(err: Error<GetResultError>) -> Option<String> {
+    match err {
+        Error::ResponseError(ResponseContent {
+            entity: Some(GetResultError::Status409(r)),
+            ..
+        }) => r.error_message.flatten(),
+        _ => None,
     }
 }
 
@@ -697,14 +699,14 @@ pub(crate) async fn wait_for_result(
                 .await
             {
                 Ok(result) => result,
-                Err(error) => {
-                    let error_message = failed_result_message(error).map_err(QueryError::Poll)?;
+                Err(e) if is_failed_result(&e) => {
                     return Err(ResultError::Failed {
                         result_id: result_id.to_owned(),
-                        error_message,
+                        error_message: failed_result_message(e),
                     }
                     .into());
                 }
+                Err(e) => return Err(QueryError::Poll(e)),
             };
 
         match ResultStatus::parse(&result.status) {

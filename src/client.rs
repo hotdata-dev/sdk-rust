@@ -677,14 +677,13 @@ impl Client {
         loop {
             let result = match self.get_result(result_id, database_id).await {
                 Ok(result) => result,
-                Err(error) => {
-                    let error_message =
-                        query::failed_result_message(error).map_err(AwaitResultError::Api)?;
+                Err(e) if query::is_failed_result(&e) => {
                     return Err(AwaitResultError::Failed {
                         result_id: result_id.to_owned(),
-                        error_message,
+                        error_message: query::failed_result_message(e),
                     });
                 }
+                Err(e) => return Err(AwaitResultError::Api(e)),
             };
             match crate::status::ResultStatus::parse(&result.status) {
                 crate::status::ResultStatus::Ready => return Ok(result),
