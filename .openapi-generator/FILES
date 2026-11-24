@@ -101,6 +101,7 @@ docs/MintUploadPartsResponse.md
 docs/MintedUploadPartResponse.md
 docs/NumericProfileDetail.md
 docs/QueryApi.md
+docs/QueryParam.md
 docs/QueryRequest.md
 docs/QueryResponse.md
 docs/QueryRunInfo.md
@@ -258,6 +259,7 @@ src/models/mint_upload_parts_response.rs
 src/models/minted_upload_part_response.rs
 src/models/mod.rs
 src/models/numeric_profile_detail.rs
+src/models/query_param.rs
 src/models/query_request.rs
 src/models/query_response.rs
 src/models/query_run_info.rs

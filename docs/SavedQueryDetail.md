@@ -17,6 +17,7 @@ Name | Type | Description | Notes
 **latest_version** | **i32** |  | 
 **name** | **String** |  | 
 **num_tables** | Option<**i32**> |  | [optional]
+**params** | [**Vec<models::QueryParam>**](QueryParam.md) | Parameters the latest version declares. | 
 **sql** | **String** |  | 
 **sql_hash** | **String** |  | 
 **table_size** | Option<**String**> |  | [optional]
