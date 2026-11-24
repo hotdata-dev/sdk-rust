@@ -38,6 +38,14 @@ pub struct UpdateSavedQueryRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub name: Option<Option<String>>,
+    /// New parameters, replacing the current ones; send `[]` to remove them. Omit to keep them. Changing the parameters creates a new version, as changing the SQL does.
+    #[serde(
+        rename = "params",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub params: Option<Option<Vec<models::QueryParam>>>,
     /// New SQL. Omit to keep the current SQL.
     #[serde(
         rename = "sql",
@@ -71,6 +79,7 @@ impl UpdateSavedQueryRequest {
             category_override: None,
             description: None,
             name: None,
+            params: None,
             sql: None,
             table_size_override: None,
             tags: None,

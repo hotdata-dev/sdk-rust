@@ -57,6 +57,14 @@ pub struct QueryRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub dialect: Option<Option<String>>,
+    /// Values for the parameters `sql` names as `$name`, by name. A value is bound as a value, never as SQL text, so it cannot change what the statement does. Works in reads and in `INSERT`, `UPDATE` and `DELETE`. Every `$name` in the SQL needs a value and every value must be used, or the request fails with 400.  Each value takes the type the SQL gives its parameter: `ts >= $start` reads `start` as a timestamp string, `id = $id` as the type of `id`, and a value that does not fit that type is refused. Where the SQL gives the parameter no type (`SELECT $x`), a string, number or boolean keeps its own type; write `CAST($x AS ...)` to choose another, and a null needs a typed position. Parameters are not available in other dialects, and cannot be arguments of `vector_search`, `bm25_search` or the vector distance functions.
+    #[serde(
+        rename = "params",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub params: Option<Option<serde_json::Value>>,
     #[serde(rename = "sql")]
     pub sql: String,
 }
@@ -71,6 +79,7 @@ impl QueryRequest {
             default_catalog: None,
             default_schema: None,
             dialect: None,
+            params: None,
             sql,
         }
     }

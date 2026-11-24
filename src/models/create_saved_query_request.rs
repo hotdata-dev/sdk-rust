@@ -23,6 +23,14 @@ pub struct CreateSavedQueryRequest {
     pub description: Option<Option<String>>,
     #[serde(rename = "name")]
     pub name: String,
+    /// Parameters the SQL uses, written in it as `$name`. Each value is checked against its type and bound as a value when the query runs, never as SQL text. Every `$name` in the SQL must be declared here, and every declared parameter must appear in the SQL.
+    #[serde(
+        rename = "params",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub params: Option<Option<Vec<models::QueryParam>>>,
     #[serde(rename = "sql")]
     pub sql: String,
     #[serde(
@@ -40,6 +48,7 @@ impl CreateSavedQueryRequest {
         CreateSavedQueryRequest {
             description: None,
             name,
+            params: None,
             sql,
             tags: None,
         }

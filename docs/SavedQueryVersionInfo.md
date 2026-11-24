@@ -13,6 +13,7 @@ Name | Type | Description | Notes
 **has_order_by** | Option<**bool**> |  | [optional]
 **has_predicate** | Option<**bool**> |  | [optional]
 **num_tables** | Option<**i32**> |  | [optional]
+**params** | [**Vec<models::QueryParam>**](QueryParam.md) | Parameters this version declares. | 
 **sql** | **String** |  | 
 **sql_hash** | **String** |  | 
 **table_size** | Option<**String**> |  | [optional]

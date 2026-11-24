@@ -72,6 +72,9 @@ pub struct SavedQueryVersionInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub num_tables: Option<Option<i32>>,
+    /// Parameters this version declares.
+    #[serde(rename = "params")]
+    pub params: Vec<models::QueryParam>,
     #[serde(rename = "sql")]
     pub sql: String,
     #[serde(rename = "sql_hash")]
@@ -91,6 +94,7 @@ impl SavedQueryVersionInfo {
     /// Single saved query version
     pub fn new(
         created_at: String,
+        params: Vec<models::QueryParam>,
         sql: String,
         sql_hash: String,
         version: i32,
@@ -105,6 +109,7 @@ impl SavedQueryVersionInfo {
             has_order_by: None,
             has_predicate: None,
             num_tables: None,
+            params,
             sql,
             sql_hash,
             table_size: None,

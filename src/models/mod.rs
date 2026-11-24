@@ -188,6 +188,8 @@ pub mod minted_upload_part_response;
 pub use self::minted_upload_part_response::MintedUploadPartResponse;
 pub mod numeric_profile_detail;
 pub use self::numeric_profile_detail::NumericProfileDetail;
+pub mod query_param;
+pub use self::query_param::QueryParam;
 pub mod query_request;
 pub use self::query_request::QueryRequest;
 pub mod query_response;

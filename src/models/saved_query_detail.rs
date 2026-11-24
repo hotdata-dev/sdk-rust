@@ -80,6 +80,9 @@ pub struct SavedQueryDetail {
         skip_serializing_if = "Option::is_none"
     )]
     pub num_tables: Option<Option<i32>>,
+    /// Parameters the latest version declares.
+    #[serde(rename = "params")]
+    pub params: Vec<models::QueryParam>,
     #[serde(rename = "sql")]
     pub sql: String,
     #[serde(rename = "sql_hash")]
@@ -105,6 +108,7 @@ impl SavedQueryDetail {
         id: String,
         latest_version: i32,
         name: String,
+        params: Vec<models::QueryParam>,
         sql: String,
         sql_hash: String,
         tags: Vec<String>,
@@ -124,6 +128,7 @@ impl SavedQueryDetail {
             latest_version,
             name,
             num_tables: None,
+            params,
             sql,
             sql_hash,
             table_size: None,

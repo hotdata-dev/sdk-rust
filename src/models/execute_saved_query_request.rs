@@ -14,6 +14,14 @@ use serde::{Deserialize, Serialize};
 /// ExecuteSavedQueryRequest : Request body for POST /v1/queries/{id}/execute
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ExecuteSavedQueryRequest {
+    /// A value for each parameter the version declares, by name. A parameter you leave out takes its default. `null` passes a null of the parameter's type.
+    #[serde(
+        rename = "params",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub params: Option<Option<serde_json::Value>>,
     /// Version to run. Defaults to the latest.
     #[serde(
         rename = "version",
@@ -27,6 +35,9 @@ pub struct ExecuteSavedQueryRequest {
 impl ExecuteSavedQueryRequest {
     /// Request body for POST /v1/queries/{id}/execute
     pub fn new() -> ExecuteSavedQueryRequest {
-        ExecuteSavedQueryRequest { version: None }
+        ExecuteSavedQueryRequest {
+            params: None,
+            version: None,
+        }
     }
 }
