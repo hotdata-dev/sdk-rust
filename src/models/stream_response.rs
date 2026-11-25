@@ -28,6 +28,14 @@ pub struct StreamResponse {
     /// Stream ID.
     #[serde(rename = "id")]
     pub id: String,
+    /// True when the ID index has recorded every stored row for each ID column the server indexes (trace and span IDs, unless configured otherwise). False while it is catching up, or when a column was added to the index after rows were stored. It reports what the index recorded and does not run a lookup. Lookups by an ID column it does not cover return the same rows, more slowly. Omitted when the server does not index IDs.
+    #[serde(
+        rename = "id_index_up_to_date",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub id_index_up_to_date: Option<Option<bool>>,
     /// When rows were last stored. Null before the first time.
     #[serde(
         rename = "last_flushed_at",
@@ -103,6 +111,7 @@ impl StreamResponse {
             column_hints: None,
             columns: None,
             id,
+            id_index_up_to_date: None,
             last_flushed_at: None,
             oldest_pending_age_ms: None,
             pending_bytes: None,
