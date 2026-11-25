@@ -689,6 +689,28 @@ pub(crate) fn apply_apikey_headers(
     req_builder
 }
 
+// --- Shared result-error helper ---------------------------------------------
+
+/// A failed result arrives as HTTP 409: the generated client raises on any
+/// non-2xx, so "failed" surfaces as an error rather than a status field.
+pub(crate) fn is_failed_result(err: &Error<GetResultError>) -> bool {
+    matches!(err, Error::ResponseError(rc) if rc.status == StatusCode::CONFLICT)
+}
+
+/// The server's message from a failed-result error; best-effort, since the
+/// 409 status alone is authoritative.
+pub(crate) fn failed_result_message(err: Error<GetResultError>) -> Option<String> {
+    match err {
+        Error::ResponseError(ResponseContent {
+            entity: Some(GetResultError::Status409(r)),
+            ..
+        }) => r.error_message.flatten(),
+        _ => None,
+    }
+}
+
+// --- End shared result-error helper -----------------------------------------
+
 /// Poll `GET /v1/results/{id}` until the result is `ready`, returning the ready
 /// response. Polls with `limit=0` so the readiness check fetches status only — a
 /// `ready` result would otherwise return its full (unbounded) row set on every
@@ -708,18 +730,10 @@ pub(crate) async fn wait_for_result(
                 .await
             {
                 Ok(result) => result,
-                // A failed result is delivered as HTTP 409: the generated client
-                // raises on any non-2xx rather than returning status="failed". The
-                // GetResultResponse body — and its error_message — rides on the
-                // typed Status409 entity.
-                Err(Error::ResponseError(rc)) if rc.status == StatusCode::CONFLICT => {
-                    let error_message = match rc.entity {
-                        Some(GetResultError::Status409(r)) => r.error_message.flatten(),
-                        _ => None,
-                    };
+                Err(e) if is_failed_result(&e) => {
                     return Err(ResultError::Failed {
                         result_id: result_id.to_owned(),
-                        error_message,
+                        error_message: failed_result_message(e),
                     }
                     .into());
                 }

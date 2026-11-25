@@ -721,7 +721,7 @@ impl Client {
     /// (required to re-fetch a result later, e.g. as Arrow) completes
     /// asynchronously. This polls [`get_result`](Client::get_result) on
     /// `result_id` until its `status` is `ready`, then returns that response.
-    /// A `failed` status returns [`AwaitResultError::Failed`]; exceeding
+    /// HTTP 409 or a `failed` status returns [`AwaitResultError::Failed`]; exceeding
     /// `poll.timeout` returns [`AwaitResultError::Timeout`]. Use
     /// `PollConfig::default()` for sensible defaults (120s timeout, 1s interval).
     ///
@@ -735,10 +735,16 @@ impl Client {
     ) -> Result<models::GetResultResponse, AwaitResultError> {
         let deadline = std::time::Instant::now() + poll.timeout;
         loop {
-            let result = self
-                .get_result(result_id, database_id)
-                .await
-                .map_err(AwaitResultError::Api)?;
+            let result = match self.get_result(result_id, database_id).await {
+                Ok(result) => result,
+                Err(e) if query::is_failed_result(&e) => {
+                    return Err(AwaitResultError::Failed {
+                        result_id: result_id.to_owned(),
+                        error_message: query::failed_result_message(e),
+                    });
+                }
+                Err(e) => return Err(AwaitResultError::Api(e)),
+            };
             match crate::status::ResultStatus::parse(&result.status) {
                 crate::status::ResultStatus::Ready => return Ok(result),
                 crate::status::ResultStatus::Failed => {
@@ -887,7 +893,7 @@ impl Default for PollConfig {
 pub enum AwaitResultError {
     /// The underlying `get_result` call failed.
     Api(Error<apis::results_api::GetResultError>),
-    /// The result reached `failed` status.
+    /// The result failed (HTTP 409 or a `failed` status).
     Failed {
         /// The result id that failed.
         result_id: String,
